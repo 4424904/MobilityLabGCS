@@ -13,6 +13,7 @@ QtObject {
     readonly property color lineStrong:     "#3d4e55"
     readonly property color text:           "#e8eeeb"
     readonly property color dim:            "#93a3a8"
+    readonly property color label:          "#b9c6ca"   // value labels: readable over imagery
     readonly property color faint:          "#5f7076"
     readonly property color accent:         "#4fd3ea"   // selected / informational
     readonly property color active:         "#ef5fe0"   // active route, RTL

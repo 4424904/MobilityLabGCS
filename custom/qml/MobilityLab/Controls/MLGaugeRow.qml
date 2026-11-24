@@ -72,7 +72,7 @@ Item {
         anchors.baseline:   valueText.baseline
         elide:              Text.ElideRight
         text:               root._spec.label !== undefined ? root._spec.label : root.key
-        color:              MLTheme.dim
+        color:              MLTheme.label
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 

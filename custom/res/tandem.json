@@ -110,7 +110,7 @@
             "alert": true, "cautionText": "연료 잔량 낮음", "warningText": "연료 부족 · 즉시 복귀/착륙"
         },
         "fuel.L": {
-            "label": "연료 잔량", "unit": "L", "min": 0, "max": 100, "decimals": 1
+            "label": "잔여 연료량", "unit": "L", "min": 0, "max": 100, "decimals": 1
         },
         "fuel.endurance": {
             "label": "체공 가능", "unit": "분", "min": 0, "max": 180, "decimals": 0,

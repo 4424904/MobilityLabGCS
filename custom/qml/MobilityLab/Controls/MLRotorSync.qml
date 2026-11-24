@@ -107,7 +107,7 @@ Item {
             anchors.topMargin:          ScreenTools.defaultFontPixelHeight * 0.15
             anchors.horizontalCenter:   ring.horizontalCenter
             text:                       disc.title
-            color:                      MLTheme.dim
+            color:                      MLTheme.label
             font.pointSize:             ScreenTools.smallFontPointSize
         }
     }
@@ -179,7 +179,7 @@ Item {
             QGCLabel {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text:           qsTr("전·후방 편차")
-                color:          MLTheme.dim
+                color:          MLTheme.label
                 font.pointSize: ScreenTools.smallFontPointSize
             }
         }
