@@ -37,7 +37,7 @@ run_case () {
     python3 mlgcs/tools/fake_vehicle.py --scenario "$scenario" --duration 150 > "$OUT/$name-vehicle.log" 2>&1 &
     local veh=$!
 
-    DISPLAY="$disp" QT_QPA_PLATFORM=xcb "$BIN" --clear-settings --swrast > "$OUT/$name-app.log" 2>&1 &
+    DISPLAY="$disp" QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 "$BIN" --clear-settings > "$OUT/$name-app.log" 2>&1 &
     local app=$!
 
     sleep 45
