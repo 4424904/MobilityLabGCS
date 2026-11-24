@@ -15,8 +15,11 @@ if [[ -z "$BIN" ]]; then
     exit 1
 fi
 echo "Binary: $BIN"
+echo "=== Missing shared libraries (should be empty)"
+ldd "$BIN" | grep "not found" || true
 
-python3 -m pip install --quiet --user pymavlink pillow || python3 -m pip install --quiet --break-system-packages pymavlink pillow
+python3 -m pip install --quiet pymavlink pillow || python3 -m pip install --quiet --break-system-packages pymavlink pillow
+python3 -c "import pymavlink, PIL; print('pymavlink/pillow ok')"
 
 shot () {
     python3 -c "from PIL import ImageGrab; ImageGrab.grab(xdisplay='$1').save('$2')" || echo "screenshot failed: $2"
