@@ -1,0 +1,27 @@
+<RCC>
+    <!-- QML overrides: qrc:/qml/X is replaced by qrc:/Custom/qml/X (see MLOverrideInterceptor) -->
+    <qresource prefix="/Custom/qml">
+        <file alias="QGroundControl/FlyView/FlyViewCustomLayer.qml">qml/overrides/FlyViewCustomLayer.qml</file>
+        <file alias="QGroundControl/FlyView/FlyViewToolStripActionList.qml">qml/overrides/FlyViewToolStripActionList.qml</file>
+    </qresource>
+    <!-- Branding overrides -->
+    <qresource prefix="/Custom/res">
+        <file alias="QGCLogoFull.svg">res/icons/MobilityLabLogo.svg</file>
+        <file alias="QGCLogoWhite.svg">res/icons/MobilityLabLogo.svg</file>
+        <file alias="qgroundcontrol.ico">deploy/windows/MobilityLabGCS.ico</file>
+    </qresource>
+    <!-- MobilityLab resources -->
+    <qresource prefix="/MobilityLab">
+        <file alias="tandem.json">res/tandem.json</file>
+        <file alias="logo.svg">res/icons/MobilityLabLogo.svg</file>
+        <file alias="icons/takeoff.svg">res/icons/takeoff.svg</file>
+        <file alias="icons/land.svg">res/icons/land.svg</file>
+        <file alias="icons/rtl.svg">res/icons/rtl.svg</file>
+        <file alias="icons/pause.svg">res/icons/pause.svg</file>
+        <file alias="icons/play.svg">res/icons/play.svg</file>
+        <file alias="icons/arm.svg">res/icons/arm.svg</file>
+        <file alias="icons/kill.svg">res/icons/kill.svg</file>
+        <file alias="icons/abort.svg">res/icons/abort.svg</file>
+        <file alias="icons/collapse.svg">res/icons/collapse.svg</file>
+    </qresource>
+</RCC>

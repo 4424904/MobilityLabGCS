@@ -1,0 +1,130 @@
+{
+    "_readme": [
+        "MobilityLab GCS - tandem helicopter telemetry mapping and limits.",
+        "Copy this file to the application data folder (Windows: %LOCALAPPDATA%/MobilityLab/MobilityLabGCS/tandem.json) to override it without rebuilding.",
+        "zones: [from, to, level] with level = normal | caution | warning. Values outside every zone use the nearest end zone.",
+        "All limits below are PROVISIONAL placeholders until the aircraft/engine ICD and flight manual limits are confirmed."
+    ],
+
+    "provisionalLimits": true,
+    "staleSeconds": 3,
+
+    "rotorRpm": {
+        "_readme": "source: auto (RPM and RAW_RPM), rpm (ArduPilot RPM msg rpm1/rpm2 = index 0/1), raw_rpm (PX4 RAW_RPM index)",
+        "source": "auto",
+        "frontIndex": 0,
+        "rearIndex": 1,
+        "splitMinRpm": 100
+    },
+
+    "battery": {
+        "_readme": "BATTERY_STATUS ids. fuelId >= 0 reads fuel level % from a battery instance (ArduPilot fuel level monitor).",
+        "mainId": 0,
+        "auxId": 1,
+        "fuelId": -1,
+        "fuelCapacityLiters": 0
+    },
+
+    "namedValueFloat": {
+        "_readme": "NAMED_VALUE_FLOAT name (max 10 chars) -> telemetry key",
+        "ROT_F": "rot.front",
+        "ROT_R": "rot.rear",
+        "GB_F_T": "gb.front",
+        "GB_R_T": "gb.rear",
+        "OIL_T": "oil.temp",
+        "OIL_P": "oil.press",
+        "COOL_T": "coolant",
+        "FUEL_PCT": "fuel.pct",
+        "FUEL_L": "fuel.L"
+    },
+
+    "texts": {
+        "lostEngine": "엔진(ECU) 데이터 수신 끊김",
+        "lostRotor": "로터 RPM 데이터 수신 끊김"
+    },
+
+    "items": {
+        "eng.rpm": {
+            "label": "엔진 RPM", "unit": "rpm", "min": 0, "max": 6000, "decimals": 0,
+            "zones": [[0, 5600, "normal"], [5600, 5800, "caution"], [5800, 99999, "warning"]],
+            "alert": true, "cautionText": "엔진 RPM 높음", "warningText": "엔진 RPM 한계 초과"
+        },
+        "eng.cht": {
+            "label": "실린더헤드 온도", "unit": "°C", "min": 0, "max": 150, "decimals": 0,
+            "zones": [[-50, 120, "normal"], [120, 135, "caution"], [135, 999, "warning"]],
+            "alert": true, "cautionText": "실린더헤드 온도 높음", "warningText": "실린더헤드 과열"
+        },
+        "eng.egt": {
+            "label": "배기 온도", "unit": "°C", "min": 0, "max": 1000, "decimals": 0,
+            "zones": [[-50, 880, "normal"], [880, 950, "caution"], [950, 9999, "warning"]],
+            "alert": true, "cautionText": "배기 온도 높음", "warningText": "배기 온도 한계 초과"
+        },
+        "eng.thr": {
+            "label": "스로틀", "unit": "%", "min": 0, "max": 100, "decimals": 0
+        },
+        "eng.flow": {
+            "label": "연료 유량", "unit": "L/h", "min": 0, "max": 60, "decimals": 1
+        },
+        "eng.fuelPress": {
+            "label": "연료 압력", "unit": "kPa", "min": 0, "max": 500, "decimals": 0
+        },
+        "coolant": {
+            "label": "냉각수 온도", "unit": "°C", "min": 0, "max": 140, "decimals": 0,
+            "zones": [[-50, 110, "normal"], [110, 120, "caution"], [120, 999, "warning"]],
+            "alert": true, "cautionText": "냉각수 온도 높음", "warningText": "냉각수 과열"
+        },
+        "oil.temp": {
+            "label": "오일 온도", "unit": "°C", "min": 0, "max": 150, "decimals": 0,
+            "zones": [[-50, 120, "normal"], [120, 130, "caution"], [130, 999, "warning"]],
+            "alert": true, "cautionText": "오일 온도 높음", "warningText": "오일 과열"
+        },
+        "oil.press": {
+            "label": "오일 압력", "unit": "bar", "min": 0, "max": 7, "decimals": 1,
+            "zones": [[0, 0.8, "warning"], [0.8, 2.0, "caution"], [2.0, 5.0, "normal"], [5.0, 99, "caution"]],
+            "alert": true, "alertWhenArmedOnly": true, "cautionText": "오일 압력 이상", "warningText": "오일 압력 낮음"
+        },
+        "rot.front": {
+            "label": "전방 로터", "unit": "rpm", "min": 0, "max": 700, "decimals": 0
+        },
+        "rot.rear": {
+            "label": "후방 로터", "unit": "rpm", "min": 0, "max": 700, "decimals": 0
+        },
+        "rot.split": {
+            "label": "전·후방 편차", "unit": "%", "min": 0, "max": 6, "decimals": 1,
+            "zones": [[0, 2, "normal"], [2, 4, "caution"], [4, 999, "warning"]],
+            "alert": true, "alertWhenArmedOnly": true, "cautionText": "전·후방 로터 RPM 편차", "warningText": "전·후방 로터 RPM 편차 과다"
+        },
+        "gb.front": {
+            "label": "전방 기어박스", "unit": "°C", "min": 0, "max": 130, "decimals": 0,
+            "zones": [[-50, 95, "normal"], [95, 110, "caution"], [110, 999, "warning"]],
+            "alert": true, "cautionText": "전방 기어박스 온도 높음", "warningText": "전방 기어박스 과열"
+        },
+        "gb.rear": {
+            "label": "후방 기어박스", "unit": "°C", "min": 0, "max": 130, "decimals": 0,
+            "zones": [[-50, 95, "normal"], [95, 110, "caution"], [110, 999, "warning"]],
+            "alert": true, "cautionText": "후방 기어박스 온도 높음", "warningText": "후방 기어박스 과열"
+        },
+        "fuel.pct": {
+            "label": "연료 잔량", "unit": "%", "min": 0, "max": 100, "decimals": 0,
+            "zones": [[-1, 12, "warning"], [12, 25, "caution"], [25, 101, "normal"]],
+            "alert": true, "cautionText": "연료 잔량 낮음", "warningText": "연료 부족 · 즉시 복귀/착륙"
+        },
+        "fuel.L": {
+            "label": "연료 잔량", "unit": "L", "min": 0, "max": 100, "decimals": 1
+        },
+        "fuel.endurance": {
+            "label": "체공 가능", "unit": "분", "min": 0, "max": 180, "decimals": 0,
+            "zones": [[-1, 10, "warning"], [10, 20, "caution"], [20, 99999, "normal"]],
+            "alert": true, "alertWhenArmedOnly": true, "cautionText": "잔여 체공 20분 미만", "warningText": "잔여 체공 10분 미만"
+        },
+        "pwr.main": {
+            "label": "주 배터리", "unit": "V", "min": 0, "max": 32, "decimals": 1
+        },
+        "pwr.aux": {
+            "label": "보조 배터리", "unit": "V", "min": 0, "max": 32, "decimals": 1
+        },
+        "pwr.genA": {
+            "label": "발전기", "unit": "A", "min": 0, "max": 60, "decimals": 1
+        }
+    }
+}

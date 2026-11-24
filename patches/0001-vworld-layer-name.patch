@@ -1,0 +1,24 @@
+diff --git a/src/QtLocationPlugin/Providers/GenericMapProvider.cpp b/src/QtLocationPlugin/Providers/GenericMapProvider.cpp
+index 0993f12..b38c1ef 100644
+--- a/src/QtLocationPlugin/Providers/GenericMapProvider.cpp
++++ b/src/QtLocationPlugin/Providers/GenericMapProvider.cpp
+@@ -81,5 +81,5 @@ QString VWorldMapProvider::_getURL(int x, int y, int zoom) const
+     }
+ 
+     const QString VWorldMapToken = SettingsManager::instance()->appSettings()->vworldToken()->rawValue().toString();
+-    return _mapUrl.arg(VWorldMapToken, _mapName).arg(zoom).arg(y).arg(x).arg(_imageFormat);
++    return _mapUrl.arg(VWorldMapToken, _mapTypeId).arg(zoom).arg(y).arg(x).arg(_imageFormat);
+ }
+diff --git a/src/QtLocationPlugin/Providers/GenericMapProvider.h b/src/QtLocationPlugin/Providers/GenericMapProvider.h
+index 86004c1..348b7e6 100644
+--- a/src/QtLocationPlugin/Providers/GenericMapProvider.h
++++ b/src/QtLocationPlugin/Providers/GenericMapProvider.h
+@@ -258,7 +258,7 @@ class VWorldMapProvider : public MapProvider
+             imageFormat,
+             averageSize,
+             mapStyle)
+-        , _mapTypeId(mapName) {}
++        , _mapTypeId(mapTypeId) {}
+ 
+ private:
+     QString _getURL(int x, int y, int zoom) const final;

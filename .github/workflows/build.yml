@@ -1,0 +1,182 @@
+name: Build MobilityLab GCS
+
+# Linux: build + start the app against a simulated tandem helicopter and save
+#        screenshots/logs (fast check of every push).
+# Windows: build the installer (.exe) on main, tags, or manual run.
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: 'Build the Windows installer'
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  QGC_REPO: mavlink/qgroundcontrol
+  QGC_REF: v5.1.5
+  AQT_SOURCE: 'git+https://github.com/miurahr/aqtinstall.git@8d961e61720b3c06583517fbc68d57ec0a4e9f95'
+
+jobs:
+  linux:
+    name: Linux build + screen check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout QGroundControl ${{ env.QGC_REF }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.QGC_REPO }}
+          ref: ${{ env.QGC_REF }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout MobilityLab GCS
+        uses: actions/checkout@v4
+        with:
+          path: mlgcs
+          persist-credentials: false
+
+      - name: Apply MobilityLab customisation
+        run: bash mlgcs/tools/ci_prepare.sh
+
+      - name: Setup build environment
+        uses: ./.github/actions/build-setup
+        with:
+          qt-host: linux
+          qt-arch: linux_gcc_64
+          build-type: Release
+          save-cache: 'true'
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+        with:
+          extra-packages: xvfb x11-utils imagemagick libxcb-cursor0
+
+      - name: Configure
+        uses: ./.github/actions/cmake-configure
+        with:
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
+          stable: 'true'
+          extra-args: -DQGC_ENABLE_WERROR=OFF -DQGC_CREATE_APPIMAGE=OFF -DQGC_BUILD_INSTALLER=OFF
+
+      - name: Build
+        uses: ./.github/actions/cmake-build
+        with:
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
+
+      - name: Screen check with simulated aircraft
+        if: success()
+        run: bash mlgcs/tools/ci_screens.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens"
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screens-linux
+          path: ${{ runner.temp }}/screens
+          if-no-files-found: ignore
+          retention-days: 14
+
+  windows:
+    name: Windows installer
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.windows)
+    runs-on: windows-2022
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout QGroundControl ${{ env.QGC_REF }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.QGC_REPO }}
+          ref: ${{ env.QGC_REF }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout MobilityLab GCS
+        uses: actions/checkout@v4
+        with:
+          path: mlgcs
+          persist-credentials: false
+
+      - name: Apply MobilityLab customisation
+        run: bash mlgcs/tools/ci_prepare.sh
+
+      - name: Setup build environment
+        id: build-setup
+        uses: ./.github/actions/build-setup
+        with:
+          qt-host: windows
+          qt-arch: win64_msvc2022_64
+          aqt-source: ${{ env.AQT_SOURCE }}
+          build-type: Release
+          save-cache: 'true'
+
+      - name: Configure
+        uses: ./.github/actions/cmake-configure
+        with:
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
+          stable: 'true'
+          extra-args: -DQGC_ENABLE_WERROR=OFF -DQGC_ENABLE_GST_VIDEOSTREAMING=ON
+
+      - name: Resolve GStreamer root
+        id: gst-root
+        run: |
+          python3 "${GITHUB_WORKSPACE}/.github/scripts/cmake_helper.py" cache-var \
+            --build-dir "${RUNNER_TEMP}/build" \
+            --name GStreamer_ROOT_DIR \
+            --required \
+            --output-key gst_root
+
+      - name: Add GStreamer to PATH
+        run: echo "${GST_ROOT}/bin" >> "$GITHUB_PATH"
+        env:
+          GST_ROOT: ${{ steps.gst-root.outputs.gst_root }}
+
+      - name: Build
+        uses: ./.github/actions/cmake-build
+        with:
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
+
+      - name: Create installer
+        uses: ./.github/actions/cmake-install
+        with:
+          build-dir: ${{ runner.temp }}\build
+          build-type: Release
+
+      - name: Collect installer
+        run: |
+          mkdir -p "${RUNNER_TEMP}/dist"
+          find "${RUNNER_TEMP}/build" -maxdepth 1 -iname "*installer*.exe" -exec cp {} "${RUNNER_TEMP}/dist/" \;
+          ls -la "${RUNNER_TEMP}/dist"
+          test -n "$(ls -A "${RUNNER_TEMP}/dist")"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: MobilityLabGCS-Windows-installer
+          path: ${{ runner.temp }}/dist/*.exe
+          retention-days: 30
