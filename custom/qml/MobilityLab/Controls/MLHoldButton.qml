@@ -15,6 +15,7 @@ Rectangle {
     property int    holdMs:     2000
     property bool   available:  true
     property string disabledReason
+    property string tooltipText
 
     signal activated()
 
@@ -146,7 +147,7 @@ Rectangle {
         }
     }
 
-    ToolTip.visible:    holdMouse.containsMouse && !holdMouse.pressed
-    ToolTip.text:       root.available ? qsTr("엔진을 즉시 정지합니다 (MAV_CMD_DO_ENGINE_CONTROL). %1초간 누르면 전송됩니다.").arg(root.holdMs / 1000) : root.disabledReason
+    ToolTip.visible:    holdMouse.containsMouse && !holdMouse.pressed && ToolTip.text !== ""
+    ToolTip.text:       root.available ? root.tooltipText + " " + qsTr("%1초간 누르면 전송됩니다.").arg(root.holdMs / 1000) : root.disabledReason
     ToolTip.delay:      400
 }

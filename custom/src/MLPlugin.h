@@ -21,8 +21,9 @@ class MLFlyViewOptions : public QGCFlyViewOptions
 public:
     explicit MLFlyViewOptions(MLOptions *options, QObject *parent = nullptr);
 
-    /// One aircraft per GCS. Keeps the UI simple; the fleet list is not shown.
-    bool showMultiVehicleList() const final { return false; }
+    /// The right-hand vehicle panel includes its own flight instrument (PFD),
+    /// so QGC's bottom-right attitude/compass widget is not shown.
+    bool showInstrumentPanel() const final { return false; }
 };
 
 class MLOptions : public QGCOptions

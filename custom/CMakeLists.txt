@@ -22,7 +22,12 @@ set(ML_QML_DIR ${CMAKE_CURRENT_SOURCE_DIR}/qml/MobilityLab/Controls)
 set(ML_QML_FILES
     ${ML_QML_DIR}/MLTheme.qml
     ${ML_QML_DIR}/MLFlyLayer.qml
-    ${ML_QML_DIR}/MLSystemsPanel.qml
+    ${ML_QML_DIR}/MLCard.qml
+    ${ML_QML_DIR}/MLPfd.qml
+    ${ML_QML_DIR}/MLStatTile.qml
+    ${ML_QML_DIR}/MLBatteryView.qml
+    ${ML_QML_DIR}/MLMotorView.qml
+    ${ML_QML_DIR}/MLVehiclePanel.qml
     ${ML_QML_DIR}/MLGaugeRow.qml
     ${ML_QML_DIR}/MLRotorSync.qml
     ${ML_QML_DIR}/MLSectionHeader.qml

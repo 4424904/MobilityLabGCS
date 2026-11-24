@@ -39,7 +39,7 @@ seed_settings () {
 }
 
 run_case () {
-    local name="$1" size="$2" scenario="$3"
+    local name="$1" size="$2" scenario="$3" airframe="${4:-tandem}"
     local disp=":$((90 + RANDOM % 9))"
     echo "=== $name ($size, $scenario) on $disp"
 
@@ -47,7 +47,7 @@ run_case () {
     local xvfb=$!
     sleep 2
 
-    python3 mlgcs/tools/fake_vehicle.py --scenario "$scenario" --duration 150 > "$OUT/$name-vehicle.log" 2>&1 &
+    python3 mlgcs/tools/fake_vehicle.py --scenario "$scenario" --airframe "$airframe" --duration 150 > "$OUT/$name-vehicle.log" 2>&1 &
     local veh=$!
 
     seed_settings
@@ -74,8 +74,8 @@ run_case () {
     wait 2>/dev/null
 }
 
-run_case desktop1080 1920x1080 faults
-run_case laptop768   1366x768  normal
+run_case tandem1080 1920x1080 faults tandem
+run_case quad768    1366x768  normal quad
 
 echo "=== QML problems in our files"
 grep -h -E "MobilityLab|/Custom/qml|ML[A-Z][A-Za-z]+\.qml" "$OUT"/*-app.log | sort | uniq -c | sort -rn | head -60 || true

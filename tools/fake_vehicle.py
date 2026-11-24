@@ -39,6 +39,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", default="udpout:127.0.0.1:14550")
     ap.add_argument("--scenario", choices=["normal", "faults"], default="normal")
+    ap.add_argument("--airframe", choices=["tandem", "quad"], default="tandem",
+                    help="tandem: helicopter with engine/rotor data, quad: multicopter with ESC data")
     ap.add_argument("--duration", type=float, default=0, help="seconds, 0 = run forever")
     ap.add_argument("--rate", type=float, default=10.0, help="telemetry Hz")
     args = ap.parse_args()
@@ -78,7 +80,8 @@ def main():
         # ---- 1 Hz ----------------------------------------------------------
         if now - last_hb >= 1.0:
             last_hb = now
-            m.heartbeat_send(mav.MAV_TYPE_HELICOPTER, mav.MAV_AUTOPILOT_GENERIC,
+            vtype = mav.MAV_TYPE_HELICOPTER if args.airframe == "tandem" else mav.MAV_TYPE_QUADROTOR
+            m.heartbeat_send(vtype, mav.MAV_AUTOPILOT_GENERIC,
                              mav.MAV_MODE_FLAG_SAFETY_ARMED | mav.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
                              | mav.MAV_MODE_FLAG_AUTO_ENABLED,
                              0, mav.MAV_STATE_ACTIVE)
@@ -109,8 +112,20 @@ def main():
         m.gps_raw_int_send(boot_ms * 1000, 6, int(lat * 1e7), int(lon * 1e7), int((HOME_ALT + alt) * 1000),
                            60, 90, int(speed * 100), int(hdg * 100), 18)
 
-        # ---- tandem systems -------------------------------------------------
+        m.vibration_send(boot_ms * 1000, 12 + 3 * math.sin(t), 14 + 2 * math.cos(t), 18 + 4 * math.sin(t / 2), 0, 0, 0)
+        m.radio_status_send(180, 170, 90, 120, 110, 0, 0)
+
         faults = args.scenario == "faults" and t > 20
+        if args.airframe == "quad":
+            # ESC_STATUS / ESC_INFO are not in the bundled pymavlink dialects, so the
+            # motor view is not exercised by this simulator.
+            cells = [16100] + [65535] * 9
+            m.battery_status_send(0, mav.MAV_BATTERY_FUNCTION_ALL, mav.MAV_BATTERY_TYPE_LIPO, 2500,
+                                  cells, 3200, int(t * 3), -1, max(5, int(78 - t * 0.2)))
+            time.sleep(1.0 / args.rate)
+            continue
+
+        # ---- tandem systems -------------------------------------------------
         engine_rpm = 5450 + 25 * math.sin(t / 3)
         front = 520 + 2 * math.sin(t / 2)
         rear = front * (1 - (0.032 if faults else 0.004))

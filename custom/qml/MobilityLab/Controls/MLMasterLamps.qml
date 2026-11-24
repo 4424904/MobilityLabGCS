@@ -33,7 +33,7 @@ Column {
         width:          ScreenTools.defaultFontPixelWidth * 13
         height:         ScreenTools.defaultFontPixelHeight * 2.4
         radius:         ScreenTools.defaultFontPixelWidth * 0.4
-        color:          lit ? litColor : "#d9101619"
+        color:          lit ? litColor : (latched ? Qt.rgba(litColor.r, litColor.g, litColor.b, 0.15) : MLTheme.tile)
         border.width:   Math.max(1, ScreenTools.defaultFontPixelWidth * 0.2)
         border.color:   (lit || latched) ? litColor : "#3d4e55"
 
@@ -62,25 +62,36 @@ Column {
         }
     }
 
-    Row {
+    Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: ScreenTools.defaultFontPixelWidth
+        width:          lampRow.implicitWidth + ScreenTools.defaultFontPixelWidth * 1.2
+        height:         lampRow.implicitHeight + ScreenTools.defaultFontPixelWidth * 1.2
+        radius:         MLTheme.radius
+        color:          MLTheme.panel
+        border.color:   MLTheme.line
+        border.width:   1
 
-        Lamp {
-            title:      "MASTER\nWARNING"
-            lit:        root._warnLit
-            latched:    root._warnLatched
-            litColor:   MLTheme.warning
-            litText:    "white"
-            onPressed:  if (root._t) root._t.acknowledgeAll()
-        }
-        Lamp {
-            title:      "MASTER\nCAUTION"
-            lit:        root._cautLit
-            latched:    root._cautLatched
-            litColor:   MLTheme.caution
-            litText:    "#1b1300"
-            onPressed:  if (root._t) root._t.acknowledgeAll()
+        Row {
+            id:                 lampRow
+            anchors.centerIn:   parent
+            spacing:            ScreenTools.defaultFontPixelWidth
+
+            Lamp {
+                title:      "MASTER\nWARNING"
+                lit:        root._warnLit
+                latched:    root._warnLatched
+                litColor:   MLTheme.warning
+                litText:    "white"
+                onPressed:  if (root._t) root._t.acknowledgeAll()
+            }
+            Lamp {
+                title:      "MASTER\nCAUTION"
+                lit:        root._cautLit
+                latched:    root._cautLatched
+                litColor:   MLTheme.caution
+                litText:    "#1b1300"
+                onPressed:  if (root._t) root._t.acknowledgeAll()
+            }
         }
     }
 

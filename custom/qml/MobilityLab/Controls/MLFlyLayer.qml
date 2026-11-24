@@ -6,12 +6,12 @@ import QGroundControl.Controls
 // MobilityLab fly view overlay (loaded in place of QGC's FlyViewCustomLayer).
 //
 //   ┌ toolbar ───────────────────────────────────────────────────────────┐
-//   │ tools          [MASTER WARNING][MASTER CAUTION]      ┌ 탠덤 계통 ┐ │
-//   │                       alert list                     │ rotors    │ │
-//   │                                                      │ engine    │ │
-//   │                         map                          │ fuel ...  │ │
-//   │ video  [ARM][이륙][미션][일시정지][복귀][착륙][다음 단계][엔진 비상정지] │
-//   │                                         telemetry + attitude (QGC)  │
+//   │ tools          [MASTER WARNING][MASTER CAUTION]      ┌ PFD       ┐ │
+//   │                       alert list                     │ 기체 상태  │ │
+//   │                                                      │ 동력 계통  │ │
+//   │                         map                          └───────────┘ │
+//   │ video  ┌ 연결─준비─무장─비행─착륙        next step ┐                 │
+//   │        └ [context buttons ...]      [비상 정지]   ┘  telemetry (QGC)│
 //   └─────────────────────────────────────────────────────────────────────┘
 //
 // totalToolInsets reports the space these panels take so QGC keeps the
@@ -24,7 +24,7 @@ Item {
     property var mapControl
 
     readonly property real _m:          ScreenTools.defaultFontPixelWidth * 0.75
-    readonly property real _panelWidth: Math.min(ScreenTools.defaultFontPixelWidth * 36, width * 0.3)
+    readonly property real _panelWidth: Math.min(ScreenTools.defaultFontPixelWidth * 38, width * 0.3)
 
     QGCToolInsets {
         id:                     _insets
@@ -42,15 +42,18 @@ Item {
         bottomEdgeRightInset:   parentToolInsets.bottomEdgeRightInset
     }
 
-    // Systems panel: top right, down to QGC's bottom-right instruments.
-    // (QGC's own top-right inset is ignored: it reports the hidden multi-vehicle
-    // panel's height even when that panel is not shown.)
-    MLSystemsPanel {
+    // Right column: flight instrument + vehicle status (+ powertrain when reported).
+    // Drops below QGC's multi-vehicle panel when that panel is showing.
+    readonly property bool _mvPanel: QGroundControl.multiVehicleManager.vehicles.count > 1
+                                     && QGroundControl.settingsManager.appSettings.enableMultiVehiclePanel.rawValue
+
+    MLVehiclePanel {
         id:                 systems
         anchors.right:      parent.right
         anchors.top:        parent.top
+        anchors.topMargin:  root._mvPanel ? parentToolInsets.topEdgeRightInset : 0
         width:              root._panelWidth
-        height:             Math.min(implicitHeight, root.height - parentToolInsets.bottomEdgeRightInset - root._m)
+        height:             Math.min(implicitHeight, root.height - anchors.topMargin - parentToolInsets.bottomEdgeRightInset - root._m)
     }
 
     // Master lamps + alert list, centred under the toolbar
