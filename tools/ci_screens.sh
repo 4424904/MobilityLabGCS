@@ -16,7 +16,11 @@ if [[ -z "$BIN" ]]; then
 fi
 echo "Binary: $BIN"
 
-python3 -m pip install --quiet --user pymavlink || python3 -m pip install --quiet --break-system-packages pymavlink
+python3 -m pip install --quiet --user pymavlink pillow || python3 -m pip install --quiet --break-system-packages pymavlink pillow
+
+shot () {
+    python3 -c "from PIL import ImageGrab; ImageGrab.grab(xdisplay='$1').save('$2')" || echo "screenshot failed: $2"
+}
 
 run_case () {
     local name="$1" size="$2" scenario="$3"
@@ -34,9 +38,9 @@ run_case () {
     local app=$!
 
     sleep 45
-    DISPLAY="$disp" import -window root "$OUT/$name-1.png" || true
+    shot "$disp" "$OUT/$name-1.png"
     sleep 30
-    DISPLAY="$disp" import -window root "$OUT/$name-2.png" || true
+    shot "$disp" "$OUT/$name-2.png"
 
     kill "$app" "$veh" 2>/dev/null
     sleep 2

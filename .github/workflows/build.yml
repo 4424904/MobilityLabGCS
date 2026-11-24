@@ -64,10 +64,21 @@ jobs:
           build-type: Release
           save-cache: 'true'
 
-      - name: Install dependencies
-        uses: ./.github/actions/install-dependencies
-        with:
-          extra-packages: xvfb x11-utils imagemagick libxcb-cursor0
+      # QGC's own dependency step pulls ~1 GB of GStreamer/codec packages, which
+      # is very slow on the hosted runners. Video is not needed for this check,
+      # so install only what the Qt/QGC build and an X11 test run need.
+      - name: Install build packages
+        timeout-minutes: 25
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends \
+            build-essential ninja-build ccache pkgconf patchelf file \
+            libfontconfig1-dev libfreetype-dev libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev libxi-dev libxrender-dev \
+            libxcb1-dev libxcb-cursor-dev libxcb-glx0-dev libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev \
+            libxcb-present-dev libxcb-randr0-dev libxcb-render-util0-dev libxcb-render0-dev libxcb-shape0-dev \
+            libxcb-shm0-dev libxcb-sync-dev libxcb-util-dev libxcb-xfixes0-dev libxcb-xinerama0-dev libxcb-xkb-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libegl-dev libgl-dev libgl1-mesa-dri libglx-mesa0 \
+            libusb-1.0-0-dev xvfb xauth
 
       - name: Configure
         uses: ./.github/actions/cmake-configure
@@ -75,7 +86,7 @@ jobs:
           build-dir: ${{ runner.temp }}/build
           build-type: Release
           stable: 'true'
-          extra-args: -DQGC_ENABLE_WERROR=OFF -DQGC_CREATE_APPIMAGE=OFF -DQGC_BUILD_INSTALLER=OFF
+          extra-args: -DQGC_ENABLE_WERROR=OFF -DQGC_CREATE_APPIMAGE=OFF -DQGC_BUILD_INSTALLER=OFF -DQGC_ENABLE_GST_VIDEOSTREAMING=OFF
 
       - name: Build
         uses: ./.github/actions/cmake-build
