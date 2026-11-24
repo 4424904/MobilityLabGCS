@@ -75,7 +75,7 @@ Rectangle {
         anchors.right:      parent.right
         anchors.top:        parent.top
         anchors.margins:    root._pad
-        height:             ScreenTools.defaultFontPixelHeight * 1.6
+        height:             ScreenTools.defaultFontPixelHeight * 1.8
         implicitWidth:      stepRow.implicitWidth + ScreenTools.defaultFontPixelWidth * 34
 
         Row {
@@ -126,7 +126,7 @@ Rectangle {
                         text:                   modelData
                         color:                  index === root._phase ? MLTheme.text : (index < root._phase ? MLTheme.label : MLTheme.faint)
                         font.bold:              index === root._phase
-                        font.pointSize:         ScreenTools.smallFontPointSize
+                        font.pointSize:         ScreenTools.defaultFontPointSize
                         rightPadding:           ScreenTools.defaultFontPixelWidth * 0.5
                     }
                 }
@@ -142,7 +142,8 @@ Rectangle {
             elide:                  Text.ElideRight
             text:                   root.nextStep()
             color:                  root._commLost ? MLTheme.warning : MLTheme.text
-            font.pointSize:         ScreenTools.smallFontPointSize
+            font.pointSize:         ScreenTools.defaultFontPointSize
+            font.bold:              true
         }
     }
 
