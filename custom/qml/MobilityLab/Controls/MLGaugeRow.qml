@@ -31,7 +31,7 @@ Item {
 
     visible:        _seen || showWhenMissing
     implicitWidth:  ScreenTools.defaultFontPixelWidth * 30
-    implicitHeight: visible ? ScreenTools.defaultFontPixelHeight * 2.1 : 0
+    implicitHeight: visible ? valueText.height + bar.height + ScreenTools.defaultFontPixelHeight * 0.55 : 0
 
     // Warning rows get a tinted background so they stand out in a glance
     Rectangle {
@@ -42,34 +42,38 @@ Item {
         color:              root._level === 3 ? "#40ff4f4f" : (root._level === 2 ? "#30f5b331" : "transparent")
     }
 
+    // Value line: label on the left, value and unit on the right, sharing one baseline
     QGCLabel {
-        id:                 label
-        anchors.left:       parent.left
+        id:                 valueText
+        anchors.right:      unitText.left
+        anchors.rightMargin: unitText.text === "" ? 0 : ScreenTools.defaultFontPixelWidth * 0.4
         anchors.top:        parent.top
-        anchors.topMargin:  ScreenTools.defaultFontPixelHeight * 0.15
-        text:               root._spec.label !== undefined ? root._spec.label : root.key
+        text:               root._lost ? qsTr("수신 끊김") : MLTheme.formatValue(root._value, root._spec.decimals)
+        color:              root._lost ? MLTheme.caution : MLTheme.levelColor(root._level)
+        font.family:        root._lost ? ScreenTools.normalFontFamily : ScreenTools.fixedFontFamily
+        font.pointSize:     root._lost ? ScreenTools.smallFontPointSize : ScreenTools.mediumFontPointSize
+        font.bold:          true
+    }
+
+    QGCLabel {
+        id:                 unitText
+        anchors.right:      parent.right
+        anchors.baseline:   valueText.baseline
+        text:               (!root._lost && root._spec.unit !== undefined) ? root._spec.unit : ""
         color:              MLTheme.dim
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 
-    Row {
-        anchors.right:      parent.right
-        anchors.baseline:   label.baseline
-        spacing:            ScreenTools.defaultFontPixelWidth * 0.4
-
-        QGCLabel {
-            text:           root._lost ? qsTr("수신 끊김") : MLTheme.formatValue(root._value, root._spec.decimals)
-            color:          root._lost ? MLTheme.caution : MLTheme.levelColor(root._level)
-            font.family:    root._lost ? ScreenTools.normalFontFamily : ScreenTools.fixedFontFamily
-            font.pointSize: root._lost ? ScreenTools.smallFontPointSize : ScreenTools.mediumFontPointSize
-            font.bold:      true
-        }
-        QGCLabel {
-            visible:        !root._lost
-            text:           root._spec.unit !== undefined ? root._spec.unit : ""
-            color:          MLTheme.dim
-            font.pointSize: ScreenTools.smallFontPointSize
-        }
+    QGCLabel {
+        id:                 label
+        anchors.left:       parent.left
+        anchors.right:      valueText.left
+        anchors.rightMargin: ScreenTools.defaultFontPixelWidth
+        anchors.baseline:   valueText.baseline
+        elide:              Text.ElideRight
+        text:               root._spec.label !== undefined ? root._spec.label : root.key
+        color:              MLTheme.dim
+        font.pointSize:     ScreenTools.smallFontPointSize
     }
 
     // Range bar
@@ -77,8 +81,8 @@ Item {
         id:                 bar
         anchors.left:       parent.left
         anchors.right:      parent.right
-        anchors.bottom:     parent.bottom
-        anchors.bottomMargin: ScreenTools.defaultFontPixelHeight * 0.25
+        anchors.top:        valueText.bottom
+        anchors.topMargin:  ScreenTools.defaultFontPixelHeight * 0.15
         height:             Math.max(4, ScreenTools.defaultFontPixelHeight * 0.3)
 
         Rectangle {

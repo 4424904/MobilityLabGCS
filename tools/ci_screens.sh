@@ -56,7 +56,8 @@ run_case () {
 
     # No window manager under Xvfb: maximise by hand
     sleep 12
-    for w in $(DISPLAY="$disp" xdotool search --onlyvisible --name "MobilityLabGCS" 2>/dev/null); do
+    DISPLAY="$disp" xdotool search --onlyvisible --name ".*" 2>/dev/null | while read -r w; do
+        echo "window $w: $(DISPLAY="$disp" xdotool getwindowname "$w" 2>/dev/null)"
         DISPLAY="$disp" xdotool windowmove "$w" 0 0 windowsize "$w" 100% 100% || true
     done
 
