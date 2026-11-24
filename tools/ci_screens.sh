@@ -25,6 +25,19 @@ shot () {
     python3 -c "from PIL import ImageGrab; ImageGrab.grab(xdisplay='$1').save('$2')" || echo "screenshot failed: $2"
 }
 
+# Linux-only "serial port permission" dialog: put the runner user in dialout
+sudo usermod -a -G dialout "$USER" || true
+
+seed_settings () {
+    # Fresh settings per case. The VWorld key only serves Korean IPs, so the
+    # cloud runner uses Esri imagery to judge legibility over a real map.
+    rm -rf "$HOME/.config/MobilityLab"
+    mkdir -p "$HOME/.config/MobilityLab"
+    for f in MobilityLabGCS.ini MobilityLabGCS.conf; do
+        printf '[FlightMap]\nmapProvider=Esri\nmapType=World Satellite\n' > "$HOME/.config/MobilityLab/$f"
+    done
+}
+
 run_case () {
     local name="$1" size="$2" scenario="$3"
     local disp=":$((90 + RANDOM % 9))"
@@ -37,17 +50,25 @@ run_case () {
     python3 mlgcs/tools/fake_vehicle.py --scenario "$scenario" --duration 150 > "$OUT/$name-vehicle.log" 2>&1 &
     local veh=$!
 
-    DISPLAY="$disp" QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 "$BIN" --clear-settings > "$OUT/$name-app.log" 2>&1 &
+    seed_settings
+    sg dialout -c "DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$OUT/$name-app.log' 2>&1" &
     local app=$!
 
-    sleep 45
+    # No window manager under Xvfb: maximise by hand
+    sleep 12
+    for w in $(DISPLAY="$disp" xdotool search --onlyvisible --name "MobilityLabGCS" 2>/dev/null); do
+        DISPLAY="$disp" xdotool windowmove "$w" 0 0 windowsize "$w" 100% 100% || true
+    done
+
+    sleep 33
     shot "$disp" "$OUT/$name-1.png"
     sleep 30
     shot "$disp" "$OUT/$name-2.png"
 
-    kill "$app" "$veh" 2>/dev/null
+    kill "$veh" 2>/dev/null
+    pkill -f "$BIN" 2>/dev/null
     sleep 2
-    kill -9 "$app" 2>/dev/null
+    pkill -9 -f "$BIN" 2>/dev/null
     kill "$xvfb" 2>/dev/null
     wait 2>/dev/null
 }

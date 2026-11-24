@@ -51,6 +51,7 @@ public:
 
     static QGCCorePlugin *instance();
 
+    void init() final;
     QGCOptions *options() final { return _options; }
     void adjustSettingMetaData(const QString &settingsGroup, FactMetaData &metaData, bool &userVisible) final;
     void paletteOverride(const QString &colorName, QGCPalette::PaletteColorInfo_t &colorInfo) final;

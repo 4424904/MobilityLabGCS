@@ -42,14 +42,15 @@ Item {
         bottomEdgeRightInset:   parentToolInsets.bottomEdgeRightInset
     }
 
-    // Systems panel: top right, down to QGC's bottom-right instruments
+    // Systems panel: top right, down to QGC's bottom-right instruments.
+    // (QGC's own top-right inset is ignored: it reports the hidden multi-vehicle
+    // panel's height even when that panel is not shown.)
     MLSystemsPanel {
         id:                 systems
         anchors.right:      parent.right
         anchors.top:        parent.top
-        anchors.topMargin:  Math.max(0, parentToolInsets.topEdgeRightInset)
         width:              root._panelWidth
-        height:             Math.min(implicitHeight, root.height - anchors.topMargin - parentToolInsets.bottomEdgeRightInset - root._m)
+        height:             Math.min(implicitHeight, root.height - parentToolInsets.bottomEdgeRightInset - root._m)
     }
 
     // Master lamps + alert list, centred under the toolbar

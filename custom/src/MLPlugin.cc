@@ -2,14 +2,17 @@
 #include "TandemTelemetry.h"
 
 #include "AppSettings.h"
+#include "Fact.h"
 #include "FactMetaData.h"
 #include "FlightMapSettings.h"
 #include "QGCLoggingCategory.h"
 #include "QGCPalette.h"
+#include "SettingsManager.h"
 
 #include <QtCore/QApplicationStatic>
 #include <QtCore/QFile>
 #include <QtCore/QLocale>
+#include <QtCore/QSettings>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlContext>
 
@@ -42,6 +45,24 @@ MLPlugin::MLPlugin(QObject *parent)
     _showAdvancedUI = false;
 }
 
+void MLPlugin::init()
+{
+    QGCCorePlugin::init();
+
+    // QGC reads the language straight from QSettings before plugins load, so a
+    // metadata default is not enough. Switch to Korean once on first start;
+    // after that the operator's own choice in Application Settings is kept.
+    QSettings settings;
+    const QString key = QStringLiteral("MobilityLab/koreanDefaultApplied");
+    if (!settings.value(key, false).toBool()) {
+        settings.setValue(key, true);
+        Fact *language = SettingsManager::instance()->appSettings()->qLocaleLanguage();
+        if (language) {
+            language->setRawValue(static_cast<int>(QLocale::Korean));   // triggers QGCApplication::setLanguage()
+        }
+    }
+}
+
 QGCCorePlugin *MLPlugin::instance()
 {
     return _mlPluginInstance();
@@ -59,9 +80,7 @@ void MLPlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData 
     QGCCorePlugin::adjustSettingMetaData(settingsGroup, metaData, userVisible);
 
     if (settingsGroup == AppSettings::settingsGroup) {
-        if (metaData.name() == AppSettings::qLocaleLanguageName) {
-            metaData.setRawDefaultValue(static_cast<uint>(QLocale::Korean));
-        } else if (metaData.name() == AppSettings::vworldTokenName) {
+        if (metaData.name() == AppSettings::vworldTokenName) {
             // MobilityLab VWorld key (carried over from the previous GCS build).
             metaData.setRawDefaultValue(QStringLiteral("FB59EEB2-7C61-3661-BEC9-630307354042"));
         }
