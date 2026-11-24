@@ -22,7 +22,8 @@ Item {
     readonly property int  _splitLevel: { var l = _t ? _t.levels["rot.split"] : undefined; return l === undefined ? 0 : l }
     readonly property bool _anySeen: _seenKeys["rot.front"] === true || _seenKeys["rot.rear"] === true
 
-    readonly property real _disc:   ScreenTools.defaultFontPixelHeight * 4.6
+    property real discSize: ScreenTools.defaultFontPixelHeight * 4.6
+    readonly property real _disc:   discSize
 
     implicitWidth:  ScreenTools.defaultFontPixelWidth * 30
     implicitHeight: _anySeen ? _disc + ScreenTools.defaultFontPixelHeight * 1.6 : waiting.implicitHeight + ScreenTools.defaultFontPixelHeight

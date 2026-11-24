@@ -1,9 +1,12 @@
-// MobilityLab GCS: replaces QGC's empty FlyViewCustomLayer with the tandem helicopter overlay.
+// MobilityLab GCS: the console panels are laid out by the FlyView override,
+// so the map's custom layer only passes QGC's tool insets through.
 import QtQuick
 
 import QGroundControl
 import QGroundControl.Controls
-import MobilityLab.Controls
 
-MLFlyLayer {
+Item {
+    property var parentToolInsets
+    property var totalToolInsets:   parentToolInsets
+    property var mapControl
 }

@@ -1,7 +1,9 @@
 <RCC>
     <!-- QML overrides: qrc:/qml/X is replaced by qrc:/Custom/qml/X (see MLOverrideInterceptor) -->
     <qresource prefix="/Custom/qml">
+        <file alias="QGroundControl/FlyView/FlyView.qml">qml/overrides/FlyView.qml</file>
         <file alias="QGroundControl/FlyView/FlyViewCustomLayer.qml">qml/overrides/FlyViewCustomLayer.qml</file>
+        <file alias="QGroundControl/FlyView/FlyViewBottomRightRowLayout.qml">qml/overrides/FlyViewBottomRightRowLayout.qml</file>
         <file alias="QGroundControl/FlyView/FlyViewToolStripActionList.qml">qml/overrides/FlyViewToolStripActionList.qml</file>
     </qresource>
     <!-- Branding overrides -->

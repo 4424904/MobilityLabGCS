@@ -4,10 +4,10 @@ import QtQuick.Controls
 import QGroundControl
 import QGroundControl.Controls
 
-// Bottom command dock.
+// Bottom command bar of the console (full width).
 //
-//   ● 연결 ── ● 준비 ── ○ 무장 ── ○ 비행 ── ○ 착륙      다음: 비행 전 점검 후 ARM
-//   [ ARM ] [ 이륙 ] [ 미션 시작 ]                          [ 비상 정지 (2초) ]
+//   ● 연결 ─ ● 준비 ─ ○ 무장 ─ ○ 비행 ─ ○ 착륙 │ [ARM] [이륙] [미션 시작] │ 14:35:42 │ [비상 정지]
+//   비행 전 점검을 마치면 ARM 하세요            │                         │ 날짜     │
 //
 // The progress strip shows where the flight is; the buttons change with it
 // (on the ground: arm/takeoff/mission, in the air: pause/RTL/land), so only
@@ -17,8 +17,6 @@ import QGroundControl.Controls
 // that report an engine (EFI), otherwise QGC's motor emergency stop.
 Rectangle {
     id: root
-
-    property real maxWidth: ScreenTools.defaultFontPixelWidth * 200
 
     readonly property var  _vehicle:    QGroundControl.multiVehicleManager.activeVehicle
     readonly property var  _guided:     globals.guidedControllerFlyView
@@ -58,48 +56,42 @@ Rectangle {
         return qsTr("비행 중 · %1").arg(_mode)
     }
 
-    color:          MLTheme.panel
-    radius:         MLTheme.radius
+    color:          MLTheme.panelSolid
+    radius:         ScreenTools.defaultFontPixelWidth * 0.5
     border.color:   MLTheme.line
     border.width:   1
 
-    implicitWidth:  Math.min(maxWidth, Math.max(steps.implicitWidth, buttons.usedWidth) + _pad * 2)
-    implicitHeight: steps.height + buttons.height + _pad * 2.6
-    width:          implicitWidth
-    height:         implicitHeight
+    implicitHeight: ScreenTools.defaultFontPixelHeight * 3.2 + _pad * 1.6
 
-    // ---- Progress strip + next step --------------------------------------
-    Item {
-        id:                 steps
-        anchors.left:       parent.left
-        anchors.right:      parent.right
-        anchors.top:        parent.top
-        anchors.margins:    root._pad
-        height:             ScreenTools.defaultFontPixelHeight * 1.8
-        implicitWidth:      stepRow.implicitWidth + ScreenTools.defaultFontPixelWidth * 34
+    // ---- Phase strip + next step (left) ----------------------------------
+    Column {
+        id:                     steps
+        anchors.left:           parent.left
+        anchors.leftMargin:     root._pad * 1.2
+        anchors.verticalCenter: parent.verticalCenter
+        width:                  Math.max(stepRow.implicitWidth, ScreenTools.defaultFontPixelWidth * 34)
+        spacing:                ScreenTools.defaultFontPixelHeight * 0.3
 
         Row {
-            id:                     stepRow
-            anchors.left:           parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            spacing:                0
+            id:         stepRow
+            spacing:    0
 
             Repeater {
                 model: [ qsTr("연결"), qsTr("준비"), qsTr("무장"), qsTr("비행"), qsTr("착륙") ]
 
                 Row {
-                    spacing: ScreenTools.defaultFontPixelWidth * 0.5
+                    spacing: ScreenTools.defaultFontPixelWidth * 0.45
 
                     Rectangle {
                         visible:                index > 0
                         anchors.verticalCenter: parent.verticalCenter
-                        width:                  ScreenTools.defaultFontPixelWidth * 2.2
+                        width:                  ScreenTools.defaultFontPixelWidth * 1.6
                         height:                 2
                         color:                  index <= root._phase ? MLTheme.accent : MLTheme.line
                     }
                     Item {
                         anchors.verticalCenter: parent.verticalCenter
-                        width:                  ScreenTools.defaultFontPixelHeight * 1.1
+                        width:                  ScreenTools.defaultFontPixelHeight * 1.0
                         height:                 width
 
                         Rectangle {
@@ -126,47 +118,66 @@ Rectangle {
                         text:                   modelData
                         color:                  index === root._phase ? MLTheme.text : (index < root._phase ? MLTheme.label : MLTheme.faint)
                         font.bold:              index === root._phase
-                        font.pointSize:         ScreenTools.defaultFontPointSize
-                        rightPadding:           ScreenTools.defaultFontPixelWidth * 0.5
+                        rightPadding:           ScreenTools.defaultFontPixelWidth * 0.45
                     }
                 }
             }
         }
 
         QGCLabel {
-            anchors.left:           stepRow.right
-            anchors.leftMargin:     ScreenTools.defaultFontPixelWidth * 2
-            anchors.right:          parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            horizontalAlignment:    Text.AlignRight
-            elide:                  Text.ElideRight
-            text:                   root.nextStep()
-            color:                  root._commLost ? MLTheme.warning : MLTheme.text
-            font.pointSize:         ScreenTools.defaultFontPointSize
-            font.bold:              true
+            width:          parent.width
+            elide:          Text.ElideRight
+            text:           root.nextStep()
+            color:          root._commLost ? MLTheme.warning : MLTheme.accent
+            font.bold:      true
         }
     }
 
-    // ---- Buttons ---------------------------------------------------------
-    Flow {
-        id:                 buttons
-        anchors.left:       parent.left
-        anchors.top:        steps.bottom
-        anchors.leftMargin: root._pad
-        anchors.topMargin:  root._pad * 0.6
-        width:              root.maxWidth - root._pad * 2
-        spacing:            root._pad * 0.7
+    Rectangle {
+        id:                     divider1
+        anchors.left:           steps.right
+        anchors.leftMargin:     root._pad * 1.4
+        anchors.verticalCenter: parent.verticalCenter
+        width:                  1
+        height:                 parent.height * 0.6
+        color:                  MLTheme.line
+    }
 
-        // Width actually used by the laid-out buttons (Flow's own implicitWidth is read-only)
-        property real usedWidth: 0
-        onPositioningComplete: {
-            var w = 0
-            for (var i = 0; i < children.length; i++) {
-                var c = children[i]
-                if (c.visible && c.width > 0) w = Math.max(w, c.x + c.width)
-            }
-            usedWidth = w
+    // ---- Clock (right, before the emergency button) -----------------------
+    Column {
+        id:                     clock
+        anchors.right:          killButton.left
+        anchors.rightMargin:    root._pad * 1.6
+        anchors.verticalCenter: parent.verticalCenter
+        visible:                root.width > ScreenTools.defaultFontPixelWidth * 150
+
+        property date now: new Date()
+        Timer { interval: 1000; running: clock.visible; repeat: true; onTriggered: clock.now = new Date() }
+
+        QGCLabel {
+            anchors.right:  parent.right
+            text:           Qt.formatTime(clock.now, "hh:mm:ss")
+            color:          MLTheme.text
+            font.family:    ScreenTools.fixedFontFamily
+            font.pointSize: ScreenTools.mediumFontPointSize
+            font.bold:      true
         }
+        QGCLabel {
+            anchors.right:  parent.right
+            text:           Qt.formatDate(clock.now, "yyyy-MM-dd")
+            color:          MLTheme.dim
+            font.family:    ScreenTools.fixedFontFamily
+            font.pointSize: ScreenTools.smallFontPointSize
+        }
+    }
+
+    // ---- Buttons (middle) --------------------------------------------------
+    Row {
+        id:                     buttons
+        anchors.left:           divider1.right
+        anchors.leftMargin:     root._pad * 1.4
+        anchors.verticalCenter: parent.verticalCenter
+        spacing:                root._pad * 0.7
 
         // --- on the ground ---
         MLCommandButton {
@@ -240,26 +251,26 @@ Rectangle {
             onClicked:      root._guided.confirmAction(root._guided.actionLand)
         }
 
-        Item {
-            width:  ScreenTools.defaultFontPixelWidth * 2
-            height: 1
-        }
+    }
 
-        MLHoldButton {
-            text:           root._hasEngine ? qsTr("엔진 비상정지") : qsTr("비상 정지")
-            subText:        qsTr("2초간 누르기")
-            iconSource:     "/MobilityLab/icons/kill.svg"
-            available:      root._connected && !root._commLost && (root._hasEngine || root._armed)
-            disabledReason: root.reason(root._hasEngine ? "" : qsTr("무장 상태에서만 사용합니다"))
-            tooltipText:    root._hasEngine ? qsTr("엔진을 즉시 정지합니다 (MAV_CMD_DO_ENGINE_CONTROL).")
-                                            : qsTr("모터를 즉시 정지합니다. 비행 중이면 추락합니다.")
-            onActivated: {
-                if (!root._vehicle) return
-                if (root._hasEngine) {
-                    root._vehicle.sendCommand(root._autopilotCompId, root._mavCmdDoEngineControl, true, 0, 0, 0, 0, 0, 0, 0)
-                } else {
-                    root._vehicle.emergencyStop()
-                }
+    MLHoldButton {
+        id:                     killButton
+        anchors.right:          parent.right
+        anchors.rightMargin:    root._pad * 1.2
+        anchors.verticalCenter: parent.verticalCenter
+        text:           root._hasEngine ? qsTr("엔진 비상정지") : qsTr("비상 정지")
+        subText:        qsTr("2초간 누르기")
+        iconSource:     "/MobilityLab/icons/kill.svg"
+        available:      root._connected && !root._commLost && (root._hasEngine || root._armed)
+        disabledReason: root.reason(root._hasEngine ? "" : qsTr("무장 상태에서만 사용합니다"))
+        tooltipText:    root._hasEngine ? qsTr("엔진을 즉시 정지합니다 (MAV_CMD_DO_ENGINE_CONTROL).")
+                                        : qsTr("모터를 즉시 정지합니다. 비행 중이면 추락합니다.")
+        onActivated: {
+            if (!root._vehicle) return
+            if (root._hasEngine) {
+                root._vehicle.sendCommand(root._autopilotCompId, root._mavCmdDoEngineControl, true, 0, 0, 0, 0, 0, 0, 0)
+            } else {
+                root._vehicle.emergencyStop()
             }
         }
     }

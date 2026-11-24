@@ -35,6 +35,38 @@ HOME_LON = 126.8300
 HOME_ALT = 20.0
 
 
+CIRCLE_EAST = 600.0
+CIRCLE_RADIUS = 350.0
+MISSION_WPS = 6
+
+
+def offset(north, east):
+    lat = HOME_LAT + north / 111320.0
+    lon = HOME_LON + east / (111320.0 * math.cos(math.radians(HOME_LAT)))
+    return lat, lon
+
+
+def mission_items():
+    """Takeoff, a hexagon on the flown circle, then RTL (QGC numbers them 1..N)."""
+    items = [(mav.MAV_CMD_NAV_TAKEOFF, HOME_LAT, HOME_LON, 80.0)]
+    for k in range(MISSION_WPS):
+        ang = 2 * math.pi * k / MISSION_WPS
+        lat, lon = offset(CIRCLE_RADIUS * math.sin(ang), CIRCLE_EAST + CIRCLE_RADIUS * math.cos(ang))
+        items.append((mav.MAV_CMD_NAV_WAYPOINT, lat, lon, 80.0))
+    items.append((mav.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0.0, 0.0, 0.0))
+    return items
+
+
+def send_mission_item(m, msg, items):
+    seq = msg.seq
+    if seq >= len(items):
+        return
+    cmd, lat, lon, alt = items[seq]
+    m.mission_item_int_send(msg.get_srcSystem(), msg.get_srcComponent(), seq,
+                            mav.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, cmd, 0, 1, 0, 0, 0, 0,
+                            int(lat * 1e7), int(lon * 1e7), alt, getattr(msg, "mission_type", 0))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", default="udpout:127.0.0.1:14550")
@@ -51,7 +83,8 @@ def main():
     t0 = time.time()
     last_hb = 0.0
     sent_home = False
-    radius = 350.0
+    radius = CIRCLE_RADIUS
+    items = mission_items()
     speed = 14.0
 
     while True:
@@ -70,8 +103,11 @@ def main():
             if mt == "PARAM_REQUEST_LIST":
                 m.param_value_send(b"SYSID_THISMAV", 1.0, mav.MAV_PARAM_TYPE_REAL32, 1, 0)
             elif mt == "MISSION_REQUEST_LIST":
-                m.mission_count_send(msg.get_srcSystem(), msg.get_srcComponent(), 0,
-                                     getattr(msg, "mission_type", 0))
+                mtype = getattr(msg, "mission_type", 0)
+                m.mission_count_send(msg.get_srcSystem(), msg.get_srcComponent(),
+                                     len(items) if mtype == mav.MAV_MISSION_TYPE_MISSION else 0, mtype)
+            elif mt in ("MISSION_REQUEST_INT", "MISSION_REQUEST"):
+                send_mission_item(m, msg, items)
             elif mt == "COMMAND_LONG":
                 if msg.command == mav.MAV_CMD_REQUEST_MESSAGE and int(msg.param1) == mav.MAVLINK_MSG_ID_AUTOPILOT_VERSION:
                     send_autopilot_version(m)
@@ -87,6 +123,8 @@ def main():
                              0, mav.MAV_STATE_ACTIVE)
             m.extended_sys_state_send(mav.MAV_VTOL_STATE_UNDEFINED, mav.MAV_LANDED_STATE_IN_AIR)
             m.sys_status_send(0, 0, 0, 500, 28100, 1200, 72, 0, 0, 0, 0, 0, 0)
+            # current mission item follows the position on the hexagon (seq 0 = takeoff)
+            m.mission_current_send(1 + int((ang % (2 * math.pi)) / (2 * math.pi) * MISSION_WPS + 1) % MISSION_WPS)
             if not sent_home:
                 m.home_position_send(int(HOME_LAT * 1e7), int(HOME_LON * 1e7), int(HOME_ALT * 1000),
                                      0, 0, 0, [1, 0, 0, 0], 0, 0, 0)
@@ -95,7 +133,7 @@ def main():
         # ---- flight: steady circle around a point east of home -------------
         ang = speed * t / radius
         north = radius * math.sin(ang)
-        east = 600 + radius * math.cos(ang)
+        east = CIRCLE_EAST + radius * math.cos(ang)
         lat = HOME_LAT + north / 111320.0
         lon = HOME_LON + east / (111320.0 * math.cos(math.radians(HOME_LAT)))
         alt = 80 + 3 * math.sin(t / 9)

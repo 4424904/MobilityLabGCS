@@ -13,8 +13,8 @@ Rectangle {
     property int    level:  1       // 0 no data, 1 normal, 2 caution, 3 warning
 
     implicitWidth:  ScreenTools.defaultFontPixelWidth * 10
-    implicitHeight: col.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.6
-    radius:         ScreenTools.defaultFontPixelWidth * 0.5
+    implicitHeight: Math.max(ScreenTools.defaultFontPixelHeight * 2.75, col.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.4)
+    radius:         ScreenTools.defaultFontPixelWidth * 0.4
     color:          root.level === 3 ? "#3a1416" : (root.level === 2 ? "#33270f" : MLTheme.tile)
     border.width:   root.level >= 2 ? 1 : 0
     border.color:   MLTheme.levelAccent(root.level)
@@ -23,7 +23,7 @@ Rectangle {
         id:                 col
         anchors.left:       parent.left
         anchors.right:      parent.right
-        anchors.leftMargin: ScreenTools.defaultFontPixelWidth * 0.8
+        anchors.leftMargin: ScreenTools.defaultFontPixelWidth * 0.7
         anchors.verticalCenter: parent.verticalCenter
 
         QGCLabel {
