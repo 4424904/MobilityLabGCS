@@ -178,6 +178,7 @@ Rectangle {
             disabledReason: root.reason("")
             onActivated: {
                 // param1 = 0: stop engine
+                if (!root._vehicle) return
                 root._vehicle.sendCommand(root._autopilotCompId, root._mavCmdDoEngineControl, true, 0, 0, 0, 0, 0, 0, 0)
             }
         }

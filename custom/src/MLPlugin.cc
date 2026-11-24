@@ -5,6 +5,7 @@
 #include "Fact.h"
 #include "FactMetaData.h"
 #include "FlightMapSettings.h"
+#include "QGCApplication.h"
 #include "QGCLoggingCategory.h"
 #include "QGCPalette.h"
 #include "SettingsManager.h"
@@ -13,6 +14,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QLocale>
 #include <QtCore/QSettings>
+#include <QtCore/QSignalBlocker>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlContext>
 
@@ -56,9 +58,17 @@ void MLPlugin::init()
     const QString key = QStringLiteral("MobilityLab/koreanDefaultApplied");
     if (!settings.value(key, false).toBool()) {
         settings.setValue(key, true);
+        settings.setValue(QString::fromLatin1(AppSettings::qLocaleLanguageName), static_cast<int>(QLocale::Korean));
+
+        // Keep the Fact in step without its "restart application" prompt; the
+        // value is already saved above and the language is applied right away.
         Fact *language = SettingsManager::instance()->appSettings()->qLocaleLanguage();
         if (language) {
-            language->setRawValue(static_cast<int>(QLocale::Korean));   // triggers QGCApplication::setLanguage()
+            const QSignalBlocker blocker(language);
+            language->setRawValue(static_cast<int>(QLocale::Korean));
+        }
+        if (qgcApp()) {
+            qgcApp()->setLanguage();    // loads Korean translations and the NanumGothic font
         }
     }
 }
