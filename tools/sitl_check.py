@@ -232,7 +232,8 @@ def main():
         end = time.time() + 60
         while v.alt < TAKEOFF_ALT * 0.8 and time.time() < end:
             v.pump(0.5)
-        v.command(mav.MAV_CMD_MISSION_SET_CURRENT, 2)
+        conn.mav.mission_set_current_send(conn.target_system, conn.target_component, 2)
+        v.wait(1)
         v.set_mode("AUTO")
     else:
         v.command(mav.MAV_CMD_MISSION_START, 0, 0)

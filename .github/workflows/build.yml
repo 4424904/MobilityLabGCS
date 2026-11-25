@@ -119,8 +119,10 @@ jobs:
           CCACHE_DIR: ${{ runner.temp }}/px4-ccache
         run: |
           git clone -q --depth 1 --branch "$PX4_REF" --recursive --shallow-submodules -j8 https://github.com/PX4/PX4-Autopilot.git "${RUNNER_TEMP}/px4"
-          python3 -m pip install --quiet -r "${RUNNER_TEMP}/px4/Tools/setup/requirements.txt" || \
-            python3 -m pip install --quiet --break-system-packages -r "${RUNNER_TEMP}/px4/Tools/setup/requirements.txt"
+          # newer pip rejects ">=3.0.*" specifiers in PX4's list; strip the ".*"
+          sed 's/\.\*//g' "${RUNNER_TEMP}/px4/Tools/setup/requirements.txt" > "${RUNNER_TEMP}/px4-req.txt"
+          python3 -m pip install --quiet -r "${RUNNER_TEMP}/px4-req.txt" || \
+            python3 -m pip install --quiet --break-system-packages -r "${RUNNER_TEMP}/px4-req.txt"
           cd "${RUNNER_TEMP}/px4" && make px4_sitl_default
           ls -la build/px4_sitl_default/bin | head
 
