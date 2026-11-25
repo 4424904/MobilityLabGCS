@@ -25,6 +25,7 @@ set(ML_QML_FILES
     ${ML_QML_DIR}/MLPfd.qml
     ${ML_QML_DIR}/MLStatTile.qml
     ${ML_QML_DIR}/MLKeyTile.qml
+    ${ML_QML_DIR}/MLStatusRow.qml
     ${ML_QML_DIR}/MLBatteryView.qml
     ${ML_QML_DIR}/MLMotorView.qml
     ${ML_QML_DIR}/MLArcGauge.qml
