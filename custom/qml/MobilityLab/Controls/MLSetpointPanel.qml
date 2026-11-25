@@ -404,7 +404,7 @@ Rectangle {
             } else if (root._testStep === 1) {
                 if (++ticks >= 25) { console.log("MLTEST altitude +15 from", root._alt); root.sendAltitude(root._alt + 15); root._testStep = 2; ticks = 0 }
             } else if (root._testStep === 2) {
-                if (++ticks >= 25) { console.log("MLTEST heading 90"); root.sendHeading(90); root._testStep = 3; ticks = 0 }
+                if (++ticks >= 25) { console.log("MLTEST heading 225"); root.sendHeading(225); root._testStep = 3; ticks = 0 }
             } else if (root._testStep === 3) {
                 if (++ticks >= 20) { console.log("MLTEST done"); root._testStep = 4; stop() }
             }

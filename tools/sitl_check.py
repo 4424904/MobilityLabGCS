@@ -3,12 +3,12 @@
 
 The GCS (MobilityLabGCS with ML_TEST_SETPOINTS=1) talks to the SITL on its own
 link and, once the mission is flying, sends: speed 2.5 m/s, altitude +15 m,
-heading 090. This script sits on a second MAVLink link, prepares the vehicle
+heading 225. This script sits on a second MAVLink link, prepares the vehicle
 (mission upload, arm, start) and watches what the aircraft actually does:
 
   speed_in_mission   cruise drops to ~2.5 m/s while the mission keeps running
   altitude_change    after the mission pauses, the vehicle climbs ~15 m
-  heading_change     the vehicle turns to ~090°
+  heading_change     the vehicle turns to ~225°
 
 Results go to <out>/sitl-<fw>.json and a readable summary is printed.
 """
@@ -27,7 +27,7 @@ mav = mavutil.mavlink
 
 TEST_SPEED = 2.5
 ALT_STEP = 15.0
-TEST_HEADING = 90.0
+TEST_HEADING = 225.0   # not a mission leg direction (legs run 090/000/270/180)
 TAKEOFF_ALT = 20.0
 
 
