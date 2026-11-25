@@ -63,16 +63,23 @@ Rectangle {
         altTarget = isNaN(_alt) ? 0 : Math.round(_alt)
         spdTarget = isNaN(_spd) ? 0 : Math.round(_spd * 2) / 2
     }
-    property bool _seeded: false
-    // seed once real values are in; after takeoff, once the aircraft is clear of the ground
-    function _seed() {
-        if (!visible || isNaN(_alt) || isNaN(_hdg)) return
-        if (!_seeded || (altTarget < 3 && _flying && _alt > 3)) { resetTargets(); _seeded = true }
+    // Each target follows the live value until the operator touches that row,
+    // so the panel always opens showing where the aircraft is now.
+    property bool _altEdited: false
+    property bool _spdEdited: false
+    property bool _hdgEdited: false
+    function _follow() {
+        if (!_altEdited && !isNaN(_alt)) altTarget = Math.max(0, Math.round(_alt))
+        if (!_spdEdited && !isNaN(_spd)) spdTarget = Math.round(_spd * 2) / 2
+        if (!_hdgEdited && !isNaN(_hdg)) hdgTarget = (Math.round(_hdg) + 360) % 360
     }
-    onVisibleChanged: { _seeded = false; _seed(); if (visible) keepMission = _inMission }
-    onVehicleChanged: { _seeded = false; _seed() }
-    on_AltChanged:    _seed()
-    on_FlyingChanged: { _seeded = false; _seed() }
+    function _clearEdits() { _altEdited = _spdEdited = _hdgEdited = false; _follow() }
+    onVisibleChanged: { _clearEdits(); if (visible) keepMission = _inMission }
+    onVehicleChanged: _clearEdits()
+    on_AltChanged:    _follow()
+    on_SpdChanged:    _follow()
+    on_HdgChanged:    _follow()
+    on_FlyingChanged: _clearEdits()
 
     // ---- commands -------------------------------------------------------------
     function sendSpeed(mps) {
@@ -340,9 +347,9 @@ Rectangle {
             target: root.altTarget.toFixed(0) + " m"
             available: root._ready
             reason: root._reason("")
-            onMinus: root.altTarget = Math.max(2, root.altTarget - 1)
-            onPlus:  root.altTarget = Math.min(1000, root.altTarget + 1)
-            onEdited: function(v) { root.altTarget = Math.max(2, Math.min(1000, Math.round(v))) }
+            onMinus: { root._altEdited = true; root.altTarget = Math.max(2, root.altTarget - 1) }
+            onPlus:  { root._altEdited = true; root.altTarget = Math.min(1000, root.altTarget + 1) }
+            onEdited: function(v) { root._altEdited = true; root.altTarget = Math.max(2, Math.min(1000, Math.round(v))) }
             onSend:  root.sendAltitude(root.altTarget)
         }
         Row3 {
@@ -352,9 +359,9 @@ Rectangle {
             target: root.spdTarget.toFixed(1) + " m/s"
             available: root._has && !root._commLost && root._flying
             reason: root._reason("")
-            onMinus: root.spdTarget = Math.max(0.5, root.spdTarget - 0.5)
-            onPlus:  root.spdTarget = Math.min(60, root.spdTarget + 0.5)
-            onEdited: function(v) { root.spdTarget = Math.max(0.5, Math.min(60, Math.round(v * 2) / 2)) }
+            onMinus: { root._spdEdited = true; root.spdTarget = Math.max(0.5, root.spdTarget - 0.5) }
+            onPlus:  { root._spdEdited = true; root.spdTarget = Math.min(60, root.spdTarget + 0.5) }
+            onEdited: function(v) { root._spdEdited = true; root.spdTarget = Math.max(0.5, Math.min(60, Math.round(v * 2) / 2)) }
             onSend:  root.sendSpeed(root.spdTarget)
         }
         Row3 {
@@ -364,9 +371,9 @@ Rectangle {
             target: ("00" + Math.round(root.hdgTarget)).slice(-3) + "°"
             available: root._ready && (root._keep || root._canHeading)
             reason: root._reason(qsTr("이 기체 종류는 방위 지정 명령을 지원하지 않습니다 (고정익 등)"))
-            onMinus: root.hdgTarget = root._wrap(root.hdgTarget - 1)
-            onPlus:  root.hdgTarget = root._wrap(root.hdgTarget + 1)
-            onEdited: function(v) { root.hdgTarget = root._wrap(v) }
+            onMinus: { root._hdgEdited = true; root.hdgTarget = root._wrap(root.hdgTarget - 1) }
+            onPlus:  { root._hdgEdited = true; root.hdgTarget = root._wrap(root.hdgTarget + 1) }
+            onEdited: function(v) { root._hdgEdited = true; root.hdgTarget = root._wrap(v) }
             onSend:  root.sendHeading(root.hdgTarget)
         }
 
