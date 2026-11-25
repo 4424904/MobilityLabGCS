@@ -64,7 +64,11 @@ Rectangle {
         spdTarget = isNaN(_spd) ? 0 : Math.round(_spd * 2) / 2
     }
     property bool _seeded: false
-    function _seed() { if (!_seeded && visible && !isNaN(_alt) && !isNaN(_hdg)) { resetTargets(); _seeded = true } }
+    // seed once real values are in; after takeoff, once the aircraft is clear of the ground
+    function _seed() {
+        if (!visible || isNaN(_alt) || isNaN(_hdg)) return
+        if (!_seeded || (altTarget < 3 && _flying && _alt > 3)) { resetTargets(); _seeded = true }
+    }
     onVisibleChanged: { _seeded = false; _seed(); if (visible) keepMission = _inMission }
     onVehicleChanged: { _seeded = false; _seed() }
     on_AltChanged:    _seed()
