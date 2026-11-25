@@ -64,7 +64,7 @@ MLPanel {
         return n
     }
 
-    title:          qsTr("미션")
+    title:          vehicle && QGroundControl.multiVehicleManager.vehicles.count > 1 ? qsTr("미션 · 기체 %1").arg(vehicle.id) : qsTr("미션")
     tag:            "MISSION"
     detail:         !vehicle ? "" : (_count === 0 ? qsTr("미션 없음") : (_running ? qsTr("진행 중") : qsTr("대기")))
     detailColor:    _running ? MLTheme.ok : MLTheme.dim

@@ -1,0 +1,17 @@
+diff --git a/src/Vehicle/MultiVehicleManager.cc b/src/Vehicle/MultiVehicleManager.cc
+index 21a1dee..1d2364f 100644
+--- a/src/Vehicle/MultiVehicleManager.cc
++++ b/src/Vehicle/MultiVehicleManager.cc
+@@ -126,9 +126,9 @@ void MultiVehicleManager::_vehicleHeartbeatInfo(LinkInterface* link, int vehicle
+ 
+     emit vehicleAdded(vehicle);
+ 
+-    if (_vehicles->count() > 1) {
+-        QGC::showAppMessage(tr("Connected to Vehicle %1").arg(vehicleId));
+-    } else {
++    // MobilityLab: no blocking dialog for additional vehicles; the fly view
++    // shows a non-blocking notice instead (vehicleAdded signal).
++    if (_vehicles->count() == 1) {
+         setActiveVehicle(vehicle);
+     }
+ 

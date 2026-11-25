@@ -32,6 +32,8 @@ set(ML_QML_FILES
     ${ML_QML_DIR}/MLAlertPanel.qml
     ${ML_QML_DIR}/MLTopBand.qml
     ${ML_QML_DIR}/MLMissionPanel.qml
+    ${ML_QML_DIR}/MLFleetPanel.qml
+    ${ML_QML_DIR}/MLToast.qml
     ${ML_QML_DIR}/MLCommandBar.qml
     ${ML_QML_DIR}/MLCommandButton.qml
     ${ML_QML_DIR}/MLHoldButton.qml

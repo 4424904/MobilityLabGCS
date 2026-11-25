@@ -23,6 +23,7 @@ Rectangle {
     property bool   available:      true    // not `enabled`, so the tooltip still works when unavailable
     property bool   twoStep:        true
     property int    confirmMs:      3000
+    property bool   compact:        false   // smaller variant for panels
 
     readonly property bool pending: _pending
 
@@ -42,8 +43,8 @@ Rectangle {
     onAvailableChanged: if (!available) cancel()
     onVisibleChanged:   if (!visible) cancel()
 
-    implicitWidth:  Math.max(ScreenTools.defaultFontPixelWidth * 16, content.implicitWidth + ScreenTools.defaultFontPixelWidth * 3)
-    implicitHeight: ScreenTools.defaultFontPixelHeight * 3.2
+    implicitWidth:  Math.max(ScreenTools.defaultFontPixelWidth * (compact ? 9 : 16), content.implicitWidth + ScreenTools.defaultFontPixelWidth * (compact ? 1.6 : 3))
+    implicitHeight: ScreenTools.defaultFontPixelHeight * (compact ? 2.5 : 3.2)
 
     radius:         ScreenTools.defaultFontPixelWidth * 0.5
     color: {
@@ -82,7 +83,7 @@ Rectangle {
         QGCColoredImage {
             anchors.verticalCenter: parent.verticalCenter
             visible:        root.iconSource !== ""
-            width:          ScreenTools.defaultFontPixelHeight * 1.5
+            width:          ScreenTools.defaultFontPixelHeight * (root.compact ? 1.0 : 1.5)
             height:         width
             source:         root.iconSource
             color:          root.available ? (root._pending ? "white" : root._toneColor) : MLTheme.dim
@@ -93,11 +94,11 @@ Rectangle {
             QGCLabel {
                 text:           root.text
                 color:          root.available ? (root._pending ? "white" : root._toneColor) : MLTheme.dim
-                font.pointSize: ScreenTools.mediumFontPointSize
+                font.pointSize: root.compact ? ScreenTools.defaultFontPointSize : ScreenTools.mediumFontPointSize
                 font.bold:      true
             }
             QGCLabel {
-                visible:        root.subText !== "" || root._pending
+                visible:        (root.subText !== "" && !root.compact) || root._pending
                 text:           root._pending ? qsTr("한 번 더 누르면 실행") : root.subText
                 color:          root._pending ? "white" : MLTheme.dim
                 font.pointSize: ScreenTools.smallFontPointSize

@@ -119,14 +119,45 @@ Item {
         visible:            _consoleVisible
     }
 
+    // Right column: fleet list (2+ vehicles) above the selected vehicle's mission
+    MLFleetPanel {
+        id:                 fleetPanel
+        anchors.top:        topBand.bottom
+        anchors.right:      parent.right
+        anchors.margins:    _gap
+        width:              _sideWidth
+        height:             Math.min(implicitHeight, (commandBar.y - topBand.y - topBand.height) * 0.5)
+        visible:            _consoleVisible && QGroundControl.multiVehicleManager.vehicles.count > 1
+    }
+
     MLMissionPanel {
         id:                 missionPanel
-        anchors.top:        topBand.bottom
+        anchors.top:        fleetPanel.visible ? fleetPanel.bottom : topBand.bottom
         anchors.bottom:     commandBar.top
         anchors.right:      parent.right
         anchors.margins:    _gap
         width:              _sideWidth
         visible:            _consoleVisible
+    }
+
+    // Non-blocking notice when another vehicle connects / disconnects
+    MLToast {
+        id:                         toast
+        anchors.top:                topBand.bottom
+        anchors.topMargin:          _gap * 3
+        anchors.horizontalCenter:   mapHolder.horizontalCenter
+        z:                          QGroundControl.zOrderTopMost + 1
+    }
+    Connections {
+        target: QGroundControl.multiVehicleManager
+        function onVehicleAdded(vehicle) {
+            if (QGroundControl.multiVehicleManager.vehicles.count > 1) {
+                toast.show(qsTr("기체 %1 연결됨 · 오른쪽 '기체' 목록에서 선택하세요").arg(vehicle.id), MLTheme.ok)
+            }
+        }
+        function onVehicleRemoved(vehicle) {
+            toast.show(qsTr("기체 %1 연결 끊김").arg(vehicle.id), MLTheme.caution)
+        }
     }
 
     Item {

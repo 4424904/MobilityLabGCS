@@ -12,5 +12,9 @@ for p in mlgcs/patches/*.patch; do
     git apply --whitespace=nowarn "$p"
 done
 
+# Korean UI: fill strings QGC's Korean translation still has in English
+PY=$(command -v python3 || command -v python)
+"$PY" mlgcs/tools/apply_ko.py mlgcs/custom/i18n/ko_overrides.json
+
 echo "MobilityLab customisation applied:"
 find custom -maxdepth 2 | sort
