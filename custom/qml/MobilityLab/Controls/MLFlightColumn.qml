@@ -136,7 +136,7 @@ Rectangle {
         readonly property real _trk:  root._has ? root.fv(root.vehicle.gps.courseOverGround) : NaN
         readonly property var  _home: MLTheme.distance(root._has ? root.fv(root.vehicle.distanceToHome) : NaN)
         readonly property real _next: root._has ? root.fv(root.vehicle.distanceToNextWP) : NaN
-        readonly property var  _nextD: MLTheme.distance(root._mission ? _next : NaN)
+        readonly property var  _nextD: MLTheme.distance(root._mission && _next > 0 ? _next : NaN)
         readonly property real _gs:   root._has ? root.fv(root.vehicle.groundSpeed) : NaN
 
         NumCell { label: "V/S"; value: isNaN(numbers._vs) ? "—" : (numbers._vs >= 0 ? "+" : "") + numbers._vs.toFixed(1); unit: "m/s" }
@@ -146,7 +146,7 @@ Rectangle {
         NumCell { label: root._mission ? qsTr("WPT %1까지").arg(root._cur) : qsTr("다음 경유점"); value: numbers._nextD.v; unit: numbers._nextD.u }
         NumCell {
             label:      "ETE"
-            value:      (root._mission && numbers._gs > 0.5 && !isNaN(numbers._next)) ? MLTheme.duration(numbers._next / numbers._gs) : "—"
+            value:      (root._mission && numbers._gs > 0.5 && numbers._next > 0) ? MLTheme.duration(numbers._next / numbers._gs) : "—"
             rightRule:  false
         }
     }
