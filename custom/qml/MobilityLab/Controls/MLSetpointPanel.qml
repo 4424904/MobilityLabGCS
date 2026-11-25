@@ -58,8 +58,14 @@ Rectangle {
         altTarget = isNaN(_alt) ? 0 : Math.round(_alt)
         spdTarget = isNaN(_spd) ? 0 : Math.round(_spd * 2) / 2
     }
-    onVisibleChanged: if (visible) resetTargets()
-    onVehicleChanged: resetTargets()
+    // Start the targets at the current values once real data is in
+    property bool _seeded: false
+    function _seed() {
+        if (!_seeded && visible && !isNaN(_alt) && !isNaN(_hdg)) { resetTargets(); _seeded = true }
+    }
+    onVisibleChanged: { _seeded = false; _seed() }
+    onVehicleChanged: { _seeded = false; _seed() }
+    on_AltChanged:    _seed()
 
     // ---- Commands (also used by the SITL test hook below) -----------------
     function sendSpeed(metersPerSecond) {
