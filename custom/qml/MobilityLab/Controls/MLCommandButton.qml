@@ -101,7 +101,7 @@ Rectangle {
         onClicked: {
             if (!root.available) return
             if (!root.twoStep) { root.clicked(); return }
-            if (root._pending) { root.cancel(); root.clicked() }
+            if (root._pending) { root.cancel(); MLState.command(root.text); root.clicked() }
             else { root._pending = true; countdown.restart(); countdownAnim.restart() }
         }
     }

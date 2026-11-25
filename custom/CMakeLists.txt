@@ -37,6 +37,9 @@ set(ML_QML_FILES
     ${ML_QML_DIR}/MLProfile.qml
     ${ML_QML_DIR}/MLFleetPanel.qml
     ${ML_QML_DIR}/MLToast.qml
+    ${ML_QML_DIR}/MLEventLog.qml
+    ${ML_QML_DIR}/MLAlertBanner.qml
+    ${ML_QML_DIR}/MLMapHud.qml
     ${ML_QML_DIR}/MLSetpointPanel.qml
     ${ML_QML_DIR}/MLCommandBar.qml
     ${ML_QML_DIR}/MLCommandButton.qml

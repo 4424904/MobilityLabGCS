@@ -167,6 +167,28 @@ Item {
         }
     }
 
+    // ---- Event log feed: FC messages, mode / arming changes -----------------
+    Instantiator {
+        model: QGroundControl.multiVehicleManager.vehicles
+        delegate: QtObject {
+            required property var object
+            readonly property var _v: object
+            property var _conn: Connections {
+                target: _v
+                function onTextMessageReceived(sysid, componentid, severity, text, description) {
+                    if (severity >= 7) return
+                    MLState.log(text, severity <= 3 ? 3 : (severity === 4 ? 2 : 0), sysid, "FC")
+                }
+                function onFlightModeChanged(mode) { MLState.log(qsTr("비행 모드 → %1").arg(mode), 0, _v.id, "FC") }
+                function onArmedChanged(armed) { MLState.log(armed ? qsTr("시동 걸림") : qsTr("시동 꺼짐"), 1, _v.id, "FC") }
+            }
+            Component.onCompleted: MLState.log(qsTr("UAV %1 연결 · %2").arg(("0" + _v.id).slice(-2)).arg(MLTheme.vehicleTypeName(_v)), 1, _v.id, "GCS")
+        }
+    }
+
+    Component.onCompleted: mainWindow.criticalVehicleMessageHandler = function(message) { alertBanner.push(message) }
+    Component.onDestruction: mainWindow.criticalVehicleMessageHandler = null
+
     Item {
         id:                 mapHolder
         anchors.top:        _consoleVisible ? toolbar.bottom : parent.top
@@ -272,12 +294,39 @@ Item {
             onCloseRequested:   MLState.setpointsOpen = false
         }
 
-        // Thin frame so the map reads as one console pane
-        Rectangle {
-            anchors.fill:   parent
-            z:              QGroundControl.zOrderTopMost
-            visible:        false
-            color:          "transparent"
+        // Critical vehicle messages (replaces QGC's yellow popup)
+        MLAlertBanner {
+            id:                         alertBanner
+            anchors.top:                parent.top
+            anchors.topMargin:          _gap * 2
+            anchors.horizontalCenter:   parent.horizontalCenter
+            width:                      Math.min(720 * _u, parent.width - 360 * _u)
+            z:                          QGroundControl.zOrderTopMost
+        }
+
+        // Position readout
+        MLMapHud {
+            anchors.top:            parent.top
+            anchors.right:          guidedValueSlider.visible ? guidedValueSlider.left : parent.right
+            anchors.margins:        _gap * 2
+            z:                      QGroundControl.zOrderWidgets
+            visible:                _consoleVisible && !!_activeVehicle && !_is3DMode
+        }
+
+        // Corner marks so the map reads as an instrument pane
+        Repeater {
+            model: 4
+            Item {
+                required property int index
+                readonly property real _len: 14 * _u
+                width:  _len; height: _len
+                x:      (index % 2 === 0) ? 6 * _u : mapHolder.width - width - 6 * _u
+                y:      (index < 2) ? 6 * _u : mapHolder.height - height - 6 * _u
+                z:      QGroundControl.zOrderWidgets
+                visible: _consoleVisible
+                Rectangle { width: parent.width; height: 1.5 * _u; color: "#995BC0EB"; y: index < 2 ? 0 : parent.height - height }
+                Rectangle { width: 1.5 * _u; height: parent.height; color: "#995BC0EB"; x: index % 2 === 0 ? 0 : parent.width - width }
+            }
         }
 
         Loader {

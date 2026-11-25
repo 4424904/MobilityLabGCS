@@ -30,6 +30,9 @@ Column {
             if (state >= 3 || (!isNaN(pct) && pct < 15))      list.push({ level: 3, text: qsTr("%1 잔량 위험").arg(name), time: "", acked: true })
             else if (state === 2 || (!isNaN(pct) && pct < 30)) list.push({ level: 2, text: qsTr("%1 잔량 낮음").arg(name), time: "", acked: true })
         }
+        var fw = MLTheme.fwInfo(vehicle)
+        if (fw.modeUnknown && !_commLost) list.push({ level: 2, text: qsTr("비행 모드 인식 불가 · 펌웨어 확인"), time: "", acked: true })
+        else if (fw.known && !fw.ok)      list.push({ level: 2, text: qsTr("%1 %2 · 권장 %3 이상").arg(fw.name).arg(fw.version).arg(fw.recommend), time: "", acked: true })
         var lock = _v(vehicle.gps.lock)
         if (vehicle.armed && !isNaN(lock) && lock < 3) list.push({ level: vehicle.flying ? 3 : 2, text: qsTr("GPS 위치 고정 안 됨"), time: "", acked: true })
         return list

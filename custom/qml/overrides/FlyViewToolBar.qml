@@ -33,6 +33,7 @@ Item {
     property real   _margins:               ScreenTools.defaultFontPixelWidth / 2
     // MainStatusIndicator writes its state colour here (ready / not ready / armed / comms lost)
     property color  _mainStatusBGColor:     qgcPal.brandingPurple
+    property bool   _indicatorsOpen:        false
 
     QGCPalette { id: qgcPal }
 
@@ -221,11 +222,75 @@ Item {
         anchors.right:  parent.right
         height:         parent.height
 
-        FlyViewToolBarIndicators {
-            id:     flyViewIndicators
-            height: parent.height
+        // ---- status strip: LINK · GNSS · BATT · FC -------------------------
+        component StatusCell: Item {
+            property string label
+            property string value
+            property string sub
+            property color  valueColor: MLTheme.text
+            property color  ledColor:   "transparent"
+            width:  Math.max(84 * u, cellCol.implicitWidth + 30 * u)
+            height: rightRow.height
+            Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
+            Column {
+                id:                     cellCol
+                x:                      16 * u
+                anchors.verticalCenter: parent.verticalCenter
+                spacing:                1 * u
+                Row {
+                    spacing: 6 * u
+                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 5 * u; height: 5 * u; radius: width / 2; color: ledColor; visible: ledColor.a > 0 }
+                    Text { text: label; color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel; font.letterSpacing: 0.9 * u }
+                }
+                Text { text: value; color: valueColor; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody; font.weight: Font.Medium }
+                Text { text: sub; visible: sub !== ""; color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel }
+            }
         }
-        Rectangle { width: 1; height: parent.height; color: MLTheme.line }
+
+        readonly property bool _has:   !!control._activeVehicle
+        readonly property var  _bat:   _has && control._activeVehicle.batteries.count > 0 ? control._activeVehicle.batteries.get(0) : null
+        readonly property real _pct:   _bat ? control._fv(_bat.percentRemaining) : NaN
+        readonly property real _volt:  _bat ? control._fv(_bat.voltage) : NaN
+        readonly property real _lock:  _has ? control._fv(control._activeVehicle.gps.lock) : NaN
+        readonly property real _sats:  _has ? control._fv(control._activeVehicle.gps.count) : NaN
+        readonly property real _hdop:  _has ? control._fv(control._activeVehicle.gps.hdop) : NaN
+        readonly property real _rssi:  _has ? control._fv(control._activeVehicle.radioStatus.lrssi) : NaN
+        readonly property var  _fw:    MLTheme.fwInfo(control._activeVehicle)
+
+        StatusCell {
+            label:      "LINK"
+            value:      !rightRow._has ? "—" : (control._communicationLost ? qsTr("두절") : (!isNaN(rightRow._rssi) && rightRow._rssi !== 0 ? rightRow._rssi.toFixed(0) + " dBm" : "OK"))
+            valueColor: control._communicationLost ? MLTheme.warning : MLTheme.text
+            ledColor:   !rightRow._has ? MLTheme.faint : (control._communicationLost ? MLTheme.warning : MLTheme.active)
+        }
+        StatusCell {
+            label:      "GNSS"
+            value:      isNaN(rightRow._lock) ? "—" : (rightRow._lock >= 6 ? "RTK FIX" : (rightRow._lock === 5 ? "RTK FLT" : (rightRow._lock >= 3 ? "3D" : (rightRow._lock === 2 ? "2D" : "NO FIX")))) + (isNaN(rightRow._sats) ? "" : "  " + rightRow._sats.toFixed(0))
+            valueColor: !isNaN(rightRow._lock) && rightRow._lock < 3 ? MLTheme.warning : MLTheme.text
+            ledColor:   isNaN(rightRow._lock) ? MLTheme.faint : (rightRow._lock < 3 ? MLTheme.warning : (!isNaN(rightRow._hdop) && rightRow._hdop > 2.5 ? MLTheme.caution : MLTheme.active))
+        }
+        StatusCell {
+            label:      "BATT"
+            value:      isNaN(rightRow._pct) ? "—" : rightRow._pct.toFixed(0) + "%" + (isNaN(rightRow._volt) ? "" : "  " + rightRow._volt.toFixed(1) + "V")
+            valueColor: isNaN(rightRow._pct) ? MLTheme.text : (rightRow._pct < 15 ? MLTheme.warning : (rightRow._pct < 30 ? MLTheme.caution : MLTheme.text))
+            ledColor:   isNaN(rightRow._pct) ? MLTheme.faint : (rightRow._pct < 15 ? MLTheme.warning : (rightRow._pct < 30 ? MLTheme.caution : MLTheme.active))
+        }
+        StatusCell {
+            label:      "FC"
+            value:      !rightRow._has ? "—" : rightRow._fw.name + (rightRow._fw.known ? " " + rightRow._fw.version : "")
+            valueColor: rightRow._has && (!rightRow._fw.ok || rightRow._fw.modeUnknown) ? MLTheme.caution : MLTheme.text
+            ledColor:   !rightRow._has ? MLTheme.faint : (!rightRow._fw.ok || rightRow._fw.modeUnknown ? MLTheme.caution : MLTheme.active)
+        }
+
+        // QGC's own indicators (RTK, gimbal, remote ID, …) in a drop-down
+        Item {
+            width:  moreText.implicitWidth + 28 * u
+            height: parent.height
+            Rectangle { anchors.fill: parent; color: control._indicatorsOpen ? MLTheme.panelRaised : (moreMouse.containsMouse ? "#0D1115" : "transparent") }
+            Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
+            MLText { id: moreText; anchors.centerIn: parent; text: qsTr("상세 ▾"); color: control._indicatorsOpen ? MLTheme.accent : MLTheme.label; font.pixelSize: MLTheme.fsSmall }
+            MouseArea { id: moreMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: control._indicatorsOpen = !control._indicatorsOpen }
+        }
 
         Item {
             id:     clock
@@ -286,6 +351,25 @@ Item {
             id:             messageFadeTimer
             interval:       4000
             onTriggered:    messageOpacityAnimation.start()
+        }
+    }
+
+    Rectangle {
+        id:             indicatorDrop
+        visible:        control._indicatorsOpen
+        anchors.top:    control.bottom
+        anchors.right:  control.right
+        anchors.rightMargin: clock.width
+        width:          flyViewIndicators.implicitWidth + 16 * u
+        height:         46 * u
+        color:          MLTheme.panelSolid
+        border.color:   MLTheme.lineStrong
+        z:              QGroundControl.zOrderTopMost
+        FlyViewToolBarIndicators {
+            id:             flyViewIndicators
+            anchors.left:   parent.left
+            anchors.leftMargin: 8 * u
+            height:         parent.height
         }
     }
 

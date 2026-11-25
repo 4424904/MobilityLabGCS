@@ -1,0 +1,23 @@
+diff --git a/src/MainWindow/MainWindow.qml b/src/MainWindow/MainWindow.qml
+index 46c56b3..094c526 100644
+--- a/src/MainWindow/MainWindow.qml
++++ b/src/MainWindow/MainWindow.qml
+@@ -475,10 +475,18 @@ ApplicationWindow {
+     //-------------------------------------------------------------------------
+     //-- Critical Vehicle Message Popup
+ 
++    // MobilityLab: the fly view registers a handler that shows critical
++    // vehicle messages in its own banner and event log.
++    property var criticalVehicleMessageHandler: null
++
+     function showCriticalVehicleMessage(message) {
+         if (suppressCriticalVehicleMessages) {
+             return
+         }
++        if (criticalVehicleMessageHandler) {
++            criticalVehicleMessageHandler(message)
++            return
++        }
+         if (criticalVehicleMessagePopup.visible || QGroundControl.videoManager.fullScreen) {
+             // We received additional warning message while an older warning message was still displayed.
+             // When the user close the older one drop the message indicator tool so they can see the rest of them.

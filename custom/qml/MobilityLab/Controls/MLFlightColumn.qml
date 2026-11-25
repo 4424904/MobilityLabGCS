@@ -235,4 +235,12 @@ Rectangle {
             barColor:   isNaN(links._vib) ? MLTheme.label : (links._vib > 60 ? MLTheme.warning : (links._vib > 30 ? MLTheme.caution : MLTheme.label))
         }
     }
+
+    // ---- Event log: fills whatever height is left --------------------------
+    MLEventLog {
+        anchors.top:    links.visible ? links.bottom : numbers.bottom
+        anchors.bottom: parent.bottom
+        width:          parent.width
+        visible:        height > 90 * u
+    }
 }

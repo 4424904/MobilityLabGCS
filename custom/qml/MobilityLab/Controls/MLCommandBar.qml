@@ -228,6 +228,7 @@ Rectangle {
                                             : qsTr("모터를 즉시 정지합니다. 비행 중이면 추락합니다.")
             onActivated: {
                 if (!root._vehicle) return
+                MLState.command(root._hasEngine ? qsTr("엔진 비상정지") : qsTr("비상 정지"))
                 if (root._hasEngine) {
                     root._vehicle.sendCommand(root._autopilotCompId, root._mavCmdDoEngineControl, true, 0, 0, 0, 0, 0, 0, 0)
                 } else {

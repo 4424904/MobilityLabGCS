@@ -138,64 +138,80 @@ void setBoth(QGCPalette::PaletteColorInfo_t &info, const char *light, const char
 
 void MLPlugin::paletteOverride(const QString &colorName, QGCPalette::PaletteColorInfo_t &colorInfo)
 {
+    // Console palette (see MLTheme.qml). Dark theme only, except status and
+    // map colours, which are set for both themes so the meaning never changes.
     if (colorName == QStringLiteral("window")) {
-        setDark(colorInfo, "#11171a");
+        setDark(colorInfo, "#0A0D10");
     } else if (colorName == QStringLiteral("windowTransparent")) {
-        setDark(colorInfo, "#e011171a");
+        setDark(colorInfo, "#E60A0D10");
     } else if (colorName == QStringLiteral("windowShade")) {
-        setDark(colorInfo, "#1a2226");
+        setDark(colorInfo, "#11161B");
     } else if (colorName == QStringLiteral("windowShadeDark")) {
-        setDark(colorInfo, "#0b0f11");
+        setDark(colorInfo, "#07090B");
     } else if (colorName == QStringLiteral("windowShadeLight")) {
-        setDark(colorInfo, "#5d6e74", "#4a585d");
+        setDark(colorInfo, "#4A535C", "#2A3038");
     } else if (colorName == QStringLiteral("text")) {
-        setDark(colorInfo, "#e6ece9", "#6f7f84");
+        setDark(colorInfo, "#E6E4DE", "#4A535C");
     } else if (colorName == QStringLiteral("warningText")) {
-        setDark(colorInfo, "#ff5a5a");
+        setDark(colorInfo, "#FF5A52");
     } else if (colorName == QStringLiteral("button")) {
-        setDark(colorInfo, "#223036", "#1a2226");
+        setDark(colorInfo, "#11161B", "#0D1115");
     } else if (colorName == QStringLiteral("buttonBorder")) {
-        setDark(colorInfo, "#3b4d54", "#2a363b");
+        setDark(colorInfo, "#2A3038", "#1B2026");
     } else if (colorName == QStringLiteral("buttonText")) {
-        setDark(colorInfo, "#e6ece9", "#6f7f84");
+        setDark(colorInfo, "#E6E4DE", "#4A535C");
     } else if (colorName == QStringLiteral("buttonHighlight")) {
-        setDark(colorInfo, "#1d7f95", "#223036");
+        setDark(colorInfo, "#1E5A72", "#11161B");
     } else if (colorName == QStringLiteral("buttonHighlightText")) {
-        setDark(colorInfo, "#ffffff", "#6f7f84");
+        setDark(colorInfo, "#F2F1EE", "#4A535C");
     } else if (colorName == QStringLiteral("primaryButton")) {
-        setDark(colorInfo, "#1d7f95", "#2a363b");
+        setDark(colorInfo, "#5BC0EB", "#1B2026");
     } else if (colorName == QStringLiteral("primaryButtonText")) {
-        setDark(colorInfo, "#ffffff", "#8fa0a5");
+        setDark(colorInfo, "#07090B", "#4A535C");
     } else if (colorName == QStringLiteral("textField")) {
-        setDark(colorInfo, "#0b1114", "#1a2226");
+        setDark(colorInfo, "#07090B", "#0D1115");
     } else if (colorName == QStringLiteral("textFieldText")) {
-        setDark(colorInfo, "#e6ece9", "#6f7f84");
+        setDark(colorInfo, "#E6E4DE", "#4A535C");
     } else if (colorName == QStringLiteral("mapButton")) {
-        setDark(colorInfo, "#0b1114", "#3b4d54");
+        setDark(colorInfo, "#E60A0D10", "#2A3038");
     } else if (colorName == QStringLiteral("mapButtonHighlight")) {
-        setDark(colorInfo, "#4fd3ea", "#3b4d54");
+        setDark(colorInfo, "#5BC0EB", "#2A3038");
     } else if (colorName == QStringLiteral("mapIndicator")) {
-        setDark(colorInfo, "#4fd3ea", "#3b4d54");
+        setDark(colorInfo, "#5BC0EB", "#2A3038");
     } else if (colorName == QStringLiteral("mapIndicatorChild")) {
-        setDark(colorInfo, "#2b7f90", "#3b4d54");
+        setDark(colorInfo, "#2C6E88", "#2A3038");
     } else if (colorName == QStringLiteral("colorGreen")) {
-        setBoth(colorInfo, "#0a8a3e", "#4ccf7c");
+        setBoth(colorInfo, "#0a8a3e", "#6FD08C");
+    } else if (colorName == QStringLiteral("colorYellow")) {
+        setBoth(colorInfo, "#a2a200", "#F0D04A");
     } else if (colorName == QStringLiteral("colorOrange")) {
-        setBoth(colorInfo, "#b86e00", "#f5b331");
+        setBoth(colorInfo, "#b86e00", "#F0B232");
     } else if (colorName == QStringLiteral("colorRed")) {
-        setBoth(colorInfo, "#c41d24", "#ff4f4f");
+        setBoth(colorInfo, "#c41d24", "#FF5A52");
     } else if (colorName == QStringLiteral("colorBlue")) {
-        setBoth(colorInfo, "#0b6e86", "#4fd3ea");
+        setBoth(colorInfo, "#0b6e86", "#5BC0EB");
+    } else if (colorName == QStringLiteral("colorGrey")) {
+        setBoth(colorInfo, "#808080", "#AEB4BB");
+    } else if (colorName == QStringLiteral("alertBackground")) {
+        setBoth(colorInfo, "#120C0D", "#120C0D");
+    } else if (colorName == QStringLiteral("alertBorder")) {
+        setBoth(colorInfo, "#6B3430", "#6B3430");
+    } else if (colorName == QStringLiteral("alertText")) {
+        setBoth(colorInfo, "#F2F1EE", "#F2F1EE");
     } else if (colorName == QStringLiteral("missionItemEditor")) {
-        setDark(colorInfo, "#1a2226", "#11171a");
+        setDark(colorInfo, "#11161B", "#0D1115");
     } else if (colorName == QStringLiteral("toolStripHoverColor")) {
-        setDark(colorInfo, "#2b4a54", "#1a2226");
+        setDark(colorInfo, "#1B2A33", "#11161B");
     } else if (colorName == QStringLiteral("toolbarBackground")) {
-        setDark(colorInfo, "#e00d1215");
+        setDark(colorInfo, "#F20A0D10");
     } else if (colorName == QStringLiteral("groupBorder")) {
-        setDark(colorInfo, "#2a363b");
+        setDark(colorInfo, "#1B2026");
     } else if (colorName == QStringLiteral("brandingBlue")) {
-        setBoth(colorInfo, "#d80e18", "#d80e18");
+        setBoth(colorInfo, "#D80E18", "#D80E18");
+    } else if (colorName == QStringLiteral("mapMissionTrajectory")) {
+        setBoth(colorInfo, "#5BC0EB", "#5BC0EB");
+    } else if (colorName == QStringLiteral("toolStripFGColor")) {
+        setBoth(colorInfo, "#AEB4BB", "#E6E4DE");
     }
 }
 

@@ -104,4 +104,27 @@ QtObject {
         if (isNaN(m) || m < 0) return { v: "—", u: "" }
         return m >= 1000 ? { v: (m / 1000).toFixed(2), u: "km" } : { v: m.toFixed(0), u: "m" }
     }
+
+    // ---- firmware ------------------------------------------------------------
+    // Versions the console's commands were verified against in SITL. Older
+    // versions usually work but are flagged so the operator checks first.
+    readonly property var fwRecommended: ({ px4: [1, 16, 0], apm: [4, 5, 0] })
+    function fwInfo(vehicle) {
+        var r = { name: "—", version: "", known: false, ok: true, recommend: "", modeUnknown: false }
+        if (!vehicle) return r
+        var maj = vehicle.firmwareMajorVersion, min = vehicle.firmwareMinorVersion, pat = vehicle.firmwarePatchVersion
+        r.name = vehicle.px4Firmware ? "PX4" : (vehicle.apmFirmware ? "ArduPilot" : String(vehicle.firmwareTypeString))
+        r.known = maj !== undefined && maj >= 0
+        if (r.known) r.version = maj + "." + Math.max(0, min) + "." + Math.max(0, pat)
+        var rec = vehicle.px4Firmware ? fwRecommended.px4 : (vehicle.apmFirmware ? fwRecommended.apm : null)
+        if (rec) {
+            r.recommend = rec[0] + "." + rec[1]
+            if (r.known) {
+                var cur = [maj, Math.max(0, min), Math.max(0, pat)]
+                for (var i = 0; i < 3; i++) { if (cur[i] !== rec[i]) { r.ok = cur[i] > rec[i]; break } }
+            }
+        }
+        r.modeUnknown = /custom:|unknown/i.test(String(vehicle.flightMode))
+        return r
+    }
 }

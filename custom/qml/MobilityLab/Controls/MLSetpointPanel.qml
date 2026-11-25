@@ -83,6 +83,7 @@ Rectangle {
 
     // ---- commands -------------------------------------------------------------
     function sendSpeed(mps) {
+        MLState.command(qsTr("목표 속도 %1 m/s").arg(Number(mps).toFixed(1)))
         if (!_has) return
         if (_airspeed) vehicle.guidedModeChangeEquivalentAirspeedMetersSecond(mps)
         else           vehicle.guidedModeChangeGroundSpeedMetersSecond(mps)
@@ -186,8 +187,14 @@ Rectangle {
         MLState.targetHeading = NaN
     }
 
-    function sendAltitude(t) { if (_keep) { if (!sendAltitudeKeep(t)) sendAltitudeHold(t) } else sendAltitudeHold(t) }
-    function sendHeading(d)  { if (_keep) sendHeadingKeep(d); else sendHeadingHold(d) }
+    function sendAltitude(t) {
+        MLState.command(qsTr("목표 고도 %1 m (%2)").arg(Math.round(t)).arg(_keep ? qsTr("미션 유지") : qsTr("멈추고 변경")))
+        if (_keep) { if (!sendAltitudeKeep(t)) sendAltitudeHold(t) } else sendAltitudeHold(t)
+    }
+    function sendHeading(d) {
+        MLState.command(qsTr("목표 헤딩 %1° (%2)").arg(("00" + Math.round(d)).slice(-3)).arg(_keep ? qsTr("미션 유지") : qsTr("멈추고 변경")))
+        if (_keep) sendHeadingKeep(d); else sendHeadingHold(d)
+    }
 
     function _reason(extra) {
         if (!_has)       return qsTr("기체가 연결되지 않았습니다")
