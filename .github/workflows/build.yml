@@ -103,20 +103,19 @@ jobs:
         run: bash mlgcs/tools/ci_screens.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens"
 
       # ---- SITL: ArduPilot (downloaded ArduCopter SITL) and PX4 (SIH, built here) ----
-      - name: Restore PX4 build cache
+      - name: Restore PX4 SITL binary
         if: success()
+        id: px4bin
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/px4-ccache
-          key: px4-ccache-${{ env.PX4_REF }}-${{ github.run_id }}
-          restore-keys: px4-ccache-${{ env.PX4_REF }}-
+          path: ${{ runner.temp }}/px4sitl
+          key: px4-sitl-bin-${{ env.PX4_REF }}-v1
 
       - name: Build PX4 SITL ${{ env.PX4_REF }}
-        if: success()
+        if: success() && steps.px4bin.outputs.cache-hit != 'true'
         continue-on-error: true
-        timeout-minutes: 40
+        timeout-minutes: 50
         env:
-          CCACHE_DIR: ${{ runner.temp }}/px4-ccache
           CMAKE_POLICY_VERSION_MINIMUM: '3.5'   # runner has CMake 4; PX4 v1.15 submodules declare older minimums
         run: |
           git clone -q --depth 1 --branch "$PX4_REF" --recursive --shallow-submodules -j8 https://github.com/PX4/PX4-Autopilot.git "${RUNNER_TEMP}/px4"
@@ -127,13 +126,16 @@ jobs:
           # shallow clone has no NuttX release tags; PX4's version header script expects one
           git -C "${RUNNER_TEMP}/px4/platforms/nuttx/NuttX/nuttx" tag nuttx-0.0.0 2>/dev/null || true
           cd "${RUNNER_TEMP}/px4" && make px4_sitl_default CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
-          ls -la build/px4_sitl_default/bin | head
+          # keep only what running SITL needs (binary + startup scripts), cached for later runs
+          mkdir -p "${RUNNER_TEMP}/px4sitl"
+          cp -a build/px4_sitl_default/bin build/px4_sitl_default/etc "${RUNNER_TEMP}/px4sitl/"
+          du -sh "${RUNNER_TEMP}/px4sitl"
 
       - name: SITL check (목표 조정 commands)
         if: success()
         continue-on-error: true
         timeout-minutes: 25
-        run: bash mlgcs/tools/ci_sitl.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens" "${RUNNER_TEMP}/px4/build/px4_sitl_default"
+        run: bash mlgcs/tools/ci_sitl.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens" "${RUNNER_TEMP}/px4sitl"
 
       - name: Publish screenshots to the ci-screens branch
         if: always()

@@ -45,6 +45,7 @@ class Vehicle:
         self.hdg = float("nan")
         self.lat = self.lon = None
         self.armed = False
+        self.fix = 0
         self.mode = ""
         self.statustext = []
 
@@ -63,6 +64,8 @@ class Vehicle:
                 self.alt = m.relative_alt / 1000.0
                 self.lat, self.lon = m.lat / 1e7, m.lon / 1e7
                 self.hdg = m.hdg / 100.0 if m.hdg != 65535 else self.hdg
+            elif t == "GPS_RAW_INT":
+                self.fix = m.fix_type
             elif t == "VFR_HUD":
                 self.gs = m.groundspeed
             elif t == "STATUSTEXT":
@@ -135,8 +138,11 @@ class Vehicle:
                 return m.type == mav.MAV_MISSION_ACCEPTED
             seq = m.seq
             cmd, lat, lon, alt = items[seq]
+            log(f"  mission item {seq} requested")
+            # RTL has no position: send it in the MISSION frame (PX4 rejects it in a global frame)
+            frame = mav.MAV_FRAME_MISSION if cmd == mav.MAV_CMD_NAV_RETURN_TO_LAUNCH else mav.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
             self.c.mav.mission_item_int_send(self.c.target_system, self.c.target_component, seq,
-                                             mav.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, cmd, 0, 1,
+                                             frame, cmd, 0, 1,
                                              0, 0, 0, float("nan") if self.fw == "px4" else 0,
                                              int(lat * 1e7), int(lon * 1e7), alt, 0)
             sent.add(seq)
@@ -188,10 +194,11 @@ def main():
 
     # wait for a position
     end = time.time() + 120
-    # wait for a real fix (PX4 SIH reports ~0,0 until its estimator has a position)
-    while (v.lat is None or (abs(v.lat) < 0.01 and abs(v.lon) < 0.01)) and time.time() < end:
+    # wait for a 3D GPS fix and a position
+    while (v.lat is None or v.fix < 3) and time.time() < end:
         v.pump(0.5)
-    if v.lat is None or (abs(v.lat) < 0.01 and abs(v.lon) < 0.01):
+    v.wait(5)   # let the estimator settle on that fix
+    if v.lat is None:
         result["notes"].append("no position")
         finish(2)
     home_lat, home_lon = v.lat, v.lon
