@@ -188,9 +188,10 @@ def main():
 
     # wait for a position
     end = time.time() + 120
-    while (v.lat is None or v.lat == 0) and time.time() < end:
+    # wait for a real fix (PX4 SIH reports ~0,0 until its estimator has a position)
+    while (v.lat is None or (abs(v.lat) < 0.01 and abs(v.lon) < 0.01)) and time.time() < end:
         v.pump(0.5)
-    if v.lat is None:
+    if v.lat is None or (abs(v.lat) < 0.01 and abs(v.lon) < 0.01):
         result["notes"].append("no position")
         finish(2)
     home_lat, home_lon = v.lat, v.lon
