@@ -66,6 +66,7 @@ Rectangle {
     onVisibleChanged: { _seeded = false; _seed() }
     onVehicleChanged: { _seeded = false; _seed() }
     on_AltChanged:    _seed()
+    on_FlyingChanged: { _seeded = false; _seed() }   // re-seed after takeoff
 
     // ---- Commands (also used by the SITL test hook below) -----------------
     function sendSpeed(metersPerSecond) {
