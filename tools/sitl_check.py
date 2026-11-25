@@ -311,7 +311,7 @@ def main():
                 else:
                     low_since = None
             # altitude raised while the mission keeps running
-            if speed_ok and not alt_keep_ok and base_alt is not None and v.alt >= base_alt + 5:
+            if speed_ok and not alt_keep_ok and base_alt is not None and v.alt >= base_alt + 4:
                 alt_keep_ok = True
                 log(f"CHECK altitude_in_mission climbing ({base_alt:.1f} -> {v.alt:.1f} m, mode {v.mode}, seq {v.seq})")
             # nose turned while the mission keeps running

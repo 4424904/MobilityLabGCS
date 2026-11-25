@@ -98,14 +98,35 @@ Rectangle {
         MLState.targetAlt = targetRel
         return true
     }
+    // After the upload the autopilot may restart the mission from the first item
+    // (PX4 does, once it has stored the new mission), so the current waypoint is
+    // set again a moment later, and once more if the vehicle still disagrees.
+    property int _pendingSeq: -1
     Connections {
         target: root._pmc
         function onSyncInProgressChanged() {
             if (root._pmc && !root._pmc.syncInProgress && root._restoreSeq >= 0 && root._has) {
-                console.log("MLTEST mission uploaded, set current", root._restoreSeq)
-                root.vehicle.setCurrentMissionSequence(root._restoreSeq)
+                console.log("MLTEST mission uploaded, will set current", root._restoreSeq)
+                root._pendingSeq = root._restoreSeq
                 root._restoreSeq = -1
+                restoreTimer.attempt = 0
+                restoreTimer.restart()
             }
+        }
+    }
+    Timer {
+        id: restoreTimer
+        property int attempt: 0
+        interval: 1500
+        onTriggered: {
+            if (!root._has || root._pendingSeq < 0) return
+            var curIdx = root._mc ? root._mc.currentMissionIndex : -1
+            var curItem = (root._mc && curIdx > 0 && curIdx < root._mc.visualItems.count) ? root._mc.visualItems.get(curIdx) : null
+            var curSeq = curItem ? curItem.sequenceNumber : -1
+            if (attempt > 0 && curSeq === root._pendingSeq) { root._pendingSeq = -1; return }
+            console.log("MLTEST set current", root._pendingSeq, "vehicle at", curSeq, "attempt", attempt)
+            root.vehicle.setCurrentMissionSequence(root._pendingSeq)
+            if (++attempt < 3) restart(); else root._pendingSeq = -1
         }
     }
 
@@ -379,7 +400,7 @@ Rectangle {
             } else if (root._testStep === 1) {
                 if (++ticks >= 25) { console.log("MLTEST altitude keep", Math.round(root._alt + 15), "inMission", root._inMission, "keep", root._keep); root.keepMission = true; root.sendAltitude(Math.round(root._alt + 15)); root._testStep = 2; ticks = 0 }
             } else if (root._testStep === 2) {
-                if (++ticks >= 45) { console.log("MLTEST heading keep 225"); root.keepMission = true; root.sendHeading(225); root._testStep = 3; ticks = 0 }
+                if (++ticks >= 60) { console.log("MLTEST heading keep 225"); root.keepMission = true; root.sendHeading(225); root._testStep = 3; ticks = 0 }
             } else if (root._testStep === 3) {
                 if (++ticks >= 30) { console.log("MLTEST altitude hold +10 from", root._alt); root.keepMission = false; root.sendAltitude(Math.round(root._alt + 10)); root._testStep = 4; ticks = 0 }
             } else if (root._testStep === 4) {
