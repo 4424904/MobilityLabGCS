@@ -36,7 +36,7 @@ Rectangle {
         anchors.top:    parent.top
         anchors.margins: 1
         height:         ScreenTools.defaultFontPixelHeight * 1.9
-        color:          MLTheme.panelHeader
+        color:          MLTheme.panelSolid
         radius:         root.radius
 
         // square off the bottom corners of the header strip
@@ -53,23 +53,26 @@ Rectangle {
             anchors.left:           parent.left
             anchors.leftMargin:     root.padding * 0.6
             anchors.verticalCenter: parent.verticalCenter
-            width:                  Math.max(2, ScreenTools.defaultFontPixelWidth * 0.25)
+            visible:                false
+            width:                  0
             height:                 parent.height * 0.42
             radius:                 width / 2
             color:                  MLTheme.accent
         }
 
-        QGCLabel {
+        MLText {
             id:                     titleLabel
-            anchors.left:           accentBar.right
-            anchors.leftMargin:     ScreenTools.defaultFontPixelWidth * 0.7
+            anchors.left:           parent.left
+            anchors.leftMargin:     root.padding
             anchors.verticalCenter: parent.verticalCenter
             text:                   root.title
             color:                  MLTheme.text
-            font.bold:              true
+            font.pixelSize:         MLTheme.fsSmall
+            font.weight:            Font.DemiBold
+            font.letterSpacing:     1.2 * MLTheme.u
         }
 
-        QGCLabel {
+        Text {
             id:                     tagLabel
             anchors.left:           titleLabel.right
             anchors.leftMargin:     ScreenTools.defaultFontPixelWidth * 0.7
@@ -77,8 +80,8 @@ Rectangle {
             visible:                root.tag !== ""
             text:                   root.tag
             color:                  MLTheme.faint
-            font.pointSize:         ScreenTools.smallFontPointSize
-            font.letterSpacing:     1
+            font.family:            MLTheme.mono
+            font.pixelSize:         MLTheme.fsLabel
         }
 
         Row {

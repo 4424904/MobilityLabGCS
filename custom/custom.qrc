@@ -2,6 +2,7 @@
     <!-- QML overrides: qrc:/qml/X is replaced by qrc:/Custom/qml/X (see MLOverrideInterceptor) -->
     <qresource prefix="/Custom/qml">
         <file alias="QGroundControl/FlyView/FlyView.qml">qml/overrides/FlyView.qml</file>
+        <file alias="QGroundControl/Toolbar/FlyViewToolBar.qml">qml/overrides/FlyViewToolBar.qml</file>
         <file alias="QGroundControl/FlyView/FlyViewCustomLayer.qml">qml/overrides/FlyViewCustomLayer.qml</file>
         <file alias="QGroundControl/FlyView/FlyViewBottomRightRowLayout.qml">qml/overrides/FlyViewBottomRightRowLayout.qml</file>
         <file alias="QGroundControl/FlyView/FlyViewTopRightPanel.qml">qml/overrides/FlyViewTopRightPanel.qml</file>
@@ -16,6 +17,10 @@
     <!-- MobilityLab resources -->
     <qresource prefix="/MobilityLab">
         <file alias="tandem.json">res/tandem.json</file>
+        <file alias="fonts/IBMPlexSansKR-Regular.ttf">res/fonts/IBMPlexSansKR-Regular.ttf</file>
+        <file alias="fonts/IBMPlexSansKR-SemiBold.ttf">res/fonts/IBMPlexSansKR-SemiBold.ttf</file>
+        <file alias="fonts/IBMPlexMono-Regular.ttf">res/fonts/IBMPlexMono-Regular.ttf</file>
+        <file alias="fonts/IBMPlexMono-Medium.ttf">res/fonts/IBMPlexMono-Medium.ttf</file>
         <file alias="logo.svg">res/icons/MobilityLabLogo.svg</file>
         <file alias="icons/takeoff.svg">res/icons/takeoff.svg</file>
         <file alias="icons/land.svg">res/icons/land.svg</file>

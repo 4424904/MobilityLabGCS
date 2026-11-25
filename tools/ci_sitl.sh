@@ -64,7 +64,7 @@ run_fw () {
     (cd "$dir" && eval "$start_cmd") > "$OUT/sitl-$fw-sim.log" 2>&1 &
     local sim=$!
 
-    python3 "$HERE/sitl_check.py" --fw "$fw" --conn "$link" --out "$OUT" --timeout 360 > "$OUT/sitl-$fw-check.log" 2>&1 &
+    python3 "$HERE/sitl_check.py" --fw "$fw" --conn "$link" --out "$OUT" --timeout 420 > "$OUT/sitl-$fw-check.log" 2>&1 &
     local chk=$!
 
     local n=0
@@ -72,7 +72,7 @@ run_fw () {
         sleep 30
         n=$((n + 1))
         shot "$disp" "$OUT/sitl-$fw-$n.png"
-        [[ $n -ge 13 ]] && break
+        [[ $n -ge 15 ]] && break
     done
     wait "$chk"; local rc=$?
     shot "$disp" "$OUT/sitl-$fw-final.png"

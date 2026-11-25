@@ -4,48 +4,52 @@ import QtQuick.Controls
 import QGroundControl
 import QGroundControl.Controls
 
-// 목표 조정: change heading / altitude / speed of the selected vehicle in flight.
+// 목표 조정: change altitude / speed / heading of the selected vehicle in flight.
 //
-//   ┌ 목표 조정  HDG · ALT · SPD ─────────────────────── ✕ ┐
-//   │ 방위  HDG      현재 352°                               │
-//   │ [-10][-1]   [ 090 ° ]   [+1][+10]          [ 보내기 ] │
-//   │   미션이 멈추고 이 방향으로 기수를 돌립니다             │
-//   │ 고도  ALT ...                                          │
-//   │ 속도  SPD ...      (미션을 유지한 채 속도만 바뀝니다)   │
-//   └───────────────────────────────────────────────────────┘
+//   ┌ 목표 조정 · UAV 01              [미션 유지 | 멈추고 변경] ┐
+//   │ 경로는 그대로 두고 남은 경유점의 고도·속도와 기수만 바꿉니다   │
+//   │ ALT   83 m    [ − |    95 m    | + ]   [보내기]           │
+//   │ SPD   14.2    [ − |  10.0 m/s  | + ]   [보내기]           │
+//   │ HDG   352°    [ − |    045°    | + ]   [보내기]           │
+//   └──────────────────────────────────────────────────────────┘
 //
-// Commands use QGC's own vehicle calls, so each firmware gets what QGC sends:
-//   speed    → MAV_CMD_DO_CHANGE_SPEED (PX4 and ArduPilot keep flying the mission)
-//   altitude → ArduPilot: guided altitude change; PX4: DO_REPOSITION at the current
-//              position (Hold). The mission pauses; resume from the command bar.
-//   heading  → ArduPilot CONDITION_YAW; PX4 DO_REPOSITION yaw at the current position
-// Every send needs two presses, like the command bar.
+// 미션 유지 (mission keeps running):
+//   ALT → remaining waypoints get the new altitude, the mission is re-uploaded
+//         and the current waypoint restored
+//   SPD → MAV_CMD_DO_CHANGE_SPEED
+//   HDG → region of interest 5 km out on that bearing: the nose points there
+//         while the aircraft keeps flying the route ("기수 자동" clears it)
+// 멈추고 변경 (mission pauses, resume from the command bar):
+//   ALT/HDG → ArduPilot: QGC guided calls; PX4: DO_REPOSITION at the current
+//             position (an altitude-only reposition would keep flying to the
+//             current waypoint)
+// Every send needs two presses. Values sent become magenta targets on the PFD.
 Rectangle {
     id: root
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
-
     signal closeRequested()
 
-    readonly property real _fw:         ScreenTools.defaultFontPixelWidth
-    readonly property real _fh:         ScreenTools.defaultFontPixelHeight
+    readonly property real u:           MLTheme.u
     readonly property bool _has:        !!vehicle
     readonly property bool _commLost:   _has && vehicle.vehicleLinkManager.communicationLost
     readonly property bool _flying:     _has && vehicle.flying
     readonly property bool _airspeed:   _has && (vehicle.fixedWing || (vehicle.vtol && vehicle.vtolInFwdFlight))
     readonly property string _mode:     _has ? String(vehicle.flightMode) : ""
-    readonly property bool _inMission:  _flying && /auto|mission|미션|자동/i.test(_mode) && !/rtl|return|land|복귀|착륙/i.test(_mode)
+    readonly property bool _rtlLand:    /rtl|return|land|복귀|착륙/i.test(_mode)
+    readonly property bool _inMission:  _flying && /auto|mission|미션|자동/i.test(_mode) && !_rtlLand
     readonly property bool _canGuide:   _has && vehicle.supports.guidedMode
     readonly property bool _canHeading: _has && vehicle.supports.changeHeading
-    readonly property var  _mc:         globals.planMasterControllerFlyView ? globals.planMasterControllerFlyView.missionController : null
+    readonly property var  _pmc:        globals.planMasterControllerFlyView
+    readonly property var  _mc:         _pmc ? _pmc.missionController : null
     readonly property bool _hasMission: !!_mc && _mc.visualItems && _mc.visualItems.count > 1
-    readonly property bool _missionPaused: _flying && _hasMission && !_inMission && !/rtl|return|land|복귀|착륙/i.test(_mode)
+    readonly property bool _missionPaused: _flying && _hasMission && !_inMission && !_rtlLand
 
-    function _num(fact) {
-        if (!fact) return NaN
-        var v = fact.rawValue
-        return (v === undefined) ? NaN : v
-    }
+    // keep = 미션 유지, otherwise 멈추고 변경
+    property bool keepMission: true
+    readonly property bool _keep: keepMission && _inMission && _hasMission
+
+    function _num(fact) { if (!fact) return NaN; var v = fact.rawValue; return (v === undefined || v === null) ? NaN : Number(v) }
     readonly property real _hdg: _has ? _num(vehicle.heading) : NaN
     readonly property real _alt: _has ? _num(vehicle.altitudeRelative) : NaN
     readonly property real _spd: _has ? (_airspeed ? _num(vehicle.airSpeed) : _num(vehicle.groundSpeed)) : NaN
@@ -59,228 +63,99 @@ Rectangle {
         altTarget = isNaN(_alt) ? 0 : Math.round(_alt)
         spdTarget = isNaN(_spd) ? 0 : Math.round(_spd * 2) / 2
     }
-    // Start the targets at the current values once real data is in
     property bool _seeded: false
-    function _seed() {
-        if (!_seeded && visible && !isNaN(_alt) && !isNaN(_hdg)) { resetTargets(); _seeded = true }
-    }
-    onVisibleChanged: { _seeded = false; _seed() }
+    function _seed() { if (!_seeded && visible && !isNaN(_alt) && !isNaN(_hdg)) { resetTargets(); _seeded = true } }
+    onVisibleChanged: { _seeded = false; _seed(); if (visible) keepMission = _inMission }
     onVehicleChanged: { _seeded = false; _seed() }
     on_AltChanged:    _seed()
-    on_FlyingChanged: { _seeded = false; _seed() }   // re-seed after takeoff
+    on_FlyingChanged: { _seeded = false; _seed() }
 
-    // ---- Commands (also used by the SITL test hook below) -----------------
-    function sendSpeed(metersPerSecond) {
+    // ---- commands -------------------------------------------------------------
+    function sendSpeed(mps) {
         if (!_has) return
-        if (_airspeed) vehicle.guidedModeChangeEquivalentAirspeedMetersSecond(metersPerSecond)
-        else           vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+        if (_airspeed) vehicle.guidedModeChangeEquivalentAirspeedMetersSecond(mps)
+        else           vehicle.guidedModeChangeGroundSpeedMetersSecond(mps)
+        MLState.targetSpeed = mps
     }
-    // PX4: an altitude- or yaw-only DO_REPOSITION keeps flying toward the current
-    // mission waypoint. To change altitude/heading "here", send the reposition with
-    // the vehicle's own position, the wanted altitude and yaw (Hold mode).
-    readonly property int _mavCmdDoReposition: 192
-    property real _px4HoldAmsl: NaN     // altitude last commanded through this panel (AMSL)
-    on_InMissionChanged: if (_inMission) _px4HoldAmsl = NaN
 
+    // 미션 유지: rewrite the remaining waypoints' altitude and re-upload
+    property int _restoreSeq: -1
+    function sendAltitudeKeep(targetRel) {
+        if (!_mc || !_pmc || _pmc.syncInProgress) return false
+        var cur = Math.max(1, _mc.currentMissionIndex), items = _mc.visualItems, changed = 0
+        var curItem = items.get(cur)
+        for (var i = cur; i < items.count; i++) {
+            var it = items.get(i)
+            if (!it || !it.isSimpleItem || !it.specifiesCoordinate || it.isLandCommand || it.isTakeoffItem || !it.altitude) continue
+            if (it.altitudeFrame !== QGroundControl.AltitudeFrameRelative) continue
+            it.altitude.rawValue = targetRel
+            changed++
+        }
+        if (changed === 0) return false
+        _restoreSeq = curItem ? curItem.sequenceNumber : -1
+        console.log("MLTEST mission altitude", targetRel, "items", changed, "restore seq", _restoreSeq)
+        _pmc.sendToVehicle()
+        MLState.targetAlt = targetRel
+        return true
+    }
+    Connections {
+        target: root._pmc
+        function onSyncInProgressChanged() {
+            if (root._pmc && !root._pmc.syncInProgress && root._restoreSeq >= 0 && root._has) {
+                console.log("MLTEST mission uploaded, set current", root._restoreSeq)
+                root.vehicle.setCurrentMissionSequence(root._restoreSeq)
+                root._restoreSeq = -1
+            }
+        }
+    }
+
+    // 멈추고 변경 (PX4: reposition here; ArduPilot: QGC guided calls)
+    readonly property int _mavCmdDoReposition: 192
+    property real _px4HoldAmsl: NaN
+    on_InMissionChanged: if (_inMission) _px4HoldAmsl = NaN
     function _px4Reposition(yawDeg, amsl) {
         var c = vehicle.coordinate
         if (!c.isValid || isNaN(amsl)) return false
-        vehicle.sendCommand(1, _mavCmdDoReposition, true,
-                            -1,                 // keep ground speed
-                            1,                  // MAV_DO_REPOSITION_FLAGS_CHANGE_MODE
-                            0,
-                            isNaN(yawDeg) ? NaN : yawDeg * Math.PI / 180,
-                            c.latitude, c.longitude, amsl)
+        vehicle.sendCommand(1, _mavCmdDoReposition, true, -1, 1, 0,
+                            isNaN(yawDeg) ? NaN : yawDeg * Math.PI / 180, c.latitude, c.longitude, amsl)
         return true
     }
-
-    function sendAltitude(targetRelMeters) {
+    function sendAltitudeHold(targetRel) {
         if (!_has || isNaN(_alt)) return
+        MLState.targetAlt = targetRel
         if (vehicle.px4Firmware && vehicle.homePosition.isValid && !isNaN(vehicle.homePosition.altitude)) {
-            _px4HoldAmsl = vehicle.homePosition.altitude + targetRelMeters
+            _px4HoldAmsl = vehicle.homePosition.altitude + targetRel
             if (_px4Reposition(NaN, _px4HoldAmsl)) return
         }
-        vehicle.guidedModeChangeAltitude(targetRelMeters - _alt, false)
+        vehicle.guidedModeChangeAltitude(targetRel - _alt, false)
     }
-    function sendHeading(degrees) {
+    function sendHeadingHold(deg) {
         if (!_has || !vehicle.coordinate.isValid) return
+        MLState.targetHeading = deg
         if (vehicle.px4Firmware) {
             var amsl = !isNaN(_px4HoldAmsl) ? _px4HoldAmsl : _num(vehicle.altitudeAMSL)
-            if (_px4Reposition(degrees, amsl)) return
+            if (_px4Reposition(deg, amsl)) return
         }
-        vehicle.guidedModeChangeHeading(vehicle.coordinate.atDistanceAndAzimuth(1000, degrees))
+        vehicle.guidedModeChangeHeading(vehicle.coordinate.atDistanceAndAzimuth(1000, deg))
+    }
+    // ROI sent directly (MAV_CMD_DO_SET_ROI_LOCATION / _NONE): QGC's own ROI call
+    // waits for a terrain lookup on PX4, which the heading use does not need.
+    readonly property int _mavCmdDoSetRoiLocation: 195
+    readonly property int _mavCmdDoSetRoiNone:     197
+    function sendHeadingKeep(deg) {
+        if (!_has || !vehicle.coordinate.isValid) return
+        var p = vehicle.coordinate.atDistanceAndAzimuth(5000, deg)
+        var amsl = _num(vehicle.altitudeAMSL)
+        vehicle.sendCommand(1, _mavCmdDoSetRoiLocation, true, 0, 0, 0, 0, p.latitude, p.longitude, isNaN(amsl) ? 0 : amsl)
+        MLState.targetHeading = deg
+    }
+    function clearHeading() {
+        if (_has) vehicle.sendCommand(1, _mavCmdDoSetRoiNone, true, 0, 0, 0, 0, 0, 0, 0)
+        MLState.targetHeading = NaN
     }
 
-    width:          _fw * 58
-    height:         column.implicitHeight + _fh * 1.2
-    radius:         _fw * 0.6
-    color:          "#f20e151c"
-    border.width:   1.5
-    border.color:   MLTheme.accent
-
-    // Swallow clicks so the map underneath does not react
-    MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onWheel: function(wheel) { wheel.accepted = true } }
-
-    component StepButton: Rectangle {
-        id: sb
-        property string label
-        signal pressed()
-        width:          root._fw * 5.2
-        height:         root._fh * 1.9
-        radius:         root._fw * 0.4
-        color:          sbMouse.pressed ? "#24404c" : (sbMouse.containsMouse ? "#1b2c36" : MLTheme.panelRaised)
-        border.width:   1
-        border.color:   sbMouse.containsMouse ? MLTheme.accent : MLTheme.lineStrong
-        QGCLabel {
-            anchors.centerIn:   parent
-            text:               sb.label
-            color:              MLTheme.text
-            font.family:        ScreenTools.fixedFontFamily
-            font.bold:          true
-        }
-        MouseArea {
-            id:             sbMouse
-            anchors.fill:   parent
-            hoverEnabled:   true
-            cursorShape:    Qt.PointingHandCursor
-            onClicked:      sb.pressed()
-            // hold to repeat
-            onPressAndHold: repeat.start()
-            onReleased:     repeat.stop()
-        }
-        Timer { id: repeat; interval: 120; repeat: true; onTriggered: sb.pressed() }
-    }
-
-    component SetRow: Column {
-        id: row
-
-        property string title
-        property string tag
-        property string unit
-        property real   current:    NaN
-        property real   target:     0
-        property real   small:      1
-        property real   big:        10
-        property real   minValue:   0
-        property real   maxValue:   9999
-        property bool   wrap360:    false
-        property int    digits:     0
-        property bool   available:  true
-        property string reason
-        property string note
-        property color  noteColor:  MLTheme.dim
-
-        signal targetEdited(real value)
-        signal send()
-
-        function clampValue(v) {
-            if (wrap360) return ((Math.round(v) % 360) + 360) % 360
-            return Math.max(minValue, Math.min(maxValue, v))
-        }
-        function fmt(v) {
-            if (isNaN(v)) return "—"
-            if (wrap360) return ("00" + Math.round(v)).slice(-3)
-            return v.toFixed(digits)
-        }
-
-        width:      parent.width
-        spacing:    root._fh * 0.3
-
-        Item {
-            width:  parent.width
-            height: rowTitle.implicitHeight
-            QGCLabel {
-                id:         rowTitle
-                text:       row.title
-                color:      MLTheme.text
-                font.bold:  true
-            }
-            QGCLabel {
-                anchors.left:       rowTitle.right
-                anchors.leftMargin: root._fw * 0.6
-                anchors.baseline:   rowTitle.baseline
-                text:               row.tag
-                color:              MLTheme.faint
-                font.pointSize:     ScreenTools.smallFontPointSize
-                font.letterSpacing: 1
-            }
-            QGCLabel {
-                anchors.right:      parent.right
-                anchors.baseline:   rowTitle.baseline
-                text:               qsTr("현재  %1 %2").arg(row.fmt(row.current)).arg(row.unit)
-                color:              MLTheme.label
-                font.family:        ScreenTools.fixedFontFamily
-            }
-        }
-
-        Row {
-            spacing: root._fw * 0.5
-
-            StepButton { label: "-" + row.big;   onPressed: row.targetEdited(row.clampValue(row.target - row.big)) }
-            StepButton { label: "-" + row.small; onPressed: row.targetEdited(row.clampValue(row.target - row.small)) }
-
-            Rectangle {
-                width:          root._fw * 13
-                height:         root._fh * 1.9
-                radius:         root._fw * 0.4
-                color:          "#0a1a12"
-                border.width:   1.5
-                border.color:   input.activeFocus ? "white" : MLTheme.ok
-
-                TextInput {
-                    id:                     input
-                    anchors.left:           parent.left
-                    anchors.right:          unitLabel.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin:    root._fw * 0.4
-                    horizontalAlignment:    TextInput.AlignRight
-                    text:                   row.fmt(row.target)
-                    color:                  "white"
-                    font.family:            ScreenTools.fixedFontFamily
-                    font.pointSize:         ScreenTools.mediumFontPointSize
-                    font.bold:              true
-                    selectByMouse:          true
-                    inputMethodHints:       Qt.ImhFormattedNumbersOnly
-                    validator:              DoubleValidator { bottom: row.wrap360 ? 0 : row.minValue; top: row.wrap360 ? 360 : row.maxValue }
-                    onEditingFinished: {
-                        var v = parseFloat(text)
-                        if (!isNaN(v)) row.targetEdited(row.clampValue(v))
-                        text = Qt.binding(function() { return row.fmt(row.target) })
-                    }
-                }
-                QGCLabel {
-                    id:                     unitLabel
-                    anchors.right:          parent.right
-                    anchors.rightMargin:    root._fw * 0.7
-                    anchors.verticalCenter: parent.verticalCenter
-                    text:                   row.unit
-                    color:                  MLTheme.dim
-                }
-            }
-
-            StepButton { label: "+" + row.small; onPressed: row.targetEdited(row.clampValue(row.target + row.small)) }
-            StepButton { label: "+" + row.big;   onPressed: row.targetEdited(row.clampValue(row.target + row.big)) }
-
-            Item { width: root._fw * 0.6; height: 1 }
-
-            MLCommandButton {
-                compact:        true
-                text:           qsTr("보내기")
-                tone:           "go"
-                available:      row.available
-                disabledReason: row.reason
-                onClicked:      row.send()
-            }
-        }
-
-        QGCLabel {
-            width:          parent.width
-            wrapMode:       Text.WordWrap
-            text:           row.available ? row.note : row.reason
-            color:          row.available ? row.noteColor : MLTheme.faint
-            font.pointSize: ScreenTools.smallFontPointSize
-        }
-    }
+    function sendAltitude(t) { if (_keep) { if (!sendAltitudeKeep(t)) sendAltitudeHold(t) } else sendAltitudeHold(t) }
+    function sendHeading(d)  { if (_keep) sendHeadingKeep(d); else sendHeadingHold(d) }
 
     function _reason(extra) {
         if (!_has)       return qsTr("기체가 연결되지 않았습니다")
@@ -291,152 +166,224 @@ Rectangle {
     }
     readonly property bool _ready: _has && !_commLost && _flying && _canGuide
 
-    Column {
-        id:                 column
-        anchors.left:       parent.left
-        anchors.right:      parent.right
-        anchors.top:        parent.top
-        anchors.margins:    root._fw * 1.2
-        anchors.topMargin:  root._fh * 0.5
-        spacing:            root._fh * 0.6
+    // ---- look -----------------------------------------------------------------
+    width:          420 * u
+    height:         col.implicitHeight
+    radius:         8 * u
+    color:          MLTheme.panel
+    border.width:   1
+    border.color:   "#232931"
 
-        // Header
-        Item {
-            width:  parent.width
-            height: root._fh * 1.6
-            QGCLabel {
-                id:                     head
-                anchors.verticalCenter: parent.verticalCenter
-                text:                   qsTr("목표 조정")
-                color:                  MLTheme.text
-                font.bold:              true
-                font.pointSize:         ScreenTools.mediumFontPointSize
-            }
-            QGCLabel {
-                anchors.left:           head.right
-                anchors.leftMargin:     root._fw
-                anchors.baseline:       head.baseline
-                text:                   "HDG · ALT · SPD" + (root._has && QGroundControl.multiVehicleManager.vehicles.count > 1 ? qsTr("   ·   기체 %1").arg(root.vehicle.id) : "")
-                color:                  MLTheme.faint
-                font.pointSize:         ScreenTools.smallFontPointSize
-                font.letterSpacing:     1
-            }
-            Rectangle {
-                anchors.right:          parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                width:                  root._fh * 1.6
-                height:                 width
-                radius:                 width / 2
-                color:                  closeMouse.containsMouse ? MLTheme.panelRaised : "transparent"
-                QGCLabel { anchors.centerIn: parent; text: "✕"; color: MLTheme.dim }
-                MouseArea { id: closeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.closeRequested() }
-            }
+    MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onWheel: function(wheel) { wheel.accepted = true } }
+
+    component Seg: Rectangle {
+        id: seg
+        property string label
+        property bool   on: false
+        signal picked()
+        width:  segText.implicitWidth + 22 * MLTheme.u
+        height: 28 * MLTheme.u
+        color:  on ? "#1A2129" : (segMouse.containsMouse ? "#11161B" : "transparent")
+        MLText { id: segText; anchors.centerIn: parent; text: seg.label; color: seg.on ? MLTheme.bright : MLTheme.dim; font.pixelSize: MLTheme.fsSmall }
+        MouseArea { id: segMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: seg.picked() }
+    }
+
+    component StepBtn: Rectangle {
+        id: b
+        property string glyph
+        signal fire()
+        width:  40 * MLTheme.u
+        color:  bm.pressed ? "#1A2129" : (bm.containsMouse ? "#151B21" : "#10151A")
+        MLText { anchors.centerIn: parent; text: b.glyph; color: MLTheme.label; font.pixelSize: 15 * MLTheme.u }
+        MouseArea {
+            id: bm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            onClicked: b.fire()
+            onPressAndHold: rep.start()
+            onReleased: rep.stop()
+            onCanceled: rep.stop()
         }
+        Timer { id: rep; interval: 110; repeat: true; onTriggered: b.fire() }
+    }
 
-        // Mission state banner
+    component Row3: Item {
+        id: r3
+        property string key
+        property string now
+        property string target
+        property bool   available: true
+        property string reason
+        signal minus()
+        signal plus()
+        signal edited(real v)
+        signal send()
+        height: 46 * MLTheme.u
+        Text { x: 14 * MLTheme.u; anchors.verticalCenter: parent.verticalCenter; text: r3.key; color: MLTheme.label; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall }
+        Text { x: 58 * MLTheme.u; width: 66 * MLTheme.u; anchors.verticalCenter: parent.verticalCenter; text: r3.now; color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody; elide: Text.ElideRight }
         Rectangle {
-            width:      parent.width
-            height:     bannerText.implicitHeight + root._fh * 0.6
-            radius:     root._fw * 0.4
-            visible:    root._flying
-            color:      root._missionPaused ? "#33270f" : (root._inMission ? "#163325" : MLTheme.tile)
-            border.width: 1
-            border.color: root._missionPaused ? MLTheme.caution : (root._inMission ? "#2c7a4c" : MLTheme.line)
-            QGCLabel {
-                id:                 bannerText
-                anchors.left:       parent.left
-                anchors.right:      parent.right
+            x: 128 * MLTheme.u; width: parent.width - 128 * MLTheme.u - 96 * MLTheme.u; height: 36 * MLTheme.u
+            anchors.verticalCenter: parent.verticalCenter
+            radius: 5 * MLTheme.u; color: MLTheme.bg; border.width: 1; border.color: input.activeFocus ? MLTheme.target : "#232931"; clip: true
+            StepBtn { id: mBtn; anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.margins: 1; glyph: "−"; onFire: r3.minus() }
+            StepBtn { id: pBtn; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.margins: 1; glyph: "+"; onFire: r3.plus() }
+            TextInput {
+                id:                     input
+                anchors.left:           mBtn.right
+                anchors.right:          pBtn.left
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.margins:    root._fw
-                wrapMode:           Text.WordWrap
-                text: root._missionPaused ? qsTr("미션 멈춤 (%1) · 아래 명령 바의 [미션 재개]로 경로에 복귀합니다").arg(root._mode)
-                                          : (root._inMission ? qsTr("미션 비행 중 · 속도는 미션을 유지한 채 바뀌고, 고도·방위를 보내면 미션이 멈춥니다")
-                                                             : qsTr("현재 모드: %1").arg(root._mode))
-                color:              root._missionPaused ? MLTheme.caution : (root._inMission ? MLTheme.ok : MLTheme.label)
-                font.pointSize:     ScreenTools.smallFontPointSize
-                font.bold:          true
+                horizontalAlignment:    TextInput.AlignHCenter
+                text:                   r3.target
+                color:                  MLTheme.target
+                font.family:            MLTheme.mono
+                font.pixelSize:         16 * MLTheme.u
+                selectByMouse:          true
+                inputMethodHints:       Qt.ImhFormattedNumbersOnly
+                onEditingFinished: {
+                    var v = parseFloat(text)
+                    if (!isNaN(v)) r3.edited(v)
+                    text = Qt.binding(function() { return r3.target })
+                }
             }
         }
-
-        SetRow {
-            title:          qsTr("방위")
-            tag:            "HDG"
-            unit:           "°"
-            current:        root._hdg
-            target:         root.hdgTarget
-            wrap360:        true
-            available:      root._ready && root._canHeading
-            reason:         root._reason(qsTr("이 기체 종류는 방위 지정 명령을 지원하지 않습니다 (고정익 등)"))
-            note:           root._inMission ? qsTr("보내면 미션이 멈추고 이 방향으로 기수를 돌립니다") : qsTr("이 방향으로 기수를 돌립니다")
-            noteColor:      root._inMission ? MLTheme.caution : MLTheme.dim
-            onTargetEdited: function(value) { root.hdgTarget = value }
-            onSend:         root.sendHeading(root.hdgTarget)
-        }
-
-        Rectangle { width: parent.width; height: 1; color: MLTheme.line }
-
-        SetRow {
-            title:          qsTr("고도")
-            tag:            "ALT"
-            unit:           "m"
-            current:        root._alt
-            target:         root.altTarget
-            minValue:       2
-            maxValue:       1000
-            available:      root._ready
-            reason:         root._reason("")
-            note:           root._inMission ? qsTr("보내면 미션이 멈추고 그 자리에서 이 고도로 이동합니다 (이륙 지점 기준)") : qsTr("그 자리에서 이 고도로 이동합니다 (이륙 지점 기준)")
-            noteColor:      root._inMission ? MLTheme.caution : MLTheme.dim
-            onTargetEdited: function(value) { root.altTarget = value }
-            onSend:         root.sendAltitude(root.altTarget)
-        }
-
-        Rectangle { width: parent.width; height: 1; color: MLTheme.line }
-
-        SetRow {
-            title:          root._airspeed ? qsTr("대기속도") : qsTr("속도")
-            tag:            root._airspeed ? "IAS" : "SPD"
-            unit:           "m/s"
-            current:        root._spd
-            target:         root.spdTarget
-            small:          0.5
-            big:            5
-            digits:         1
-            minValue:       0.5
-            maxValue:       60
-            available:      root._has && !root._commLost && root._flying
-            reason:         root._reason("")
-            note:           root._inMission ? qsTr("미션을 유지한 채 다음 구간부터 이 속도로 비행합니다") : qsTr("최대 수평 속도를 이 값으로 바꿉니다")
-            noteColor:      root._inMission ? MLTheme.ok : MLTheme.dim
-            onTargetEdited: function(value) { root.spdTarget = value }
-            onSend:         root.sendSpeed(root.spdTarget)
+        MLCommandButton {
+            anchors.right: parent.right; anchors.rightMargin: 14 * MLTheme.u; anchors.verticalCenter: parent.verticalCenter
+            width: 72 * MLTheme.u; compact: true
+            text: qsTr("보내기")
+            available: r3.available
+            disabledReason: r3.reason
+            onClicked: r3.send()
         }
     }
 
-    // ---- SITL test hook ----------------------------------------------------
-    // With ML_TEST_SETPOINTS=1 the CI flies a scripted check: once the vehicle
-    // is flying its mission it calls the same send functions as the buttons
-    // (speed, then altitude, then heading) and an external MAVLink monitor
-    // checks that the aircraft responds.
+    function _wrap(v) { return ((Math.round(v) % 360) + 360) % 360 }
+
+    Column {
+        id:     col
+        width:  parent.width
+
+        // header
+        Item {
+            width:  parent.width
+            height: 48 * u
+            MLText {
+                anchors.left: parent.left; anchors.leftMargin: 14 * u; anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("목표 조정") + (root._has ? "  ·  UAV " + ("0" + root.vehicle.id).slice(-2) : "")
+                color: MLTheme.text; font.pixelSize: MLTheme.fsSmall; font.weight: Font.DemiBold; font.letterSpacing: 1.2 * u
+            }
+            Rectangle {
+                anchors.right: closeBtn.left; anchors.rightMargin: 8 * u; anchors.verticalCenter: parent.verticalCenter
+                width: segRow.implicitWidth + 2; height: 30 * u; radius: 5 * u; color: "transparent"; border.width: 1; border.color: "#232931"; clip: true
+                Row {
+                    id: segRow; x: 1; y: 1
+                    Seg { label: qsTr("미션 유지"); on: root.keepMission; onPicked: root.keepMission = true }
+                    Rectangle { width: 1; height: 28 * u; color: "#232931" }
+                    Seg { label: qsTr("멈추고 변경"); on: !root.keepMission; onPicked: root.keepMission = false }
+                }
+            }
+            Rectangle {
+                id: closeBtn
+                anchors.right: parent.right; anchors.rightMargin: 8 * u; anchors.verticalCenter: parent.verticalCenter
+                width: 28 * u; height: width; radius: 4 * u
+                color: closeMouse.containsMouse ? "#151B21" : "transparent"
+                MLText { anchors.centerIn: parent; text: "✕"; color: MLTheme.dim; font.pixelSize: MLTheme.fsSmall }
+                MouseArea { id: closeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.closeRequested() }
+            }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: MLTheme.line }
+        }
+
+        // what will happen
+        Item {
+            width:  parent.width
+            height: note.implicitHeight + 16 * u
+            MLText {
+                id: note
+                x: 14 * u; y: 10 * u; width: parent.width - 28 * u
+                wrapMode: Text.WordWrap; elide: Text.ElideNone
+                font.pixelSize: MLTheme.fsSmall
+                color: root._missionPaused ? MLTheme.caution : MLTheme.dim
+                text: !root._flying ? qsTr("비행 중에만 사용할 수 있습니다")
+                      : root._missionPaused ? qsTr("미션 멈춤 (%1) · 명령 바의 [미션 재개]로 경로에 복귀합니다").arg(root._mode)
+                      : root._keep ? qsTr("경로는 그대로 두고 남은 경유점의 고도, 속도, 기수만 바꿉니다")
+                      : (root.keepMission && !root._hasMission) ? qsTr("기체에 미션이 없어 멈추고 변경합니다")
+                      : qsTr("보내면 미션이 멈추고 그 자리에서 고도·기수를 바꿉니다")
+            }
+        }
+
+        Row3 {
+            width: col.width
+            key: "ALT"
+            now: isNaN(root._alt) ? "—" : root._alt.toFixed(0) + " m"
+            target: root.altTarget.toFixed(0) + " m"
+            available: root._ready
+            reason: root._reason("")
+            onMinus: root.altTarget = Math.max(2, root.altTarget - 1)
+            onPlus:  root.altTarget = Math.min(1000, root.altTarget + 1)
+            onEdited: function(v) { root.altTarget = Math.max(2, Math.min(1000, Math.round(v))) }
+            onSend:  root.sendAltitude(root.altTarget)
+        }
+        Row3 {
+            width: col.width
+            key: root._airspeed ? "IAS" : "SPD"
+            now: isNaN(root._spd) ? "—" : root._spd.toFixed(1)
+            target: root.spdTarget.toFixed(1) + " m/s"
+            available: root._has && !root._commLost && root._flying
+            reason: root._reason("")
+            onMinus: root.spdTarget = Math.max(0.5, root.spdTarget - 0.5)
+            onPlus:  root.spdTarget = Math.min(60, root.spdTarget + 0.5)
+            onEdited: function(v) { root.spdTarget = Math.max(0.5, Math.min(60, Math.round(v * 2) / 2)) }
+            onSend:  root.sendSpeed(root.spdTarget)
+        }
+        Row3 {
+            width: col.width
+            key: "HDG"
+            now: isNaN(root._hdg) ? "—" : ("00" + Math.round((root._hdg + 360) % 360)).slice(-3) + "°"
+            target: ("00" + Math.round(root.hdgTarget)).slice(-3) + "°"
+            available: root._ready && (root._keep || root._canHeading)
+            reason: root._reason(qsTr("이 기체 종류는 방위 지정 명령을 지원하지 않습니다 (고정익 등)"))
+            onMinus: root.hdgTarget = root._wrap(root.hdgTarget - 1)
+            onPlus:  root.hdgTarget = root._wrap(root.hdgTarget + 1)
+            onEdited: function(v) { root.hdgTarget = root._wrap(v) }
+            onSend:  root.sendHeading(root.hdgTarget)
+        }
+
+        Item {
+            width:  parent.width
+            height: 30 * u
+            visible: !isNaN(MLState.targetHeading) && root._keep
+            MLText {
+                anchors.right: parent.right; anchors.rightMargin: 14 * u; anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("기수 자동으로 되돌리기"); color: "#9FD8F2"; font.pixelSize: MLTheme.fsSmall
+                font.underline: autoMouse.containsMouse
+                MouseArea { id: autoMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.clearHeading() }
+            }
+        }
+        Item { width: 1; height: 6 * u }
+    }
+
+    // ---- SITL test hook (CI only, ML_TEST_SETPOINTS=1) -------------------------
+    // Once airborne it loads the mission from the vehicle and then calls the same
+    // functions the buttons use: speed (keep), altitude (keep), heading (keep),
+    // then altitude with the mission paused. tools/sitl_check.py watches the
+    // aircraft on a second MAVLink link.
     readonly property bool _testMode: typeof mlTestSetpoints !== "undefined" && mlTestSetpoints
     property int _testStep: 0
     Timer {
-        id:         testTimer
         interval:   1000
         repeat:     true
         running:    root._testMode
         property int ticks: 0
         onTriggered: {
             if (root._testStep === 0) {
-                // start once airborne at mission altitude (not keyed on the mode name)
-                if (root._flying && root._alt > 15) { ticks++ } else { ticks = 0 }
-                if (ticks >= 15) { console.log("MLTEST speed 2.5"); root.sendSpeed(2.5); root._testStep = 1; ticks = 0 }
+                if (root._flying && root._alt > 15) ticks++; else ticks = 0
+                if (ticks === 5 && root._pmc) { console.log("MLTEST load mission"); root._pmc.loadFromVehicle() }
+                if (ticks >= 15) { console.log("MLTEST speed 2.5 (keep), mission items", root._mc ? root._mc.visualItems.count : -1); root.keepMission = true; root.sendSpeed(2.5); root._testStep = 1; ticks = 0 }
             } else if (root._testStep === 1) {
-                if (++ticks >= 25) { console.log("MLTEST altitude +15 from", root._alt); root.sendAltitude(root._alt + 15); root._testStep = 2; ticks = 0 }
+                if (++ticks >= 25) { console.log("MLTEST altitude keep", Math.round(root._alt + 15), "inMission", root._inMission, "keep", root._keep); root.keepMission = true; root.sendAltitude(Math.round(root._alt + 15)); root._testStep = 2; ticks = 0 }
             } else if (root._testStep === 2) {
-                if (++ticks >= 25) { console.log("MLTEST heading 225"); root.sendHeading(225); root._testStep = 3; ticks = 0 }
+                if (++ticks >= 45) { console.log("MLTEST heading keep 225"); root.keepMission = true; root.sendHeading(225); root._testStep = 3; ticks = 0 }
             } else if (root._testStep === 3) {
-                if (++ticks >= 20) { console.log("MLTEST done"); root._testStep = 4; stop() }
+                if (++ticks >= 30) { console.log("MLTEST altitude hold +10 from", root._alt); root.keepMission = false; root.sendAltitude(Math.round(root._alt + 10)); root._testStep = 4; ticks = 0 }
+            } else if (root._testStep === 4) {
+                if (++ticks >= 25) { console.log("MLTEST done"); root._testStep = 5; stop() }
             }
         }
     }

@@ -55,7 +55,7 @@ MLPanel {
         return false
     }
 
-    title:      qsTr("기체")
+    title:      qsTr("편대 명령")
     tag:        "FLEET"
     detail:     qsTr("%1대 연결").arg(_vehicles.count)
 

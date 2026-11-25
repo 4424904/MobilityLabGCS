@@ -3,13 +3,17 @@ import QtQuick
 import QGroundControl
 import QGroundControl.Controls
 
-// Compact primary flight display: attitude ball with pitch ladder and roll
-// scale, speed tape (left), altitude tape (right), vertical speed bar and
-// heading tape. Works for any vehicle type; fixed-wing/VTOL show airspeed.
+// Primary flight display, drawn in a fixed 460 × 400 design space and scaled
+// to fit: rounded attitude window with pitch ladder and roll scale, speed tape
+// (left), altitude tape and vertical-speed bar (right), heading tape (bottom).
+// Target values (magenta) show as bugs on the tapes and above them.
 Item {
     id: root
 
-    property var vehicle
+    property var  vehicle
+    property real targetSpeed:      NaN
+    property real targetAlt:        NaN
+    property real targetHeading:    NaN
 
     readonly property bool _has:        !!vehicle
     readonly property bool _useAirspeed: _has && (vehicle.fixedWing || (vehicle.vtol && vehicle.vtolInFwdFlight))
@@ -27,8 +31,8 @@ Item {
     readonly property real alt:     _has ? _num(vehicle.altitudeRelative) : 0
     readonly property real vs:      _has ? _num(vehicle.climbRate) : 0
 
-    implicitWidth:  ScreenTools.defaultFontPixelWidth * 34
-    implicitHeight: ScreenTools.defaultFontPixelHeight * 13
+    implicitWidth:  460 * MLTheme.u
+    implicitHeight: 400 * MLTheme.u
 
     Canvas {
         id:             canvas
@@ -36,175 +40,159 @@ Item {
         antialiasing:   true
         renderTarget:   Canvas.Image
 
-        readonly property real _px: ScreenTools.defaultFontPixelHeight
-
         onPaint: {
             var c = getContext("2d")
-            var W = width, H = height
             c.reset()
-            c.clearRect(0, 0, W, H)
+            c.clearRect(0, 0, width, height)
+            var k = Math.min(width / 460, height / 400)
+            c.translate((width - 460 * k) / 2, (height - 400 * k) / 2)
+            c.scale(k, k)
 
-            var mono     = "bold " + Math.round(_px * 0.8) + "px '" + ScreenTools.fixedFontFamily + "'"
-            var monoBig  = "bold " + Math.round(_px * 1.05) + "px '" + ScreenTools.fixedFontFamily + "'"
-            var small    = Math.round(_px * 0.75) + "px '" + ScreenTools.fixedFontFamily + "'"
-            var tw  = Math.round(_px * 3.4)     // tape width
-            var vsw = Math.round(_px * 0.55)    // vertical speed bar
-            var hh  = Math.round(_px * 2.0)     // heading tape height (top)
-            var ib  = Math.round(_px * 1.3)     // info line (bottom)
-            var x0 = tw + vsw * 0, x1 = W - tw - vsw, y0 = hh + _px * 0.3, y1 = H - ib
-            var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
-            var R  = Math.max(10, Math.min((x1 - x0) / 2 - _px * 0.9, (y1 - y0) / 2 - _px * 0.2))
-            var ppd = R * 2 / 50               // pixels per degree of pitch
-            var green = "#4ccf7c", dim = "#93a3a8", line = "#33475a"
+            var mono = "'" + MLTheme.mono + "'"
+            var sans = "'" + MLTheme.sans + "'"
+            var cy = 162, cx = 222
+            var white = "#F2F1EE", tick = "#9AA1A9", lbl = "#C8CDD2", dim = "#7D848D", tape = "#0D1115"
+            var tgt = String(MLTheme.target), amber = String(MLTheme.caution), green = String(MLTheme.active)
 
-            // ---- Attitude ball ----------------------------------------------
+            function rr(x, y, w, h, r) {
+                c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r)
+                c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath()
+            }
+
+            // ---- attitude -------------------------------------------------
             c.save()
-            c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.clip()
-            c.translate(cx, cy)
-            c.rotate(-root.roll * Math.PI / 180)
-            c.translate(0, root.pitch * ppd)
-            var sky = c.createLinearGradient(0, -R * 2, 0, 0)
-            sky.addColorStop(0, "#0d3b6e"); sky.addColorStop(1, "#3f8fd6")
-            c.fillStyle = sky; c.fillRect(-R * 3, -R * 4, R * 6, R * 4)
-            var gnd = c.createLinearGradient(0, 0, 0, R * 2)
-            gnd.addColorStop(0, "#8a5a30"); gnd.addColorStop(1, "#3e2714")
-            c.fillStyle = gnd; c.fillRect(-R * 3, 0, R * 6, R * 4)
-            c.strokeStyle = "white"; c.lineWidth = 2
-            c.beginPath(); c.moveTo(-R * 3, 0); c.lineTo(R * 3, 0); c.stroke()
-            c.lineWidth = 1.2; c.fillStyle = "white"; c.font = small; c.textBaseline = "middle"
+            rr(72, 24, 300, 276, 10); c.clip()
+            c.translate(cx, cy); c.rotate(-root.roll * Math.PI / 180); c.translate(0, root.pitch * 5)
+            c.fillStyle = "#1F5C8F"; c.fillRect(-400, -600, 800, 600)
+            c.fillStyle = "#5A3E26"; c.fillRect(-400, 0, 800, 600)
+            c.strokeStyle = white; c.lineWidth = 1.5
+            c.beginPath(); c.moveTo(-400, 0); c.lineTo(400, 0); c.stroke()
+            c.lineWidth = 1.3; c.fillStyle = white; c.font = "11px " + mono; c.textBaseline = "middle"
             for (var p = -30; p <= 30; p += 5) {
                 if (p === 0) continue
-                var yy = -p * ppd
-                var L = (p % 10 === 0) ? R * 0.32 : R * 0.14
-                c.beginPath(); c.moveTo(-L, yy); c.lineTo(L, yy); c.stroke()
+                var y = -p * 5, L = (p % 10 === 0) ? 40 : 18
+                c.beginPath(); c.moveTo(-L, y); c.lineTo(L, y); c.stroke()
                 if (p % 10 === 0) {
-                    c.textAlign = "right"; c.fillText(Math.abs(p), -L - 4, yy)
-                    c.textAlign = "left";  c.fillText(Math.abs(p), L + 4, yy)
+                    c.textAlign = "right"; c.fillText(Math.abs(p), -L - 5, y)
+                    c.textAlign = "left";  c.fillText(Math.abs(p), L + 5, y)
                 }
             }
             c.restore()
+            c.strokeStyle = "#232931"; c.lineWidth = 1; rr(72.5, 24.5, 299, 275, 10); c.stroke()
 
-            // Bezel ring
-            c.strokeStyle = line; c.lineWidth = Math.max(2, _px * 0.18)
-            c.beginPath(); c.arc(cx, cy, R + c.lineWidth / 2, 0, Math.PI * 2); c.stroke()
-
-            // Roll scale inside the top of the ball, pointer turns with roll
+            // roll scale
             c.save(); c.translate(cx, cy)
-            var rr = R * 0.86
-            c.strokeStyle = "white"; c.lineWidth = 1.4
-            c.beginPath(); c.arc(0, 0, rr, -150 * Math.PI / 180, -30 * Math.PI / 180, false); c.stroke()
-            var ticks = [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60]
-            for (var i = 0; i < ticks.length; i++) {
-                c.save(); c.rotate(ticks[i] * Math.PI / 180)
-                var tl = (ticks[i] % 30 === 0) ? R * 0.1 : R * 0.055
-                c.beginPath(); c.moveTo(0, -rr); c.lineTo(0, -rr - tl); c.stroke()
-                c.restore()
+            c.strokeStyle = "#E6E4DE"; c.lineWidth = 1.3
+            c.beginPath(); c.arc(0, 0, 120, -150 * Math.PI / 180, -30 * Math.PI / 180, false); c.stroke()
+            var rt = [-60, -45, -30, -20, -10, 10, 20, 30, 45, 60]
+            for (var i = 0; i < rt.length; i++) {
+                var a = rt[i] * Math.PI / 180, tl = rt[i] % 30 === 0 ? 12 : 7
+                c.beginPath(); c.moveTo(Math.sin(a) * 120, -Math.cos(a) * 120); c.lineTo(Math.sin(a) * (120 + tl), -Math.cos(a) * (120 + tl)); c.stroke()
             }
-            c.fillStyle = "white"
-            c.beginPath(); c.moveTo(0, -rr - 1); c.lineTo(-R * 0.05, -rr - R * 0.1); c.lineTo(R * 0.05, -rr - R * 0.1); c.closePath(); c.fill()
+            c.fillStyle = "#E6E4DE"; c.beginPath(); c.moveTo(0, -120); c.lineTo(-6, -130); c.lineTo(6, -130); c.closePath(); c.fill()
             c.rotate(-root.roll * Math.PI / 180)
-            c.fillStyle = "#ffc61a"
-            c.beginPath(); c.moveTo(0, -rr + 1); c.lineTo(-R * 0.06, -rr + R * 0.11); c.lineTo(R * 0.06, -rr + R * 0.11); c.closePath(); c.fill()
+            c.fillStyle = amber; c.beginPath(); c.moveTo(0, -118); c.lineTo(-7, -106); c.lineTo(7, -106); c.closePath(); c.fill()
             c.restore()
 
-            // Fixed aircraft symbol
-            c.fillStyle = "#ffc61a"; c.strokeStyle = "black"; c.lineWidth = 1
-            var wl = R * 0.55, wi = R * 0.2, wt = Math.max(3, R * 0.045)
-            for (var s = -1; s <= 1; s += 2) {
-                c.beginPath()
-                c.moveTo(cx + s * wl, cy - wt / 2); c.lineTo(cx + s * wi, cy - wt / 2); c.lineTo(cx + s * wi, cy + R * 0.08)
-                c.lineTo(cx + s * (wi + wt), cy + R * 0.08); c.lineTo(cx + s * (wi + wt), cy + wt / 2); c.lineTo(cx + s * wl, cy + wt / 2)
-                c.closePath(); c.fill(); c.stroke()
-            }
-            c.beginPath(); c.moveTo(cx, cy - wt); c.lineTo(cx + wt * 1.6, cy + wt); c.lineTo(cx - wt * 1.6, cy + wt); c.closePath(); c.fill(); c.stroke()
+            // aircraft symbol
+            c.strokeStyle = amber; c.lineWidth = 3; c.lineJoin = "round"
+            c.beginPath(); c.moveTo(150, cy); c.lineTo(198, cy); c.lineTo(198, cy + 10); c.stroke()
+            c.beginPath(); c.moveTo(294, cy); c.lineTo(246, cy); c.lineTo(246, cy + 10); c.stroke()
+            c.fillStyle = amber; c.fillRect(cx - 4, cy - 4, 8, 8)
 
-            // ---- Tapes (plain scales with boxed readout) ---------------------
-            function tape(x, w, v, ppu, step, labelEvery, rightSide, decimals) {
-                c.save()
-                c.beginPath(); c.rect(x, y0, w, y1 - y0); c.clip()
-                c.strokeStyle = dim; c.fillStyle = "#c9d4d8"; c.lineWidth = 1; c.font = mono; c.textBaseline = "middle"
-                var edge = rightSide ? x : x + w
-                c.beginPath(); c.moveTo(edge, y0); c.lineTo(edge, y1); c.stroke()
-                var span = (y1 - y0) / 2 / ppu
-                var lo = Math.floor((v - span) / step) * step
-                for (var u = lo; u <= v + span; u += step) {
-                    var y = cy - (u - v) * ppu
-                    var big = Math.round(u / step) % labelEvery === 0
+            // ---- tapes ----------------------------------------------------
+            function tapeTicks(x, w, val, ppu, step, big, right, min) {
+                c.save(); c.beginPath(); c.rect(x, 24, w, 276); c.clip()
+                c.fillStyle = tape; c.fillRect(x, 24, w, 276)
+                c.strokeStyle = tick; c.lineWidth = 1.2; c.fillStyle = lbl; c.font = "12px " + mono; c.textBaseline = "middle"
+                var span = 140 / ppu
+                for (var v = Math.ceil((val - span) / step) * step; v <= val + span; v += step) {
+                    if (v < min) continue
+                    var yy = cy - (v - val) * ppu, isBig = Math.round(v / step) % big === 0, L = isBig ? 10 : 5
                     c.beginPath()
-                    if (rightSide) { c.moveTo(x, y); c.lineTo(x + (big ? 8 : 4), y) } else { c.moveTo(x + w, y); c.lineTo(x + w - (big ? 8 : 4), y) }
+                    if (right) { c.moveTo(x, yy); c.lineTo(x + L, yy) } else { c.moveTo(x + w, yy); c.lineTo(x + w - L, yy) }
                     c.stroke()
-                    if (big) { c.textAlign = rightSide ? "left" : "right"; c.fillText(Math.round(u), rightSide ? x + 11 : x + w - 11, y) }
+                    if (isBig) {
+                        c.textAlign = right ? "left" : "right"
+                        c.fillText(Math.round(v), right ? x + 16 : x + w - 16, yy)
+                    }
                 }
                 c.restore()
-                // readout box with pointer toward the ball
-                var bh = _px * 1.55, bx = x + 1, bw = w - 2
-                c.fillStyle = "#0a1a12"; c.strokeStyle = green; c.lineWidth = 1.5
-                c.beginPath()
-                if (rightSide) {
-                    c.moveTo(bx + bw, cy - bh / 2); c.lineTo(bx + 6, cy - bh / 2); c.lineTo(bx, cy); c.lineTo(bx + 6, cy + bh / 2); c.lineTo(bx + bw, cy + bh / 2)
-                } else {
-                    c.moveTo(bx, cy - bh / 2); c.lineTo(bx + bw - 6, cy - bh / 2); c.lineTo(bx + bw, cy); c.lineTo(bx + bw - 6, cy + bh / 2); c.lineTo(bx, cy + bh / 2)
-                }
-                c.closePath(); c.fill(); c.stroke()
-                c.fillStyle = "white"; c.font = monoBig; c.textAlign = "center"; c.textBaseline = "middle"
-                c.fillText(v.toFixed(decimals), bx + bw / 2 + (rightSide ? 3 : -3), cy + 1)
             }
-            tape(0, tw, root.speed, _px * 0.45, 1, 5, false, 1)
-            tape(x1 + vsw, tw, root.alt, _px * 0.22, 5, 2, true, 0)
+            function bug(x, w, val, target, ppu, right) {
+                if (isNaN(target)) return
+                var yy = Math.max(30, Math.min(294, cy - (target - val) * ppu))
+                c.fillStyle = tgt; c.beginPath()
+                if (right) { c.moveTo(x, yy - 6); c.lineTo(x + 8, yy - 6); c.lineTo(x + 14, yy); c.lineTo(x + 8, yy + 6); c.lineTo(x, yy + 6) }
+                else       { c.moveTo(x + w, yy - 6); c.lineTo(x + w - 8, yy - 6); c.lineTo(x + w - 14, yy); c.lineTo(x + w - 8, yy + 6); c.lineTo(x + w, yy + 6) }
+                c.closePath(); c.fill()
+            }
+            function readout(xL, w, text, pointRight) {
+                c.fillStyle = "#07090B"; c.strokeStyle = "#E6E4DE"; c.lineWidth = 1.5; c.beginPath()
+                if (pointRight) { c.moveTo(xL, cy - 13); c.lineTo(xL + w, cy - 13); c.lineTo(xL + w + 10, cy); c.lineTo(xL + w, cy + 13); c.lineTo(xL, cy + 13) }
+                else            { c.moveTo(xL + w, cy - 13); c.lineTo(xL, cy - 13); c.lineTo(xL - 10, cy); c.lineTo(xL, cy + 13); c.lineTo(xL + w, cy + 13) }
+                c.closePath(); c.fill(); c.stroke()
+                c.fillStyle = white; c.font = "16px " + mono; c.textAlign = "center"; c.textBaseline = "middle"
+                c.fillText(text, xL + w / 2, cy + 1)
+            }
 
-            // Vertical speed bar between the ball and the altitude tape
-            var vx = x1 + 1
-            c.fillStyle = "#18232c"; c.fillRect(vx, y0, vsw - 2, y1 - y0)
-            var vh = Math.max(-1, Math.min(1, root.vs / 5)) * (y1 - y0) / 2
-            c.fillStyle = Math.abs(root.vs) > 3 ? "#f5b331" : green
-            c.fillRect(vx, cy, vsw - 2, -vh)
+            tapeTicks(8, 56, root.speed, 8, 1, 5, false, 0)
+            bug(8, 56, root.speed, root.targetSpeed, 8, false)
+            readout(6, 44, root.speed.toFixed(1), true)
+            tapeTicks(380, 58, root.alt, 2.4, 5, 2, true, -1000)
+            bug(380, 58, root.alt, root.targetAlt, 2.4, true)
+            readout(400, 48, Math.round(root.alt).toString(), false)
 
-            // ---- Heading tape (top) -----------------------------------------
-            c.save()
-            c.beginPath(); c.rect(tw, 0, W - tw * 2, hh); c.clip()
-            c.strokeStyle = dim; c.fillStyle = "#c9d4d8"; c.font = mono; c.textAlign = "center"; c.textBaseline = "top"; c.lineWidth = 1
-            c.beginPath(); c.moveTo(0, hh - 1); c.lineTo(W, hh - 1); c.stroke()
-            var hp = _px * 0.2, hs = W / 2 / hp
-            for (var hd = Math.floor((root.heading - hs) / 5) * 5; hd <= root.heading + hs; hd += 5) {
-                var hx = W / 2 + (hd - root.heading) * hp
-                var n = ((hd % 360) + 360) % 360
-                c.beginPath(); c.moveTo(hx, hh - 1); c.lineTo(hx, hh - (n % 10 === 0 ? 7 : 4)); c.stroke()
-                if (n % 30 === 0) {
-                    var lbl = n === 0 ? "N" : n === 90 ? "E" : n === 180 ? "S" : n === 270 ? "W" : ("00" + n).slice(-3)
-                    c.fillText(lbl, hx, 1)
+            c.font = "12px " + mono; c.textAlign = "center"; c.textBaseline = "alphabetic"; c.fillStyle = tgt
+            if (!isNaN(root.targetSpeed)) c.fillText(root.targetSpeed.toFixed(1), 36, 17)
+            if (!isNaN(root.targetAlt))   c.fillText(Math.round(root.targetAlt), 409, 17)
+            c.font = "11px " + sans; c.fillStyle = dim
+            c.fillText(root._useAirspeed ? "IAS m/s" : "GS m/s", 36, 316)
+            c.fillText("ALT m", 409, 316)
+
+            // vertical speed
+            c.strokeStyle = "#4A525B"; c.lineWidth = 1.2
+            c.beginPath(); c.moveTo(452, 40); c.lineTo(452, 284); c.moveTo(452, cy); c.lineTo(458, cy)
+            c.moveTo(452, cy - 60); c.lineTo(456, cy - 60); c.moveTo(452, cy + 60); c.lineTo(456, cy + 60); c.stroke()
+            var vh = Math.max(-1, Math.min(1, root.vs / 5)) * 120
+            c.fillStyle = Math.abs(root.vs) > 3 ? amber : green
+            c.fillRect(450, vh >= 0 ? cy - vh : cy, 5, Math.max(2, Math.abs(vh)))
+
+            // ---- heading tape --------------------------------------------
+            c.save(); rr(72, 318, 300, 60, 6); c.fillStyle = tape; c.fill(); c.clip()
+            c.strokeStyle = tick; c.lineWidth = 1.2; c.fillStyle = lbl; c.font = "12px " + mono; c.textAlign = "center"; c.textBaseline = "alphabetic"
+            for (var h = Math.floor((root.heading - 40) / 5) * 5; h <= root.heading + 40; h += 5) {
+                var hx = cx + (h - root.heading) * 4, n = ((h % 360) + 360) % 360
+                c.beginPath(); c.moveTo(hx, 318); c.lineTo(hx, 318 + (n % 10 === 0 ? 10 : 5)); c.stroke()
+                if (n % 10 === 0) {
+                    c.fillStyle = n % 90 === 0 ? white : lbl
+                    c.fillText(n === 0 ? "N" : n === 90 ? "E" : n === 180 ? "S" : n === 270 ? "W" : ("00" + n).slice(-3), hx, 370)
                 }
             }
             c.restore()
-            var hbw = _px * 3.4, hbh = hh * 0.62
-            c.fillStyle = "#0a1a12"; c.strokeStyle = green; c.lineWidth = 1.5
-            c.beginPath(); c.rect(W / 2 - hbw / 2, 0.5, hbw, hbh); c.fill(); c.stroke()
-            c.beginPath(); c.moveTo(W / 2 - 5, hbh + 0.5); c.lineTo(W / 2, hbh + 6); c.lineTo(W / 2 + 5, hbh + 0.5); c.closePath(); c.fillStyle = green; c.fill()
-            c.fillStyle = "white"; c.font = monoBig; c.textAlign = "center"; c.textBaseline = "middle"
-            var hdg = Math.round(((root.heading % 360) + 360) % 360)
-            c.fillText(("00" + hdg).slice(-3) + "°", W / 2, hbh / 2 + 1)
-
-            // ---- Info line (bottom) ------------------------------------------
-            c.font = small; c.textBaseline = "middle"; c.fillStyle = dim
-            var iy = H - ib / 2
-            c.textAlign = "left";   c.fillText(root._useAirspeed ? "IAS m/s" : "GS m/s", 2, iy)
-            c.textAlign = "right";  c.fillText("ALT m", W - 2, iy)
-            c.textAlign = "center"
-            c.fillStyle = Math.abs(root.vs) > 3 ? "#f5b331" : "#e8eeeb"
-            c.font = mono
-            c.fillText("VS " + (root.vs >= 0 ? "+" : "") + root.vs.toFixed(1) + " m/s", W / 2, iy)
-
-            if (!root._has) {
-                c.fillStyle = "rgba(8,12,16,0.55)"; c.fillRect(0, 0, W, H)
+            if (!isNaN(root.targetHeading)) {
+                var d = ((root.targetHeading - root.heading + 540) % 360) - 180
+                var bx = Math.max(80, Math.min(364, cx + d * 4))
+                c.fillStyle = tgt; c.beginPath(); c.moveTo(bx - 6, 320); c.lineTo(bx + 6, 320); c.lineTo(bx, 330); c.closePath(); c.fill()
+                if (Math.abs(d) > 35) {
+                    c.font = "11px " + mono; c.textAlign = d > 0 ? "right" : "left"
+                    c.fillText(("00" + Math.round((root.targetHeading + 360) % 360)).slice(-3), d > 0 ? bx - 10 : bx + 10, 331)
+                }
             }
+            c.fillStyle = "#07090B"; c.strokeStyle = "#E6E4DE"; c.lineWidth = 1.3
+            c.beginPath(); c.moveTo(200, 320); c.lineTo(244, 320); c.lineTo(244, 338); c.lineTo(228, 338); c.lineTo(222, 344); c.lineTo(216, 338); c.lineTo(200, 338); c.closePath(); c.fill(); c.stroke()
+            c.fillStyle = white; c.font = "13px " + mono; c.textAlign = "center"; c.textBaseline = "middle"
+            c.fillText(("00" + Math.round(((root.heading % 360) + 360) % 360)).slice(-3), cx, 330)
+
+            if (!root._has) { c.fillStyle = "rgba(7,9,11,0.6)"; c.fillRect(0, 0, 460, 400) }
         }
     }
 
-    QGCLabel {
+    MLText {
         visible:            !root._has
         anchors.centerIn:   parent
         text:               qsTr("기체 연결 대기")
-        color:              MLTheme.text
-        font.bold:          true
+        font.weight:        Font.DemiBold
     }
 
     Timer {

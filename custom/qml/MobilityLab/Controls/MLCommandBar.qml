@@ -6,21 +6,21 @@ import QGroundControl.Controls
 
 // Bottom command bar of the console (full width).
 //
-//   ● 연결 ─ ● 준비 ─ ○ 시동 ─ ○ 비행 ─ ○ 착륙 │ [시동] [이륙] [미션 시작] │ 14:35:42 │ [비상 정지]
-//   비행 전 점검을 마치면 시동을 거세요        │                         │ 날짜     │
+//   ━━ ━━ ━━ ━━ ──   │ [일시정지][복귀 RTL][착륙][목표 조정] │ 안내 │      [엔진 비상정지 HOLD 2s]
+//   연결 준비 시동 비행 착륙
+//   다음 할 일 …
 //
-// The progress strip shows where the flight is; the buttons change with it
-// (on the ground: arm/takeoff/mission, in the air: pause/RTL/land), so only
-// commands that make sense now are offered, using QGC's own rules for when
-// each is allowed. Safety: every button needs two presses (the first arms it
-// for 3 s, see MLCommandButton), then the command is sent. Takeoff then opens
-// QGC's altitude slider so the takeoff height can be chosen. The emergency button needs a 2 s hold: engine kill on aircraft
-// that report an engine (EFI), otherwise QGC's motor emergency stop.
+// The phase strip shows where the flight is; the buttons change with it
+// (ground: 시동/이륙/미션 시작, air: 일시정지 or 미션 재개/복귀/착륙/목표 조정),
+// using QGC's own rules for when each is allowed. Every command needs two
+// presses (MLCommandButton); takeoff then opens QGC's altitude slider. The
+// emergency button needs a 2 s hold: engine kill on aircraft that report an
+// engine (EFI), otherwise QGC's motor emergency stop.
 Rectangle {
     id: root
 
-    property bool setpointsOpen: false
-    signal toggleSetpoints()
+    property real leftWidth:    460 * MLTheme.u
+    property real rightWidth:   440 * MLTheme.u
 
     readonly property var  _vehicle:    QGroundControl.multiVehicleManager.activeVehicle
     readonly property var  _guided:     globals.guidedControllerFlyView
@@ -32,7 +32,7 @@ Rectangle {
     readonly property bool _hasEngine:  !!_t && _t.seenKeys["eng.rpm"] === true
     readonly property string _mode:     _connected ? String(_vehicle.flightMode) : ""
     readonly property bool _landing:    _flying && /land|착륙|rtl|return|복귀/i.test(_mode)
-    readonly property real _pad:        ScreenTools.defaultFontPixelWidth * 1.1
+    readonly property real u:           MLTheme.u
 
     readonly property int  _mavCmdDoEngineControl:  223     // MAV_CMD_DO_ENGINE_CONTROL
     readonly property int  _autopilotCompId:        1       // MAV_COMP_ID_AUTOPILOT1
@@ -67,144 +67,76 @@ Rectangle {
     }
 
     color:          MLTheme.panelSolid
-    radius:         ScreenTools.defaultFontPixelWidth * 0.5
-    border.color:   MLTheme.line
-    border.width:   1
+    implicitHeight: 84 * u
 
-    implicitHeight: ScreenTools.defaultFontPixelHeight * 3.2 + _pad * 1.6
+    Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: MLTheme.line }
 
-    // ---- Phase strip + next step (left) ----------------------------------
-    Column {
-        id:                     steps
-        anchors.left:           parent.left
-        anchors.leftMargin:     root._pad * 1.2
-        anchors.verticalCenter: parent.verticalCenter
-        width:                  Math.max(stepRow.implicitWidth, ScreenTools.defaultFontPixelWidth * 34)
-        spacing:                ScreenTools.defaultFontPixelHeight * 0.3
-
-        Row {
-            id:         stepRow
-            spacing:    0
-
-            Repeater {
-                model: [ qsTr("연결"), qsTr("준비"), qsTr("시동"), qsTr("비행"), qsTr("착륙") ]
-
-                Row {
-                    spacing: ScreenTools.defaultFontPixelWidth * 0.45
-
-                    Rectangle {
-                        visible:                index > 0
-                        anchors.verticalCenter: parent.verticalCenter
-                        width:                  ScreenTools.defaultFontPixelWidth * 1.6
-                        height:                 2
-                        color:                  index <= root._phase ? MLTheme.accent : MLTheme.line
-                    }
-                    Item {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width:                  ScreenTools.defaultFontPixelHeight * 1.0
-                        height:                 width
-
+    // ---- phase strip + next step -------------------------------------------
+    Item {
+        id:     phaseBlock
+        width:  root.leftWidth
+        height: parent.height
+        Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
+        Column {
+            anchors.left:           parent.left
+            anchors.right:          parent.right
+            anchors.margins:        20 * u
+            anchors.verticalCenter: parent.verticalCenter
+            spacing:                8 * u
+            Row {
+                width:      parent.width
+                spacing:    4 * u
+                Repeater {
+                    model: [ qsTr("연결"), qsTr("준비"), qsTr("시동"), qsTr("비행"), qsTr("착륙") ]
+                    Column {
+                        width:      (parent.width - 16 * u) / 5
+                        spacing:    6 * u
                         Rectangle {
-                            visible:            index === root._phase
-                            anchors.fill:       parent
-                            radius:             width / 2
-                            color:              "transparent"
-                            border.width:       1.5
-                            border.color:       root._commLost ? MLTheme.warning : MLTheme.accent
-                            opacity:            0.5
+                            width:  parent.width
+                            height: 3 * u
+                            color:  index < root._phase ? "#4A535C" : (index === root._phase ? (root._commLost ? MLTheme.warning : MLTheme.accent) : "#161C22")
                         }
-                        Rectangle {
-                            anchors.centerIn:   parent
-                            width:              parent.width * 0.6
-                            height:             width
-                            radius:             width / 2
-                            color:              index < root._phase ? MLTheme.accent : (index === root._phase ? (root._commLost ? MLTheme.warning : MLTheme.accent) : "transparent")
-                            border.width:       index === root._phase ? 0 : 1.5
-                            border.color:       index < root._phase ? MLTheme.accent : MLTheme.lineStrong
+                        MLText {
+                            text:               modelData
+                            color:              index === root._phase ? MLTheme.bright : (index < root._phase ? MLTheme.dim : "#3A424A")
+                            font.pixelSize:     MLTheme.fsLabel
+                            font.letterSpacing: 0.7 * u
+                            font.weight:        index === root._phase ? Font.DemiBold : Font.Normal
                         }
-                    }
-                    QGCLabel {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:                   modelData
-                        color:                  index === root._phase ? MLTheme.text : (index < root._phase ? MLTheme.label : MLTheme.faint)
-                        font.bold:              index === root._phase
-                        rightPadding:           ScreenTools.defaultFontPixelWidth * 0.45
                     }
                 }
             }
-        }
-
-        QGCLabel {
-            width:          parent.width
-            elide:          Text.ElideRight
-            text:           root.nextStep()
-            color:          root._commLost ? MLTheme.warning : MLTheme.accent
-            font.bold:      true
+            MLText {
+                width:          parent.width
+                text:           root.nextStep()
+                color:          root._commLost ? MLTheme.warning : "#9FD8F2"
+                font.pixelSize: MLTheme.fsSmall
+            }
         }
     }
 
-    Rectangle {
-        id:                     divider1
-        anchors.left:           steps.right
-        anchors.leftMargin:     root._pad * 1.4
-        anchors.verticalCenter: parent.verticalCenter
-        width:                  1
-        height:                 parent.height * 0.6
-        color:                  MLTheme.line
-    }
-
-    // ---- Clock (right, before the emergency button) -----------------------
-    Column {
-        id:                     clock
-        anchors.right:          killButton.left
-        anchors.rightMargin:    root._pad * 1.6
-        anchors.verticalCenter: parent.verticalCenter
-        visible:                root.width > ScreenTools.defaultFontPixelWidth * 150
-
-        property date now: new Date()
-        Timer { interval: 1000; running: clock.visible; repeat: true; onTriggered: clock.now = new Date() }
-
-        QGCLabel {
-            anchors.right:  parent.right
-            text:           Qt.formatTime(clock.now, "hh:mm:ss")
-            color:          MLTheme.text
-            font.family:    ScreenTools.fixedFontFamily
-            font.pointSize: ScreenTools.mediumFontPointSize
-            font.bold:      true
-        }
-        QGCLabel {
-            anchors.right:  parent.right
-            text:           Qt.formatDate(clock.now, "yyyy-MM-dd")
-            color:          MLTheme.dim
-            font.family:    ScreenTools.fixedFontFamily
-            font.pointSize: ScreenTools.smallFontPointSize
-        }
-    }
-
-    // ---- Buttons (middle) --------------------------------------------------
+    // ---- commands ------------------------------------------------------------
     Row {
         id:                     buttons
-        anchors.left:           divider1.right
-        anchors.leftMargin:     root._pad * 1.4
+        anchors.left:           phaseBlock.right
+        anchors.leftMargin:     20 * u
         anchors.verticalCenter: parent.verticalCenter
-        spacing:                root._pad * 0.7
+        spacing:                10 * u
 
         // --- on the ground ---
         MLCommandButton {
             visible:        !root._flying
             text:           root._armed ? qsTr("시동 끄기") : qsTr("시동 걸기")
             subText:        root._armed ? "DISARM" : "ARM"
-            iconSource:     "/MobilityLab/icons/arm.svg"
             tone:           root._armed ? "caution" : "normal"
             available:      root.show("showArm") || root.show("showDisarm")
-            disabledReason: root.reason(qsTr("시동 조건 미충족 · 상단 상태 표시줄 확인"))
+            disabledReason: root.reason(qsTr("시동 조건 미충족 · 상단 상태 표시 확인"))
             onClicked:      root.execute(root._armed ? root._guided.actionDisarm : root._guided.actionArm)
         }
         MLCommandButton {
             visible:        !root._flying
             text:           qsTr("이륙")
-            subText:        qsTr("TAKEOFF · 고도 선택")
-            iconSource:     "/MobilityLab/icons/takeoff.svg"
+            subText:        "TAKEOFF"
             tone:           "go"
             available:      root.show("showTakeoff")
             disabledReason: root.reason(qsTr("이륙 조건 미충족"))
@@ -214,7 +146,6 @@ Rectangle {
             visible:        !root._flying
             text:           qsTr("미션 시작")
             subText:        "START"
-            iconSource:     "/MobilityLab/icons/play.svg"
             tone:           "go"
             available:      root.show("showStartMission")
             disabledReason: root.reason(qsTr("업로드된 미션이 없거나 시작 조건 미충족"))
@@ -226,7 +157,6 @@ Rectangle {
             visible:        root._flying && root.show("showContinueMission")
             text:           qsTr("미션 재개")
             subText:        "CONTINUE"
-            iconSource:     "/MobilityLab/icons/play.svg"
             tone:           "go"
             onClicked:      root.execute(root._guided.actionContinueMission)
         }
@@ -234,7 +164,6 @@ Rectangle {
             visible:        root._flying && !root.show("showContinueMission")
             text:           qsTr("일시정지")
             subText:        "PAUSE"
-            iconSource:     "/MobilityLab/icons/pause.svg"
             tone:           "caution"
             available:      root.show("showPause")
             disabledReason: root.reason(qsTr("이미 정지 상태이거나 지원하지 않습니다"))
@@ -244,8 +173,6 @@ Rectangle {
             visible:        root._flying
             text:           qsTr("복귀")
             subText:        "RTL"
-            iconSource:     "/MobilityLab/icons/rtl.svg"
-            tone:           "active"
             available:      root.show("showRTL")
             disabledReason: root.reason(qsTr("이미 복귀 중입니다"))
             onClicked:      root.execute(root._guided.actionRTL)
@@ -254,8 +181,6 @@ Rectangle {
             visible:        root._flying
             text:           qsTr("착륙")
             subText:        "LAND"
-            iconSource:     "/MobilityLab/icons/land.svg"
-            tone:           "caution"
             available:      root.show("showLand")
             disabledReason: root.reason(qsTr("이미 착륙 중입니다"))
             onClicked:      root.execute(root._guided.actionLand)
@@ -264,33 +189,50 @@ Rectangle {
             visible:        root._flying
             twoStep:        false
             text:           qsTr("목표 조정")
-            subText:        root.setpointsOpen ? qsTr("닫기") : "HDG · ALT · SPD"
-            tone:           "normal"
+            subText:        "ALT · SPD · HDG"
+            tone:           "active"
+            selected:       MLState.setpointsOpen
             available:      root._connected && !root._commLost
             disabledReason: root.reason("")
-            onClicked:      root.toggleSetpoints()
+            onClicked:      MLState.setpointsOpen = !MLState.setpointsOpen
         }
-
     }
 
-    MLHoldButton {
-        id:                     killButton
-        anchors.right:          parent.right
-        anchors.rightMargin:    root._pad * 1.2
+    MLText {
+        anchors.left:           buttons.right
+        anchors.leftMargin:     20 * u
+        anchors.right:          killBlock.left
+        anchors.rightMargin:    20 * u
         anchors.verticalCenter: parent.verticalCenter
-        text:           root._hasEngine ? qsTr("엔진 비상정지") : qsTr("비상 정지")
-        subText:        qsTr("2초간 누르기")
-        iconSource:     "/MobilityLab/icons/kill.svg"
-        available:      root._connected && !root._commLost && (root._hasEngine || root._armed)
-        disabledReason: root.reason(root._hasEngine ? "" : qsTr("시동이 걸린 상태에서만 사용합니다"))
-        tooltipText:    root._hasEngine ? qsTr("엔진을 즉시 정지합니다 (MAV_CMD_DO_ENGINE_CONTROL).")
-                                        : qsTr("모터를 즉시 정지합니다. 비행 중이면 추락합니다.")
-        onActivated: {
-            if (!root._vehicle) return
-            if (root._hasEngine) {
-                root._vehicle.sendCommand(root._autopilotCompId, root._mavCmdDoEngineControl, true, 0, 0, 0, 0, 0, 0, 0)
-            } else {
-                root._vehicle.emergencyStop()
+        text:                   qsTr("명령은 두 번 눌러 실행 · 비상정지는 2초 누름")
+        color:                  MLTheme.faint
+        font.pixelSize:         MLTheme.fsLabel
+        font.letterSpacing:     0.5 * u
+    }
+
+    // ---- emergency stop ------------------------------------------------------
+    Item {
+        id:             killBlock
+        anchors.right:  parent.right
+        width:          root.rightWidth
+        height:         parent.height
+        MLHoldButton {
+            anchors.right:          parent.right
+            anchors.rightMargin:    20 * u
+            anchors.verticalCenter: parent.verticalCenter
+            width:                  Math.min(220 * u, parent.width - 40 * u)
+            text:           root._hasEngine ? qsTr("엔진 비상정지") : qsTr("비상 정지")
+            available:      root._connected && !root._commLost && (root._hasEngine || root._armed)
+            disabledReason: root.reason(root._hasEngine ? "" : qsTr("시동이 걸린 상태에서만 사용합니다"))
+            tooltipText:    root._hasEngine ? qsTr("엔진을 즉시 정지합니다 (MAV_CMD_DO_ENGINE_CONTROL).")
+                                            : qsTr("모터를 즉시 정지합니다. 비행 중이면 추락합니다.")
+            onActivated: {
+                if (!root._vehicle) return
+                if (root._hasEngine) {
+                    root._vehicle.sendCommand(root._autopilotCompId, root._mavCmdDoEngineControl, true, 0, 0, 0, 0, 0, 0, 0)
+                } else {
+                    root._vehicle.emergencyStop()
+                }
             }
         }
     }

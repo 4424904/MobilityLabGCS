@@ -46,6 +46,7 @@ class Vehicle:
         self.lat = self.lon = None
         self.armed = False
         self.fix = 0
+        self.seq = -1
         self.mode = ""
         self.statustext = []
 
@@ -64,6 +65,8 @@ class Vehicle:
                 self.alt = m.relative_alt / 1000.0
                 self.lat, self.lon = m.lat / 1e7, m.lon / 1e7
                 self.hdg = m.hdg / 100.0 if m.hdg != 65535 else self.hdg
+            elif t == "MISSION_CURRENT":
+                self.seq = m.seq
             elif t == "GPS_RAW_INT":
                 self.fix = m.fix_type
             elif t == "VFR_HUD":
@@ -147,6 +150,25 @@ class Vehicle:
                                              int(lat * 1e7), int(lon * 1e7), alt, 0)
             sent.add(seq)
         return False
+
+
+def download_altitudes(v):
+    """Read the mission back from the vehicle: list of (seq, command, alt)."""
+    c = v.c
+    c.mav.mission_request_list_send(c.target_system, c.target_component, 0)
+    m = c.recv_match(type="MISSION_COUNT", blocking=True, timeout=5)
+    if not m:
+        return None
+    out = []
+    for seq in range(m.count):
+        for _ in range(3):
+            c.mav.mission_request_int_send(c.target_system, c.target_component, seq, 0)
+            it = c.recv_match(type="MISSION_ITEM_INT", blocking=True, timeout=2)
+            if it and it.seq == seq:
+                out.append((seq, it.command, it.z))
+                break
+    c.mav.mission_ack_send(c.target_system, c.target_component, 0, 0)
+    return out
 
 
 def offset(lat, lon, north, east):
@@ -248,20 +270,24 @@ def main():
     log("mission started, mode", v.mode)
 
     # ---- observe ----------------------------------------------------------
+    # GCS sequence (MLSetpointPanel test hook): speed 2.5 (keep) → altitude +15
+    # (keep: mission re-uploaded) → heading 225 (keep: ROI) → altitude +10 (pause)
     mission_modes = ("AUTO", "MISSION")
-    cruise_seen = False
-    mission_seen = False
+    cruise_seen = mission_seen = False
     low_since = None
     speed_ok = False
-    pause_alt = None
-    pause_t = None
-    alt_ok = False
-    max_alt_after_pause = -1e9
+    base_alt = None              # cruise altitude when the speed check passed
+    alt_keep_ok = False
     hdg_since = None
-    hdg_ok = False
+    hdg_keep_ok = False
+    max_seq = -1
+    seq_reset = False
+    pause_alt = None
+    alt_pause_ok = False
+    max_alt_after_pause = -1e9
     last_log = 0
     end = t_start + args.timeout
-    while time.time() < end and not (speed_ok and alt_ok and hdg_ok):
+    while time.time() < end and not (speed_ok and alt_keep_ok and hdg_keep_ok and alt_pause_ok):
         v.pump(0.25)
         now = time.time()
         in_mission = v.mode.upper() in mission_modes or "MISSION" in v.mode.upper()
@@ -269,46 +295,67 @@ def main():
 
         if in_mission and cruising_alt:
             mission_seen = True
+            if v.seq >= 0:
+                if max_seq >= 2 and v.seq < max_seq - 1 and v.seq <= 1:
+                    seq_reset = True
+                max_seq = max(max_seq, v.seq)
             if v.gs > 4.2:
                 cruise_seen = True
-            if cruise_seen and 1.5 <= v.gs <= 3.5:
-                low_since = low_since or now
-                if now - low_since >= 8 and not speed_ok:
-                    speed_ok = True
-                    log(f"CHECK speed_in_mission OK (gs {v.gs:.1f} m/s, mode {v.mode})")
-            else:
-                low_since = None
-
-        if pause_alt is None and mission_seen and v.armed and cruising_alt and not in_mission and v.mode.upper() not in ("RTL", "LAND", "AUTO.RTL", "AUTO.LAND"):
-            pause_alt, pause_t = v.alt, now
-            log(f"mission paused by GCS: mode {v.mode} at {v.alt:.1f} m")
-        if pause_alt is not None:
-            max_alt_after_pause = max(max_alt_after_pause, v.alt)
-            if not alt_ok and max_alt_after_pause >= pause_alt + ALT_STEP - 3:
-                alt_ok = True
-                log(f"CHECK altitude_change OK ({pause_alt:.1f} -> {max_alt_after_pause:.1f} m)")
-            if alt_ok and not math.isnan(v.hdg):
-                if angle_diff(v.hdg, TEST_HEADING) <= 15:
+            if not speed_ok:
+                if cruise_seen and 1.5 <= v.gs <= 3.5:
+                    low_since = low_since or now
+                    if now - low_since >= 8:
+                        speed_ok = True
+                        base_alt = v.alt
+                        log(f"CHECK speed_in_mission OK (gs {v.gs:.1f} m/s, mode {v.mode}, alt {v.alt:.1f})")
+                else:
+                    low_since = None
+            # altitude raised while the mission keeps running
+            if speed_ok and not alt_keep_ok and base_alt is not None and v.alt >= base_alt + 5:
+                alt_keep_ok = True
+                log(f"CHECK altitude_in_mission climbing ({base_alt:.1f} -> {v.alt:.1f} m, mode {v.mode}, seq {v.seq})")
+            # nose turned while the mission keeps running
+            if alt_keep_ok and not hdg_keep_ok and not math.isnan(v.hdg):
+                if angle_diff(v.hdg, TEST_HEADING) <= 20:
                     hdg_since = hdg_since or now
-                    if now - hdg_since >= 3 and not hdg_ok:
-                        hdg_ok = True
-                        log(f"CHECK heading_change OK (heading {v.hdg:.0f}°)")
+                    if now - hdg_since >= 3:
+                        hdg_keep_ok = True
+                        log(f"CHECK heading_in_mission OK (heading {v.hdg:.0f}°, mode {v.mode})")
                 else:
                     hdg_since = None
 
+        if pause_alt is None and hdg_keep_ok and v.armed and cruising_alt and not in_mission \
+                and v.mode.upper() not in ("RTL", "LAND", "AUTO.RTL", "AUTO.LAND"):
+            pause_alt = v.alt
+            log(f"mission paused by GCS: mode {v.mode} at {v.alt:.1f} m")
+        if pause_alt is not None:
+            max_alt_after_pause = max(max_alt_after_pause, v.alt)
+            if not alt_pause_ok and max_alt_after_pause >= pause_alt + 7:
+                alt_pause_ok = True
+                log(f"CHECK altitude_paused OK ({pause_alt:.1f} -> {max_alt_after_pause:.1f} m)")
+
         if now - last_log > 5:
             last_log = now
-            log(f"mode={v.mode:10s} alt={v.alt:6.1f} gs={v.gs:5.1f} hdg={v.hdg:5.0f} armed={v.armed}")
+            log(f"mode={v.mode:10s} alt={v.alt:6.1f} gs={v.gs:5.1f} hdg={v.hdg:5.0f} seq={v.seq} armed={v.armed}")
+
+    # the re-uploaded mission must carry the new altitude
+    items = download_altitudes(v)
+    wp_alts = [round(z, 1) for (_, cmd, z) in (items or []) if cmd == mav.MAV_CMD_NAV_WAYPOINT]
+    result["mission_wp_alts"] = wp_alts
+    upload_ok = bool(wp_alts) and max(wp_alts) >= TAKEOFF_ALT + 10
+    if seq_reset:
+        result["notes"].append("mission restarted from the beginning after the altitude upload")
 
     result["checks"] = {
         "speed_in_mission": speed_ok,
-        "altitude_change": alt_ok,
-        "heading_change": hdg_ok,
+        "altitude_in_mission": alt_keep_ok and upload_ok and not seq_reset,
+        "heading_in_mission": hdg_keep_ok,
+        "altitude_paused": alt_pause_ok,
     }
-    result["final"] = {"mode": v.mode, "alt": round(v.alt, 1), "gs": round(v.gs, 1), "hdg": round(v.hdg, 0)}
+    result["final"] = {"mode": v.mode, "alt": round(v.alt, 1), "gs": round(v.gs, 1), "hdg": round(v.hdg, 0), "seq": v.seq}
     if not cruise_seen:
         result["notes"].append("never saw cruise speed above 4.2 m/s in the mission")
-    finish(0 if (speed_ok and alt_ok and hdg_ok) else 1)
+    finish(0 if all(result["checks"].values()) else 1)
 
 
 if __name__ == "__main__":

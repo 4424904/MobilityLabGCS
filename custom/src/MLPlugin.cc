@@ -15,6 +15,7 @@
 #include <QtCore/QLocale>
 #include <QtCore/QSettings>
 #include <QtCore/QSignalBlocker>
+#include <QtGui/QFontDatabase>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlContext>
 
@@ -50,6 +51,14 @@ MLPlugin::MLPlugin(QObject *parent)
 void MLPlugin::init()
 {
     QGCCorePlugin::init();
+
+    // Console typefaces (SIL OFL): IBM Plex Sans KR for text, IBM Plex Mono for numbers
+    for (const char *font : { ":/MobilityLab/fonts/IBMPlexSansKR-Regular.ttf", ":/MobilityLab/fonts/IBMPlexSansKR-SemiBold.ttf",
+                              ":/MobilityLab/fonts/IBMPlexMono-Regular.ttf", ":/MobilityLab/fonts/IBMPlexMono-Medium.ttf" }) {
+        if (QFontDatabase::addApplicationFont(QString::fromLatin1(font)) < 0) {
+            qCWarning(MLPluginLog) << "Font not loaded:" << font;
+        }
+    }
 
     // QGC reads the language straight from QSettings before plugins load, so a
     // metadata default is not enough. Switch to Korean once on first start;

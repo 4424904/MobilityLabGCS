@@ -1,17 +1,14 @@
 // MobilityLab GCS: QGC v5.1.5 FlyView rearranged as a single-screen console.
 //
-//   ┌ QGC toolbar ─────────────────────────────────────────────────────────┐
-//   │ [비행 계기][추진 계통][전원·연료][항법·통신][경고·알림]   (MLTopBand) │
-//   │ ┌ map + QGC map tools / video ──────────────────┐ ┌ 미션 ──────────┐ │
-//   │ │                                               │ │ (MLMissionPanel)│ │
-//   │ └───────────────────────────────────────────────┘ └────────────────┘ │
-//   │ [단계 표시 · 명령 버튼 · 시계 · 비상 정지]            (MLCommandBar) │
-//   └──────────────────────────────────────────────────────────────────────┘
+//   ┌ top bar: menu · status · mode · UAV tabs · confirm · indicators · clock ─┐
+//   │ 비행 계기 (FMA, PFD,  │ 지도 + QGC 지도 도구 + 목표 조정      │ 추진 · 추세 │
+//   │ 핵심 수치, 링크)      │                                       │ 전원 · 경고 │
+//   │ MLFlightColumn        ├ 고도 단면 (MLProfile) ────────────────┤ 미션        │
+//   ├ 단계 · 명령 · 비상정지 (MLCommandBar) ─────────────────────────────────────┤
 //
-// Everything below the toolbar is laid out here; the map, QGC's widget layer
-// and the guided value slider live inside the map pane. Upstream behaviour
-// (pip video, 3D view, guided actions) is unchanged. In full-screen video the
-// console panels hide and the map pane fills the window as in QGC.
+// The map, QGC's widget layer and the guided value slider live inside the map
+// pane. Upstream behaviour (pip video, 3D view, guided actions) is unchanged.
+// In full-screen video the console hides and the map pane fills the window.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
@@ -65,11 +62,11 @@ Item {
 
     // ---- Console layout ----------------------------------------------------
     readonly property bool _consoleVisible: !QGroundControl.videoManager.fullScreen
+    readonly property real _u:              MLTheme.u
+    readonly property real _leftW:          Math.round(Math.max(340 * _u, Math.min(460 * _u, width * 0.24)))
+    readonly property real _rightW:         Math.round(Math.max(330 * _u, Math.min(440 * _u, width * 0.23)))
+    readonly property real _profileH:       height > 900 * _u ? 176 * _u : 132 * _u
     readonly property real _gap:            Math.round(ScreenTools.defaultFontPixelWidth * 0.6)
-    readonly property real _bandHeight:     Math.round(Math.max(ScreenTools.defaultFontPixelHeight * 14.5,
-                                                                Math.min(ScreenTools.defaultFontPixelHeight * 27, (height - toolbar.height) * 0.36)))
-    readonly property real _sideWidth:      Math.round(Math.max(ScreenTools.defaultFontPixelWidth * 36,
-                                                                Math.min(ScreenTools.defaultFontPixelWidth * 54, width * 0.23)))
 
     property real   _fullItemZorder:    0
     property real   _pipItemZorder:     QGroundControl.zOrderWidgets
@@ -97,55 +94,63 @@ Item {
         color:          MLTheme.bg
     }
 
-    MLTopBand {
-        id:                 topBand
-        anchors.top:        parent.top
+    MLFlightColumn {
+        id:                 flightColumn
+        anchors.top:        toolbar.bottom
+        anchors.bottom:     commandBar.top
         anchors.left:       parent.left
-        anchors.right:      parent.right
-        anchors.topMargin:  toolbar.height + _gap
-        anchors.leftMargin: _gap
-        anchors.rightMargin: _gap
-        height:             _bandHeight
+        width:              _leftW
         visible:            _consoleVisible
+        Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
+    }
+
+    MLSystemsColumn {
+        id:                 systemsColumn
+        anchors.top:        toolbar.bottom
+        anchors.bottom:     commandBar.top
+        anchors.right:      parent.right
+        width:              _rightW
+        visible:            _consoleVisible
+        Rectangle { anchors.left: parent.left; width: 1; height: parent.height; color: MLTheme.line }
+    }
+
+    MLProfile {
+        id:                 profile
+        anchors.left:       flightColumn.right
+        anchors.right:      systemsColumn.left
+        anchors.bottom:     commandBar.top
+        height:             _profileH
+        visible:            _consoleVisible
+        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: MLTheme.line }
     }
 
     MLCommandBar {
         id:                 commandBar
-        setpointsOpen:      setpointPanel.visible
-        onToggleSetpoints:  setpointPanel.visible = !setpointPanel.visible
+        leftWidth:          _leftW
+        rightWidth:         _rightW
         anchors.left:       parent.left
         anchors.right:      parent.right
         anchors.bottom:     parent.bottom
-        anchors.margins:    _gap
         height:             implicitHeight
         visible:            _consoleVisible
     }
 
-    // Right column: fleet list (2+ vehicles) above the selected vehicle's mission
+    // Fleet (group) commands, opened from the top bar
     MLFleetPanel {
         id:                 fleetPanel
-        anchors.top:        topBand.bottom
-        anchors.right:      parent.right
-        anchors.margins:    _gap
-        width:              _sideWidth
-        height:             Math.min(implicitHeight, (commandBar.y - topBand.y - topBand.height) * 0.5)
-        visible:            _consoleVisible && QGroundControl.multiVehicleManager.vehicles.count > 1
-    }
-
-    MLMissionPanel {
-        id:                 missionPanel
-        anchors.top:        fleetPanel.visible ? fleetPanel.bottom : topBand.bottom
-        anchors.bottom:     commandBar.top
-        anchors.right:      parent.right
-        anchors.margins:    _gap
-        width:              _sideWidth
-        visible:            _consoleVisible
+        anchors.top:        toolbar.bottom
+        anchors.left:       flightColumn.right
+        anchors.margins:    _gap * 2
+        width:              Math.min(520 * _u, mapHolder.width - _gap * 4)
+        height:             Math.min(implicitHeight, mapHolder.height - _gap * 4)
+        z:                  QGroundControl.zOrderTopMost
+        visible:            _consoleVisible && MLState.fleetOpen && QGroundControl.multiVehicleManager.vehicles.count > 1
     }
 
     // Non-blocking notice when another vehicle connects / disconnects
     MLToast {
         id:                         toast
-        anchors.top:                topBand.bottom
+        anchors.top:                toolbar.bottom
         anchors.topMargin:          _gap * 3
         anchors.horizontalCenter:   mapHolder.horizontalCenter
         z:                          QGroundControl.zOrderTopMost + 1
@@ -154,24 +159,20 @@ Item {
         target: QGroundControl.multiVehicleManager
         function onVehicleAdded(vehicle) {
             if (QGroundControl.multiVehicleManager.vehicles.count > 1) {
-                toast.show(qsTr("기체 %1 연결됨 · 오른쪽 '기체' 목록에서 선택하세요").arg(vehicle.id), MLTheme.ok)
+                toast.show(qsTr("UAV %1 연결됨 · 위쪽 탭에서 선택하세요").arg(("0" + vehicle.id).slice(-2)), MLTheme.ok)
             }
         }
         function onVehicleRemoved(vehicle) {
-            toast.show(qsTr("기체 %1 연결 끊김").arg(vehicle.id), MLTheme.caution)
+            toast.show(qsTr("UAV %1 연결 끊김").arg(("0" + vehicle.id).slice(-2)), MLTheme.caution)
         }
     }
 
     Item {
         id:                 mapHolder
-        anchors.top:        _consoleVisible ? topBand.bottom : parent.top
-        anchors.bottom:     _consoleVisible ? commandBar.top : parent.bottom
-        anchors.left:       parent.left
-        anchors.right:      _consoleVisible ? missionPanel.left : parent.right
-        anchors.topMargin:  _consoleVisible ? _gap : 0
-        anchors.bottomMargin: _consoleVisible ? _gap : 0
-        anchors.leftMargin: _consoleVisible ? _gap : 0
-        anchors.rightMargin: _consoleVisible ? _gap : 0
+        anchors.top:        _consoleVisible ? toolbar.bottom : parent.top
+        anchors.bottom:     _consoleVisible ? profile.top : parent.bottom
+        anchors.left:       _consoleVisible ? flightColumn.right : parent.left
+        anchors.right:      _consoleVisible ? systemsColumn.left : parent.right
         clip:               true
 
         FlyViewMap {
@@ -267,18 +268,16 @@ Item {
             anchors.bottom:     parent.bottom
             anchors.margins:    _gap * 2
             z:                  QGroundControl.zOrderTopMost
-            visible:            typeof mlTestSetpoints !== "undefined" && mlTestSetpoints
-            onCloseRequested:   visible = false
+            visible:            MLState.setpointsOpen || (typeof mlTestSetpoints !== "undefined" && mlTestSetpoints)
+            onCloseRequested:   MLState.setpointsOpen = false
         }
 
         // Thin frame so the map reads as one console pane
         Rectangle {
             anchors.fill:   parent
             z:              QGroundControl.zOrderTopMost
-            visible:        _consoleVisible
+            visible:        false
             color:          "transparent"
-            border.color:   MLTheme.line
-            border.width:   1
         }
 
         Loader {
@@ -304,6 +303,7 @@ Item {
 
     FlyViewToolBar {
         id:                 toolbar
+        leftWidth:          _leftW
         guidedValueSlider:  _guidedValueSlider
         visible:            !QGroundControl.videoManager.fullScreen
     }

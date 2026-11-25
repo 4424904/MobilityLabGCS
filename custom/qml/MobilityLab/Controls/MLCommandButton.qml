@@ -4,14 +4,13 @@ import QtQuick.Controls
 import QGroundControl
 import QGroundControl.Controls
 
-// Command button for the bottom bar, coloured by tone:
-// "normal" (cyan) | "go" (green) | "caution" (amber) | "active" (magenta, RTL) | "danger" (red)
+// Command button. tone: "normal" | "go" | "caution" | "active" (cyan) | "danger"
 //
-// Safety: with `twoStep` (default) the first press only arms the button —
-// it lights up and reads "한 번 더 누르면 실행" with a 3 s countdown bar — and
-// the command is sent on the second press. Letting the countdown run out
-// cancels. This is deliberate rather than an OS double-click, which can
-// happen by accident and gives no chance to read what is about to be sent.
+// Safety: with `twoStep` (default) the first press only arms the button — it
+// fills with its colour, reads "한 번 더 누르면 실행" and a 3 s bar runs out —
+// and the command is sent on the second press. Letting the bar run out
+// cancels. (Deliberately not an OS double-click, which can happen by accident
+// and gives no moment to read what is about to be sent.)
 Rectangle {
     id: root
 
@@ -20,116 +19,79 @@ Rectangle {
     property string iconSource
     property string tone:           "normal"
     property string disabledReason
-    property bool   available:      true    // not `enabled`, so the tooltip still works when unavailable
+    property bool   available:      true
     property bool   twoStep:        true
     property int    confirmMs:      3000
-    property bool   compact:        false   // smaller variant for panels
+    property bool   compact:        false
+    property bool   selected:       false   // toggle buttons (e.g. 목표 조정 open)
 
     readonly property bool pending: _pending
-
     signal clicked()
 
     property bool _pending: false
 
-    readonly property color _toneColor: tone === "go" ? MLTheme.ok
+    readonly property color _toneColor: tone === "go" ? MLTheme.active
                                        : tone === "caution" ? MLTheme.caution
-                                       : tone === "active" ? MLTheme.active
+                                       : tone === "active" ? MLTheme.accent
                                        : tone === "danger" ? MLTheme.warning
-                                       : MLTheme.accent
+                                       : MLTheme.text
+    readonly property bool _plain: tone === "normal"
     readonly property bool _hover: mouse.containsMouse && available
 
     function cancel() { _pending = false; countdown.stop() }
-
     onAvailableChanged: if (!available) cancel()
     onVisibleChanged:   if (!visible) cancel()
 
-    implicitWidth:  Math.max(ScreenTools.defaultFontPixelWidth * (compact ? 9 : 16), content.implicitWidth + ScreenTools.defaultFontPixelWidth * (compact ? 1.6 : 3))
-    implicitHeight: ScreenTools.defaultFontPixelHeight * (compact ? 2.5 : 3.2)
+    implicitWidth:  Math.max((compact ? 88 : 132) * MLTheme.u, content.implicitWidth + (compact ? 20 : 28) * MLTheme.u)
+    implicitHeight: (compact ? 38 : 52) * MLTheme.u
 
-    radius:         ScreenTools.defaultFontPixelWidth * 0.5
+    radius:         MLTheme.radius
     color: {
-        if (!available)                 return MLTheme.panelRaised
-        if (_pending)                   return Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.38)
-        if (mouse.pressed)              return Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.30)
-        if (_hover)                     return Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.20)
-        return Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.10)
+        if (!available) return "#0D1115"
+        if (_pending)   return Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.22)
+        if (selected)   return Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.12)
+        if (mouse.pressed) return "#1A2129"
+        if (_hover)     return "#151B21"
+        return _plain ? "#11161B" : Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.06)
     }
-    border.width:   _pending ? Math.max(2, ScreenTools.defaultFontPixelWidth * 0.3) : Math.max(1, ScreenTools.defaultFontPixelWidth * 0.18)
-    border.color:   available ? _toneColor : MLTheme.line
-    opacity:        available ? 1 : 0.4
+    border.width:   _pending ? 2 : 1
+    border.color:   !available ? MLTheme.line : (_pending ? _toneColor : (_plain ? (_hover ? "#3A4450" : MLTheme.lineStrong) : Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, _hover || selected ? 0.9 : 0.45)))
+    opacity:        available ? 1 : 0.45
     clip:           true
 
-    // Pulsing white outline while armed for the second press
-    Rectangle {
-        anchors.fill:   parent
-        visible:        root._pending
-        color:          "transparent"
-        radius:         root.radius
-        border.width:   root.border.width
-        border.color:   "white"
-        SequentialAnimation on opacity {
-            running:    root._pending
-            loops:      Animation.Infinite
-            NumberAnimation { from: 1; to: 0.1; duration: 300 }
-            NumberAnimation { from: 0.1; to: 1; duration: 300 }
-        }
-    }
-
-    Row {
+    Column {
         id:                 content
         anchors.centerIn:   parent
-        spacing:            ScreenTools.defaultFontPixelWidth * 0.9
-
-        QGCColoredImage {
-            anchors.verticalCenter: parent.verticalCenter
-            visible:        root.iconSource !== ""
-            width:          ScreenTools.defaultFontPixelHeight * (root.compact ? 1.0 : 1.5)
-            height:         width
-            source:         root.iconSource
-            color:          root.available ? (root._pending ? "white" : root._toneColor) : MLTheme.dim
+        spacing:            1
+        MLText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text:               root.text
+            color:              !root.available ? MLTheme.dim : (root._plain ? MLTheme.text : root._toneColor)
+            font.pixelSize:     root.compact ? MLTheme.fsBody : MLTheme.fsValue
+            font.weight:        Font.DemiBold
         }
-
-        Column {
-            anchors.verticalCenter: parent.verticalCenter
-            QGCLabel {
-                text:           root.text
-                color:          root.available ? (root._pending ? "white" : root._toneColor) : MLTheme.dim
-                font.pointSize: root.compact ? ScreenTools.defaultFontPointSize : ScreenTools.mediumFontPointSize
-                font.bold:      true
-            }
-            QGCLabel {
-                visible:        (root.subText !== "" && !root.compact) || root._pending
-                text:           root._pending ? qsTr("한 번 더 누르면 실행") : root.subText
-                color:          root._pending ? "white" : MLTheme.dim
-                font.pointSize: ScreenTools.smallFontPointSize
-                font.bold:      root._pending
-            }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible:            root._pending || (root.subText !== "" && !root.compact)
+            text:               root._pending ? qsTr("한 번 더 누르면 실행") : root.subText
+            color:              root._pending ? MLTheme.bright : MLTheme.dim
+            font.family:        root._pending ? MLTheme.sans : MLTheme.mono
+            font.pixelSize:     MLTheme.fsLabel - 1
         }
     }
 
-    // Countdown while waiting for the second press
+    // countdown while waiting for the second press
     Rectangle {
         id:             countdownBar
         visible:        root._pending
         anchors.left:   parent.left
         anchors.bottom: parent.bottom
-        height:         Math.max(3, ScreenTools.defaultFontPixelHeight * 0.2)
-        color:          "white"
+        height:         2 * MLTheme.u
+        color:          root._toneColor
         width:          0
     }
-    NumberAnimation {
-        id:         countdownAnim
-        target:     countdownBar
-        property:   "width"
-        from:       root.width
-        to:         0
-        duration:   root.confirmMs
-    }
-    Timer {
-        id:             countdown
-        interval:       root.confirmMs
-        onTriggered:    root._pending = false
-    }
+    NumberAnimation { id: countdownAnim; target: countdownBar; property: "width"; from: root.width; to: 0; duration: root.confirmMs }
+    Timer { id: countdown; interval: root.confirmMs; onTriggered: root._pending = false }
 
     MouseArea {
         id:             mouse
@@ -139,14 +101,8 @@ Rectangle {
         onClicked: {
             if (!root.available) return
             if (!root.twoStep) { root.clicked(); return }
-            if (root._pending) {
-                root.cancel()
-                root.clicked()
-            } else {
-                root._pending = true
-                countdown.restart()
-                countdownAnim.restart()
-            }
+            if (root._pending) { root.cancel(); root.clicked() }
+            else { root._pending = true; countdown.restart(); countdownAnim.restart() }
         }
     }
 
