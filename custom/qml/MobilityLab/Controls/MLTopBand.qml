@@ -35,6 +35,7 @@ RowLayout {
     }
 
     readonly property bool _rotorSeen:  anySeen([ "rot.front", "rot.rear" ])
+    readonly property bool _tandem:     _seen["rot.rear"] === true      // second rotor reported → tandem; otherwise single main rotor
     readonly property bool _engineSeen: anySeen([ "eng.rpm", "coolant", "eng.cht", "eng.egt", "oil.temp", "oil.press", "eng.thr", "eng.fuelPress", "gb.front", "gb.rear" ])
     readonly property bool _fuelSeen:   anySeen([ "fuel.pct", "fuel.L", "eng.flow", "fuel.endurance", "pwr.aux", "pwr.genA" ])
     readonly property bool _motorsSeen: !!vehicle && !!vehicle.escs && vehicle.escs.count > 0
@@ -105,8 +106,8 @@ RowLayout {
         readonly property real _front:      { var v = root._t ? root._t.values["rot.front"] : undefined; return v === undefined ? NaN : v }
         readonly property real _rear:       { var v = root._t ? root._t.values["rot.rear"] : undefined; return v === undefined ? NaN : v }
         readonly property bool _engRpmSeen: root._seen["eng.rpm"] === true
-        readonly property int  _gaugeCount: (_engRpmSeen ? 1 : 0) + (root._rotorSeen ? 2 : 0)
-        readonly property real _syncW:      root._rotorSeen ? root._fw * 13 : 0
+        readonly property int  _gaugeCount: (_engRpmSeen ? 1 : 0) + (root._rotorSeen ? (root._tandem ? 2 : 1) : 0)
+        readonly property real _syncW:      root._tandem ? root._fw * 13 : 0
         readonly property real _gaugeSize:  _gaugeCount === 0 ? 0
                                             : Math.max(root._fh * 4, Math.min((width - padding * 2 - _syncW - root._fw * 1.2 * _gaugeCount) / _gaugeCount,
                                                                               (height - root._fh * 1.9) * 0.62))
@@ -128,14 +129,14 @@ RowLayout {
             MLArcGauge {
                 visible:    root._rotorSeen
                 key:        "rot.front"
-                title:      qsTr("전방 로터")
+                title:      root._tandem ? qsTr("전방 로터") : qsTr("메인 로터")
                 size:       propPanel._gaugeSize
-                level:      isNaN(value) ? 0 : Math.max(1, propPanel._splitLevel)
+                level:      isNaN(value) ? 0 : (root._tandem ? Math.max(1, propPanel._splitLevel) : 1)
             }
 
             // Tandem synchronisation: signed RPM difference on a centre-zero scale
             Column {
-                visible:                root._rotorSeen
+                visible:                root._tandem
                 width:                  propPanel._syncW
                 anchors.verticalCenter: parent.verticalCenter
                 spacing:                root._fh * 0.25
@@ -194,7 +195,7 @@ RowLayout {
             }
 
             MLArcGauge {
-                visible:    root._rotorSeen
+                visible:    root._tandem
                 key:        "rot.rear"
                 title:      qsTr("후방 로터")
                 size:       propPanel._gaugeSize
