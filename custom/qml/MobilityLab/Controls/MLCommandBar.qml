@@ -6,8 +6,8 @@ import QGroundControl.Controls
 
 // Bottom command bar of the console (full width).
 //
-//   ● 연결 ─ ● 준비 ─ ○ 무장 ─ ○ 비행 ─ ○ 착륙 │ [ARM] [이륙] [미션 시작] │ 14:35:42 │ [비상 정지]
-//   비행 전 점검을 마치면 ARM 하세요            │                         │ 날짜     │
+//   ● 연결 ─ ● 준비 ─ ○ 시동 ─ ○ 비행 ─ ○ 착륙 │ [시동] [이륙] [미션 시작] │ 14:35:42 │ [비상 정지]
+//   비행 전 점검을 마치면 시동을 거세요        │                         │ 날짜     │
 //
 // The progress strip shows where the flight is; the buttons change with it
 // (on the ground: arm/takeoff/mission, in the air: pause/RTL/land), so only
@@ -56,10 +56,10 @@ Rectangle {
     function nextStep() {
         if (!_connected)    return qsTr("기체 연결을 기다리는 중 · 통신 링크를 확인하세요")
         if (_commLost)      return qsTr("통신 두절 · 기체 Failsafe 동작을 확인하세요")
-        if (!_armed)        return show("showArm") ? qsTr("비행 전 점검을 마치면 ARM 하세요")
-                                                   : qsTr("ARM 불가 · 위쪽 상태 표시줄의 점검 항목을 확인하세요")
+        if (!_armed)        return show("showArm") ? qsTr("비행 전 점검을 마치면 시동을 거세요")
+                                                   : qsTr("시동 불가 · 위쪽 상태 표시줄의 점검 항목을 확인하세요")
         if (!_flying)       return qsTr("이륙하거나 미션을 시작하세요")
-        if (_landing)       return qsTr("%1 · 착지 후 무장 해제를 확인하세요").arg(_mode)
+        if (_landing)       return qsTr("%1 · 착지 후 시동 끄기를 확인하세요").arg(_mode)
         return qsTr("비행 중 · %1").arg(_mode)
     }
 
@@ -84,7 +84,7 @@ Rectangle {
             spacing:    0
 
             Repeater {
-                model: [ qsTr("연결"), qsTr("준비"), qsTr("무장"), qsTr("비행"), qsTr("착륙") ]
+                model: [ qsTr("연결"), qsTr("준비"), qsTr("시동"), qsTr("비행"), qsTr("착륙") ]
 
                 Row {
                     spacing: ScreenTools.defaultFontPixelWidth * 0.45
@@ -189,12 +189,12 @@ Rectangle {
         // --- on the ground ---
         MLCommandButton {
             visible:        !root._flying
-            text:           root._armed ? qsTr("무장 해제") : qsTr("ARM")
-            subText:        root._armed ? "DISARM" : qsTr("무장")
+            text:           root._armed ? qsTr("시동 끄기") : qsTr("시동 걸기")
+            subText:        root._armed ? "DISARM" : "ARM"
             iconSource:     "/MobilityLab/icons/arm.svg"
             tone:           root._armed ? "caution" : "normal"
             available:      root.show("showArm") || root.show("showDisarm")
-            disabledReason: root.reason(qsTr("ARM 조건 미충족 · 상단 상태 표시줄 확인"))
+            disabledReason: root.reason(qsTr("시동 조건 미충족 · 상단 상태 표시줄 확인"))
             onClicked:      root.execute(root._armed ? root._guided.actionDisarm : root._guided.actionArm)
         }
         MLCommandButton {
@@ -269,7 +269,7 @@ Rectangle {
         subText:        qsTr("2초간 누르기")
         iconSource:     "/MobilityLab/icons/kill.svg"
         available:      root._connected && !root._commLost && (root._hasEngine || root._armed)
-        disabledReason: root.reason(root._hasEngine ? "" : qsTr("무장 상태에서만 사용합니다"))
+        disabledReason: root.reason(root._hasEngine ? "" : qsTr("시동이 걸린 상태에서만 사용합니다"))
         tooltipText:    root._hasEngine ? qsTr("엔진을 즉시 정지합니다 (MAV_CMD_DO_ENGINE_CONTROL).")
                                         : qsTr("모터를 즉시 정지합니다. 비행 중이면 추락합니다.")
         onActivated: {

@@ -68,7 +68,7 @@ RowLayout {
                 QGCLabel {
                     id:                 armText
                     anchors.centerIn:   parent
-                    text:               root._commLost ? qsTr("통신 두절") : (root._armed ? qsTr("무장") : qsTr("안전"))
+                    text:               root._commLost ? qsTr("통신 두절") : (root._armed ? qsTr("시동 ON") : qsTr("시동 OFF"))
                     color:              root._commLost || root._armed ? MLTheme.warning : MLTheme.ok
                     font.pointSize:     ScreenTools.smallFontPointSize
                     font.bold:          true
