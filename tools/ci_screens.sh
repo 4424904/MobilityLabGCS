@@ -39,7 +39,7 @@ seed_settings () {
 }
 
 run_case () {
-    local name="$1" size="$2" scenario="$3" airframe="${4:-tandem}"
+    local name="$1" size="$2" scenario="$3" airframe="${4:-tandem}" second="${5:-}"
     local disp=":$((90 + RANDOM % 9))"
     echo "=== $name ($size, $scenario) on $disp"
 
@@ -49,6 +49,13 @@ run_case () {
 
     python3 mlgcs/tools/fake_vehicle.py --scenario "$scenario" --airframe "$airframe" --duration 150 > "$OUT/$name-vehicle.log" 2>&1 &
     local veh=$!
+    local veh2=""
+    if [ -n "$second" ]; then
+        # second vehicle (system id 2) to check the multi-vehicle view
+        # started late so the first vehicle stays the active one
+        (sleep 25; python3 mlgcs/tools/fake_vehicle.py --sysid 2 --scenario normal --airframe "$second" --duration 120 > "$OUT/$name-vehicle2.log" 2>&1) &
+        veh2=$!
+    fi
 
     seed_settings
     sg dialout -c "DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$OUT/$name-app.log' 2>&1" &
@@ -67,6 +74,8 @@ run_case () {
     shot "$disp" "$OUT/$name-2.png"
 
     kill "$veh" 2>/dev/null
+    [ -n "$veh2" ] && kill "$veh2" 2>/dev/null
+    pkill -f fake_vehicle.py 2>/dev/null
     pkill -f "$BIN" 2>/dev/null
     sleep 2
     pkill -9 -f "$BIN" 2>/dev/null
@@ -74,7 +83,7 @@ run_case () {
     wait 2>/dev/null
 }
 
-run_case tandem1080 1920x1080 faults tandem
+run_case tandem1080 1920x1080 faults tandem quad
 run_case quad768    1366x768  normal quad
 
 echo "=== QML problems in our files"

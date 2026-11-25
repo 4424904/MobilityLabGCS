@@ -1,6 +1,7 @@
 #include "TandemTelemetry.h"
 
 #include "MAVLinkLib.h"
+#include "MultiVehicleManager.h"
 #include "QGCLoggingCategory.h"
 #include "Vehicle.h"
 
@@ -103,8 +104,13 @@ void TandemTelemetry::_loadConfig()
 
 void TandemTelemetry::handleMessage(Vehicle *vehicle, const mavlink_message_t &message)
 {
-    if (vehicle && (_vehicle != vehicle)) {
-        _vehicle = vehicle;
+    // Multi-vehicle: show only the active (selected) vehicle's powertrain data
+    Vehicle *active = MultiVehicleManager::instance()->activeVehicle();
+    if (!vehicle || (vehicle != active)) {
+        return;
+    }
+    if (_vehicle != vehicle) {
+        _resetForVehicle(vehicle);
     }
 
     switch (message.msgid) {
@@ -334,8 +340,22 @@ QVariantMap TandemTelemetry::spec(const QString &key) const
 /* Alerts                                                                    */
 /*---------------------------------------------------------------------------*/
 
+void TandemTelemetry::_resetForVehicle(Vehicle *vehicle)
+{
+    _vehicle = vehicle;
+    _samples.clear();
+    _alerts.clear();
+    emit alertsChanged();
+}
+
 void TandemTelemetry::_tick()
 {
+    // Active vehicle switched (or disconnected): drop the previous vehicle's data
+    Vehicle *active = MultiVehicleManager::instance()->activeVehicle();
+    if (active != _vehicle.data()) {
+        _resetForVehicle(active);
+    }
+
     _updateDerived();
 
     _valuesMap.clear();

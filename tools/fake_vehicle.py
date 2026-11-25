@@ -73,11 +73,12 @@ def main():
     ap.add_argument("--scenario", choices=["normal", "faults"], default="normal")
     ap.add_argument("--airframe", choices=["tandem", "quad"], default="tandem",
                     help="tandem: helicopter with engine/rotor data, quad: multicopter with ESC data")
+    ap.add_argument("--sysid", type=int, default=1, help="MAVLink system id (use 2, 3 ... for extra vehicles)")
     ap.add_argument("--duration", type=float, default=0, help="seconds, 0 = run forever")
     ap.add_argument("--rate", type=float, default=10.0, help="telemetry Hz")
     args = ap.parse_args()
 
-    conn = mavutil.mavlink_connection(args.target, source_system=1, source_component=1)
+    conn = mavutil.mavlink_connection(args.target, source_system=args.sysid, source_component=1)
     m = conn.mav
 
     t0 = time.time()
@@ -129,7 +130,7 @@ def main():
                 sent_home = True
 
         # ---- flight: steady circle around a point east of home -------------
-        ang = speed * t / radius
+        ang = speed * t / radius + (args.sysid - 1) * 2.1   # extra vehicles fly the same circle, spaced out
         north = radius * math.sin(ang)
         east = CIRCLE_EAST + radius * math.cos(ang)
         lat = HOME_LAT + north / 111320.0

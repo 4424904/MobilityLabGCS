@@ -100,6 +100,7 @@ private:
     };
 
     void   _loadConfig();
+    void   _resetForVehicle(Vehicle *vehicle);
     void   _set(const QString &key, double value);
     void   _setRpm(int index, double rpm);
     void   _updateDerived();
