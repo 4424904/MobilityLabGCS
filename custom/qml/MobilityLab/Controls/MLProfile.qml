@@ -71,7 +71,8 @@ Rectangle {
 
         property real vehAlt:   root.vehicle ? root.fv(root.vehicle.altitudeRelative) : NaN
         property real vehNext:  root.vehicle ? root.fv(root.vehicle.distanceToNextWP) : NaN
-        onVehAltChanged:        requestPaint()
+        onVehAltChanged:        throttle.start()
+        Timer { id: throttle; interval: 500; onTriggered: canvas.requestPaint() }
         onWidthChanged:         requestPaint()
         onHeightChanged:        requestPaint()
         Connections { target: root; function on_PtsChanged() { canvas.requestPaint() } function on_CurChanged() { canvas.requestPaint() } }

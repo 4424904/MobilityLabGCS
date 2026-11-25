@@ -55,7 +55,7 @@ run_fw () {
     sleep 2
 
     seed_settings
-    sg dialout -c "DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 ML_TEST_SETPOINTS=1 '$BIN' > '$OUT/sitl-$fw-app.log' 2>&1" &
+    sg dialout -c "DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 ML_TEST_SETPOINTS=1 nice -n 10 '$BIN' > '$OUT/sitl-$fw-app.log' 2>&1" &
     sleep 10
     DISPLAY="$disp" xdotool search --onlyvisible --name ".*" 2>/dev/null | while read -r w; do
         DISPLAY="$disp" xdotool windowmove "$w" 0 0 windowsize "$w" 100% 100% || true

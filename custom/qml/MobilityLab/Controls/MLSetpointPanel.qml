@@ -374,7 +374,7 @@ Rectangle {
         onTriggered: {
             if (root._testStep === 0) {
                 if (root._flying && root._alt > 15) ticks++; else ticks = 0
-                if (ticks === 5 && root._pmc) { console.log("MLTEST load mission"); root._pmc.loadFromVehicle() }
+                if (ticks === 5 && typeof mlTools !== "undefined") { console.log("MLTEST load mission"); mlTools.reloadMission(root.vehicle) }
                 if (ticks >= 15) { console.log("MLTEST speed 2.5 (keep), mission items", root._mc ? root._mc.visualItems.count : -1); root.keepMission = true; root.sendSpeed(2.5); root._testStep = 1; ticks = 0 }
             } else if (root._testStep === 1) {
                 if (++ticks >= 25) { console.log("MLTEST altitude keep", Math.round(root._alt + 15), "inMission", root._inMission, "keep", root._keep); root.keepMission = true; root.sendAltitude(Math.round(root._alt + 15)); root._testStep = 2; ticks = 0 }

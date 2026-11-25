@@ -103,17 +103,31 @@ Column {
     Item {
         width:  root.width
         height: 64 * u
-        Rectangle {
-            x:      20 * u
-            y:      10 * u
-            width:  parent.width - 40 * u
-            height: 40 * u
+        component LinkButton: Rectangle {
+            id: lb
+            property string label
+            signal fire()
+            height: 40 * MLTheme.u
             radius: MLTheme.radius
-            color:  planMouse.pressed ? "#16222B" : (planMouse.containsMouse ? "#11171D" : "transparent")
+            color:  lbMouse.pressed ? "#16222B" : (lbMouse.containsMouse ? "#11171D" : "transparent")
             border.width: 1
-            border.color: planMouse.containsMouse ? MLTheme.accent : MLTheme.lineStrong
-            MLText { anchors.centerIn: parent; text: root._count > 0 ? qsTr("미션 편집 · 업로드") : qsTr("미션 만들기"); color: "#9FD8F2"; font.pixelSize: MLTheme.fsSmall; font.letterSpacing: 0.5 * u }
-            MouseArea { id: planMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (typeof mainWindow !== "undefined") mainWindow.showPlanView() }
+            border.color: lbMouse.containsMouse ? MLTheme.accent : MLTheme.lineStrong
+            MLText { anchors.centerIn: parent; text: lb.label; color: "#9FD8F2"; font.pixelSize: MLTheme.fsSmall; font.letterSpacing: 0.5 * MLTheme.u }
+            MouseArea { id: lbMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lb.fire() }
+        }
+        LinkButton {
+            x: 20 * u; y: 10 * u
+            width: parent.width - 40 * u - reload.width - 8 * u
+            label: root._count > 0 ? qsTr("미션 편집 · 업로드") : qsTr("미션 만들기")
+            onFire: if (typeof mainWindow !== "undefined") mainWindow.showPlanView()
+        }
+        LinkButton {
+            id: reload
+            anchors.right: parent.right; anchors.rightMargin: 20 * u; y: 10 * u
+            width: 96 * u
+            visible: !!root.vehicle && typeof mlTools !== "undefined"
+            label: qsTr("다시 읽기")
+            onFire: mlTools.reloadMission(root.vehicle)
         }
     }
 }

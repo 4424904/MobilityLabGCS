@@ -195,11 +195,25 @@ Item {
         font.weight:        Font.DemiBold
     }
 
+    // Repaint at most ~15 Hz and only when something moved
+    property bool _dirty: true
+    onRollChanged:          _dirty = true
+    onPitchChanged:         _dirty = true
+    onHeadingChanged:       _dirty = true
+    onSpeedChanged:         _dirty = true
+    onAltChanged:           _dirty = true
+    onVsChanged:            _dirty = true
+    onTargetSpeedChanged:   _dirty = true
+    onTargetAltChanged:     _dirty = true
+    onTargetHeadingChanged: _dirty = true
+    on_HasChanged:          _dirty = true
+    onWidthChanged:         _dirty = true
+    onHeightChanged:        _dirty = true
     Timer {
         interval:       66
         running:        root.visible
         repeat:         true
-        onTriggered:    canvas.requestPaint()
+        onTriggered:    if (root._dirty) { root._dirty = false; canvas.requestPaint() }
     }
     Component.onCompleted: canvas.requestPaint()
 }

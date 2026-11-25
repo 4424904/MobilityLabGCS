@@ -31,6 +31,10 @@ Item {
     property bool   _communicationLost:     _activeVehicle ? _activeVehicle.vehicleLinkManager.communicationLost : false
     property var    _guidedController:      globals.guidedControllerFlyView
     property real   _margins:               ScreenTools.defaultFontPixelWidth / 2
+    // MainStatusIndicator writes its state colour here (ready / not ready / armed / comms lost)
+    property color  _mainStatusBGColor:     qgcPal.brandingPurple
+
+    QGCPalette { id: qgcPal }
 
     function dropMainStatusIndicatorTool() {
         mainStatusIndicator.dropMainStatusIndicator();
@@ -97,6 +101,7 @@ Item {
             width:  statusRow.implicitWidth + 24 * u
             height: parent.height
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width - 1; height: 2 * u; color: control._mainStatusBGColor }
             RowLayout {
                 id:                     statusRow
                 anchors.left:           parent.left

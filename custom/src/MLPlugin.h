@@ -39,6 +39,19 @@ private:
     MLFlyViewOptions *_flyViewOptions = nullptr;
 };
 
+/// Small helpers the console needs that QGC does not expose to QML.
+class MLTools : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit MLTools(QObject *parent = nullptr) : QObject(parent) {}
+
+    /// Read the mission back from the vehicle so the fly view shows what is
+    /// on board (e.g. after another GCS or a companion computer changed it).
+    Q_INVOKABLE void reloadMission(QObject *vehicle);
+};
+
 /// MobilityLab GCS core plugin.
 ///  - Branding, palette and Korean defaults
 ///  - Tandem helicopter telemetry (engine / rotors / fuel / power) exposed to QML
@@ -65,6 +78,7 @@ public:
 private:
     MLOptions *_options = nullptr;
     TandemTelemetry *_tandem = nullptr;
+    MLTools *_tools = nullptr;
     QQmlApplicationEngine *_qmlEngine = nullptr;
     class MLOverrideInterceptor *_urlInterceptor = nullptr;
 };

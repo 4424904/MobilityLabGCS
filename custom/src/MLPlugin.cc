@@ -2,6 +2,8 @@
 #include "TandemTelemetry.h"
 
 #include "AppSettings.h"
+#include "MissionManager.h"
+#include "Vehicle.h"
 #include "Fact.h"
 #include "FactMetaData.h"
 #include "FlightMapSettings.h"
@@ -43,6 +45,7 @@ MLPlugin::MLPlugin(QObject *parent)
     : QGCCorePlugin(parent)
     , _options(new MLOptions(this, this))
     , _tandem(new TandemTelemetry(this))
+    , _tools(new MLTools(this))
 {
     // Field operators get the simple UI; Advanced mode is still reachable from settings.
     _showAdvancedUI = false;
@@ -203,6 +206,7 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     _qmlEngine = QGCCorePlugin::createQmlApplicationEngine(parent);
     _qmlEngine->addImportPath(QStringLiteral("qrc:/qml"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTandem"), _tandem);
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTools"), _tools);
     // CI only: ML_TEST_SETPOINTS=1 makes the 목표 조정 panel run its scripted SITL check
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestSetpoints"),
                                                   qEnvironmentVariable("ML_TEST_SETPOINTS") == QStringLiteral("1"));
@@ -246,4 +250,19 @@ QUrl MLOverrideInterceptor::intercept(const QUrl &url, QQmlAbstractUrlIntercepto
         break;
     }
     return url;
+}
+
+/*===========================================================================*/
+
+void MLTools::reloadMission(QObject *vehicleObject)
+{
+    Vehicle *vehicle = qobject_cast<Vehicle *>(vehicleObject);
+    if (!vehicle || !vehicle->missionManager()) {
+        return;
+    }
+    if (vehicle->missionManager()->inProgress()) {
+        qCDebug(MLPluginLog) << "reloadMission: transfer already in progress";
+        return;
+    }
+    vehicle->missionManager()->loadFromVehicle();
 }
