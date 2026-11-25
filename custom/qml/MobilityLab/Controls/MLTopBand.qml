@@ -89,8 +89,8 @@ RowLayout {
         Layout.fillHeight:          true
         Layout.fillWidth:           true
         Layout.minimumWidth:        root._fw * 30
-        Layout.preferredWidth:      root._fw * 50
-        Layout.horizontalStretchFactor: 5
+        Layout.preferredWidth:      root._fw * 56
+        Layout.horizontalStretchFactor: 7
         title:                      qsTr("추진 계통")
         tag:                        "PROPULSION"
         detail: {
@@ -100,16 +100,16 @@ RowLayout {
         }
         detailColor:                isNaN(root._ecuHealth) ? MLTheme.dim : (root._ecuHealth > 0 ? MLTheme.ok : MLTheme.warning)
 
-        readonly property bool _sideBySide: root._rotorSeen && (root._engineSeen) && width > root._fw * 44
+        readonly property bool _sideBySide: root._rotorSeen && root._engineSeen && width > root._fw * 50
 
         // Rotor synchronisation (tandem)
         MLRotorSync {
             id:             rotorSync
             visible:        root._rotorSeen
             anchors.left:   parent.left
-            anchors.top:    parent.top
-            width:          propPanel._sideBySide ? Math.min(parent.width * 0.44, root._fw * 34) : parent.width
-            discSize:       Math.max(root._fh * 3.2, Math.min(root._fh * 5, (propPanel._sideBySide ? parent.height : parent.height * 0.5) - root._fh * 1.8))
+            y:              propPanel._sideBySide ? Math.max(0, (parent.height - height) / 2) : 0
+            width:          propPanel._sideBySide ? Math.max(parent.width * 0.42, discSize * 2 + root._fw * 12) : parent.width
+            discSize:       Math.max(root._fh * 3.4, Math.min(root._fh * 5.2, (propPanel._sideBySide ? parent.height : parent.height * 0.5) - root._fh * 1.8))
         }
 
         // Engine / drivetrain tiles

@@ -29,7 +29,7 @@ MLPanel {
     readonly property int  _count:      _items ? Math.max(0, _items.count - 1) : 0      // item 0 is the home/settings item
     readonly property int  _cur:        _mc ? _mc.currentMissionIndex : -1
     readonly property string _mode:     vehicle ? String(vehicle.flightMode) : ""
-    readonly property bool _running:    !!vehicle && vehicle.flying && /mission|auto/i.test(_mode) && !/rtl|return|land|loiter|hold/i.test(_mode)
+    readonly property bool _running:    !!vehicle && vehicle.flying && _cur > 0 && !/rtl|return|land|loiter|hold|복귀|착륙|정지/i.test(_mode)
     readonly property real _fw:         ScreenTools.defaultFontPixelWidth
     readonly property real _fh:         ScreenTools.defaultFontPixelHeight
 
@@ -92,7 +92,7 @@ MLPanel {
             MLStatTile {
                 width:  summaryGrid._w
                 label:  qsTr("다음 WP 거리")
-                readonly property real _d: root.vehicle && root._running ? root._v(root.vehicle.distanceToNextWP) : NaN
+                readonly property real _d: root.vehicle && root._cur > 0 ? root._v(root.vehicle.distanceToNextWP) : NaN
                 value:  root._dist(_d)
                 level:  isNaN(_d) ? 0 : 1
             }
@@ -213,7 +213,8 @@ MLPanel {
                 text: {
                     var o = row.object
                     if (!o || !o.isSimpleItem || !o.altitude || !o.specifiesCoordinate) return "—"
-                    return o.altitude.valueString + " " + o.altitude.units
+                    var a = Number(o.altitude.rawValue)
+                    return isNaN(a) ? "—" : a.toFixed(0) + " m"
                 }
                 color:                  row._done ? MLTheme.faint : MLTheme.text
                 font.family:            ScreenTools.fixedFontFamily
