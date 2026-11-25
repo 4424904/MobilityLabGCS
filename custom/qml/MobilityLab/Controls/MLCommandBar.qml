@@ -11,9 +11,10 @@ import QGroundControl.Controls
 //
 // The progress strip shows where the flight is; the buttons change with it
 // (on the ground: arm/takeoff/mission, in the air: pause/RTL/land), so only
-// commands that make sense now are offered. Every command still goes through
-// QGC's guided-action slide-to-confirm and QGC's own rules for when it is
-// allowed. The emergency button needs a 2 s hold: engine kill on aircraft
+// commands that make sense now are offered, using QGC's own rules for when
+// each is allowed. Safety: every button needs two presses (the first arms it
+// for 3 s, see MLCommandButton), then the command is sent. Takeoff then opens
+// QGC's altitude slider so the takeoff height can be chosen. The emergency button needs a 2 s hold: engine kill on aircraft
 // that report an engine (EFI), otherwise QGC's motor emergency stop.
 Rectangle {
     id: root
@@ -35,6 +36,12 @@ Rectangle {
 
     // 0 연결, 1 준비, 2 무장, 3 비행, 4 착륙
     readonly property int _phase: !_connected ? 0 : (!_armed ? 1 : (!_flying ? 2 : (_landing ? 4 : 3)))
+
+    // Send a guided action straight away (the two-press button is the confirmation)
+    function execute(action) {
+        if (!_guided || !_vehicle) return
+        _guided.executeAction(action, null, 0, false)
+    }
 
     function show(flagName) {
         return _connected && !_commLost && !!_guided && !!_guided[flagName]
@@ -188,12 +195,12 @@ Rectangle {
             tone:           root._armed ? "caution" : "normal"
             available:      root.show("showArm") || root.show("showDisarm")
             disabledReason: root.reason(qsTr("ARM 조건 미충족 · 상단 상태 표시줄 확인"))
-            onClicked:      root._guided.confirmAction(root._armed ? root._guided.actionDisarm : root._guided.actionArm)
+            onClicked:      root.execute(root._armed ? root._guided.actionDisarm : root._guided.actionArm)
         }
         MLCommandButton {
             visible:        !root._flying
             text:           qsTr("이륙")
-            subText:        "TAKEOFF"
+            subText:        qsTr("TAKEOFF · 고도 선택")
             iconSource:     "/MobilityLab/icons/takeoff.svg"
             tone:           "go"
             available:      root.show("showTakeoff")
@@ -208,7 +215,7 @@ Rectangle {
             tone:           "go"
             available:      root.show("showStartMission")
             disabledReason: root.reason(qsTr("업로드된 미션이 없거나 시작 조건 미충족"))
-            onClicked:      root._guided.confirmAction(root._guided.actionStartMission)
+            onClicked:      root.execute(root._guided.actionStartMission)
         }
 
         // --- in the air ---
@@ -218,7 +225,7 @@ Rectangle {
             subText:        "CONTINUE"
             iconSource:     "/MobilityLab/icons/play.svg"
             tone:           "go"
-            onClicked:      root._guided.confirmAction(root._guided.actionContinueMission)
+            onClicked:      root.execute(root._guided.actionContinueMission)
         }
         MLCommandButton {
             visible:        root._flying && !root.show("showContinueMission")
@@ -228,7 +235,7 @@ Rectangle {
             tone:           "caution"
             available:      root.show("showPause")
             disabledReason: root.reason(qsTr("이미 정지 상태이거나 지원하지 않습니다"))
-            onClicked:      root._guided.confirmAction(root._guided.actionPause)
+            onClicked:      if (root._vehicle) root._vehicle.pauseVehicle()
         }
         MLCommandButton {
             visible:        root._flying
@@ -238,7 +245,7 @@ Rectangle {
             tone:           "active"
             available:      root.show("showRTL")
             disabledReason: root.reason(qsTr("이미 복귀 중입니다"))
-            onClicked:      root._guided.confirmAction(root._guided.actionRTL)
+            onClicked:      root.execute(root._guided.actionRTL)
         }
         MLCommandButton {
             visible:        root._flying
@@ -248,7 +255,7 @@ Rectangle {
             tone:           "caution"
             available:      root.show("showLand")
             disabledReason: root.reason(qsTr("이미 착륙 중입니다"))
-            onClicked:      root._guided.confirmAction(root._guided.actionLand)
+            onClicked:      root.execute(root._guided.actionLand)
         }
 
     }

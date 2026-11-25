@@ -131,35 +131,36 @@ MLPanel {
         }
     }
 
-    // No active alerts
-    Column {
-        anchors.horizontalCenter:   parent.horizontalCenter
-        anchors.top:                lampRow.bottom
-        anchors.bottom:             parent.bottom
-        visible:                    root._alerts.length === 0
-        spacing:                    ScreenTools.defaultFontPixelHeight * 0.2
-        topPadding:                 (height - implicitHeight) / 2
+    // No active alerts: one green status line
+    Rectangle {
+        anchors.left:       parent.left
+        anchors.right:      parent.right
+        anchors.top:        lampRow.bottom
+        anchors.topMargin:  ScreenTools.defaultFontPixelHeight * 0.45
+        visible:            root._alerts.length === 0
+        height:             ScreenTools.defaultFontPixelHeight * 1.9
+        radius:             ScreenTools.defaultFontPixelWidth * 0.3
+        color:              root.vehicle ? "#163325" : MLTheme.tile
+        border.width:       1
+        border.color:       root.vehicle ? "#2c7a4c" : MLTheme.line
 
-        Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width:          ScreenTools.defaultFontPixelHeight * 2
-            height:         width
-            radius:         width / 2
-            color:          "transparent"
-            border.width:   2
-            border.color:   root.vehicle ? MLTheme.ok : MLTheme.faint
-            QGCLabel {
-                anchors.centerIn:   parent
-                text:               "✓"
-                color:              root.vehicle ? MLTheme.ok : MLTheme.faint
-                font.bold:          true
-                font.pointSize:     ScreenTools.mediumFontPointSize
-            }
+        QGCLabel {
+            id:                     okIcon
+            anchors.left:           parent.left
+            anchors.leftMargin:     ScreenTools.defaultFontPixelWidth
+            anchors.verticalCenter: parent.verticalCenter
+            text:                   root.vehicle ? "✓" : "…"
+            color:                  root.vehicle ? MLTheme.ok : MLTheme.faint
+            font.bold:              true
+            font.pointSize:         ScreenTools.mediumFontPointSize
         }
         QGCLabel {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text:           root.vehicle ? qsTr("활성 경고 없음") : qsTr("기체 연결 대기")
-            color:          root.vehicle ? MLTheme.label : MLTheme.faint
+            anchors.left:           okIcon.right
+            anchors.leftMargin:     ScreenTools.defaultFontPixelWidth
+            anchors.verticalCenter: parent.verticalCenter
+            text:                   root.vehicle ? qsTr("모든 시스템 정상") : qsTr("기체 연결 대기")
+            color:                  root.vehicle ? MLTheme.ok : MLTheme.faint
+            font.bold:              true
         }
     }
 

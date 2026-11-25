@@ -49,7 +49,7 @@ RowLayout {
     MLPanel {
         id:                     pfdPanel
         Layout.fillHeight:      true
-        Layout.preferredWidth:  Math.round(Math.max(root._fw * 30, (root.height - root._fh * 3.6) / 0.56))
+        Layout.preferredWidth:  Math.round(Math.max(root._fw * 30, root.height + root._fh * 2.4))
         title:                  root.vehicle ? MLTheme.vehicleTypeName(root.vehicle) + (QGroundControl.multiVehicleManager.vehicles.count > 1 ? "  #" + root.vehicle.id : "")
                                              : qsTr("기체 없음")
         tag:                    "FLIGHT"
@@ -100,27 +100,115 @@ RowLayout {
         }
         detailColor:                isNaN(root._ecuHealth) ? MLTheme.dim : (root._ecuHealth > 0 ? MLTheme.ok : MLTheme.warning)
 
-        readonly property bool _sideBySide: root._rotorSeen && root._engineSeen && width > root._fw * 50
+        readonly property real _split:      { var v = root._t ? root._t.values["rot.split"] : undefined; return v === undefined ? NaN : v }
+        readonly property int  _splitLevel: { var l = root._t ? root._t.levels["rot.split"] : undefined; return l === undefined ? 0 : l }
+        readonly property real _front:      { var v = root._t ? root._t.values["rot.front"] : undefined; return v === undefined ? NaN : v }
+        readonly property real _rear:       { var v = root._t ? root._t.values["rot.rear"] : undefined; return v === undefined ? NaN : v }
+        readonly property bool _engRpmSeen: root._seen["eng.rpm"] === true
+        readonly property int  _gaugeCount: (_engRpmSeen ? 1 : 0) + (root._rotorSeen ? 2 : 0)
+        readonly property real _syncW:      root._rotorSeen ? root._fw * 13 : 0
+        readonly property real _gaugeSize:  _gaugeCount === 0 ? 0
+                                            : Math.max(root._fh * 4, Math.min((width - padding * 2 - _syncW - root._fw * 1.2 * _gaugeCount) / _gaugeCount,
+                                                                              (height - root._fh * 1.9) * 0.62))
 
-        // Rotor synchronisation (tandem)
-        MLRotorSync {
-            id:             rotorSync
-            visible:        root._rotorSeen
-            anchors.left:   parent.left
-            y:              propPanel._sideBySide ? Math.max(0, (parent.height - height) / 2) : 0
-            width:          propPanel._sideBySide ? Math.max(parent.width * 0.42, discSize * 2 + root._fw * 12) : parent.width
-            discSize:       Math.max(root._fh * 3.4, Math.min(root._fh * 5.2, (propPanel._sideBySide ? parent.height : parent.height * 0.5) - root._fh * 1.8))
+        // Dials: engine RPM, front rotor, sync, rear rotor
+        Row {
+            id:                         dials
+            visible:                    propPanel._gaugeCount > 0
+            anchors.horizontalCenter:   parent.horizontalCenter
+            anchors.top:                parent.top
+            spacing:                    root._fw * 1.2
+
+            MLArcGauge {
+                visible:    propPanel._engRpmSeen
+                key:        "eng.rpm"
+                title:      qsTr("엔진")
+                size:       propPanel._gaugeSize
+            }
+            MLArcGauge {
+                visible:    root._rotorSeen
+                key:        "rot.front"
+                title:      qsTr("전방 로터")
+                size:       propPanel._gaugeSize
+                level:      isNaN(value) ? 0 : Math.max(1, propPanel._splitLevel)
+            }
+
+            // Tandem synchronisation: signed RPM difference on a centre-zero scale
+            Column {
+                visible:                root._rotorSeen
+                width:                  propPanel._syncW
+                anchors.verticalCenter: parent.verticalCenter
+                spacing:                root._fh * 0.25
+
+                readonly property real _delta: propPanel._front - propPanel._rear
+                readonly property color _c: propPanel._splitLevel === 3 ? MLTheme.warning : (propPanel._splitLevel === 2 ? MLTheme.caution : MLTheme.ok)
+
+                QGCLabel {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text:           "TANDEM  Δ"
+                    color:          MLTheme.faint
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    font.letterSpacing: 1
+                }
+                QGCLabel {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text:           isNaN(parent._delta) ? "—" : (parent._delta >= 0 ? "+" : "") + parent._delta.toFixed(0) + " rpm"
+                    color:          MLTheme.text
+                    font.family:    ScreenTools.fixedFontFamily
+                    font.pointSize: ScreenTools.mediumFontPointSize
+                    font.bold:      true
+                }
+                // centre-zero bar, full scale = 6 % of front rotor speed
+                Item {
+                    width:  parent.width
+                    height: root._fh * 0.7
+                    readonly property real _frac: isNaN(propPanel._split) ? 0 : Math.min(1, propPanel._split / 6) * ((propPanel._front - propPanel._rear) >= 0 ? 1 : -1)
+                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: Math.max(3, root._fh * 0.22); radius: height / 2; color: MLTheme.panelRaised }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x:      parent._frac >= 0 ? parent.width / 2 : parent.width / 2 * (1 + parent._frac)
+                        width:  Math.abs(parent._frac) * parent.width / 2
+                        height: Math.max(3, root._fh * 0.22)
+                        color:  parent.parent._c
+                    }
+                    Rectangle { anchors.centerIn: parent; width: 2; height: parent.height; color: MLTheme.dim }
+                }
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width:          syncText.implicitWidth + root._fw * 1.6
+                    height:         syncText.implicitHeight + root._fh * 0.2
+                    radius:         height / 2
+                    color:          Qt.rgba(parent._c.r, parent._c.g, parent._c.b, 0.15)
+                    border.width:   1
+                    border.color:   parent._c
+                    QGCLabel {
+                        id:                 syncText
+                        anchors.centerIn:   parent
+                        text:               isNaN(propPanel._split) ? qsTr("대기") : (propPanel._splitLevel >= 3 ? qsTr("동기 이상") : (propPanel._splitLevel === 2 ? qsTr("동기 주의") : qsTr("동기 양호")))
+                                            + (isNaN(propPanel._split) ? "" : "  " + propPanel._split.toFixed(1) + "%")
+                        color:              parent.parent._c
+                        font.pointSize:     ScreenTools.smallFontPointSize
+                        font.bold:          true
+                    }
+                }
+            }
+
+            MLArcGauge {
+                visible:    root._rotorSeen
+                key:        "rot.rear"
+                title:      qsTr("후방 로터")
+                size:       propPanel._gaugeSize
+                level:      isNaN(value) ? 0 : Math.max(1, propPanel._splitLevel)
+            }
         }
 
-        // Engine / drivetrain tiles
+        // Other engine / drivetrain values
         Flickable {
             id:                 engineFlick
-            visible:            root._engineSeen
-            anchors.left:       propPanel._sideBySide ? rotorSync.right : parent.left
-            anchors.leftMargin: propPanel._sideBySide ? root._fw * 1.2 : 0
+            anchors.left:       parent.left
             anchors.right:      parent.right
-            anchors.top:        propPanel._sideBySide || !root._rotorSeen ? parent.top : rotorSync.bottom
-            anchors.topMargin:  propPanel._sideBySide || !root._rotorSeen ? 0 : root._fh * 0.4
+            anchors.top:        dials.visible ? dials.bottom : parent.top
+            anchors.topMargin:  dials.visible ? root._fh * 0.5 : 0
             anchors.bottom:     parent.bottom
             contentHeight:      engineGrid.height
             clip:               true
@@ -129,16 +217,15 @@ RowLayout {
             Grid {
                 id:         engineGrid
                 width:      engineFlick.width
-                columns:    Math.max(2, Math.floor((width + root._tileGap) / (root._fw * 13 + root._tileGap)))
+                columns:    Math.max(2, Math.floor((width + root._tileGap) / (root._fw * 12 + root._tileGap)))
                 spacing:    root._tileGap
 
                 readonly property real _w: (width - spacing * (columns - 1)) / columns
 
-                MLKeyTile { width: engineGrid._w; key: "eng.rpm" }
-                MLKeyTile { width: engineGrid._w; key: "eng.thr" }
                 MLKeyTile { width: engineGrid._w; key: "coolant" }
                 MLKeyTile { width: engineGrid._w; key: "eng.cht" }
                 MLKeyTile { width: engineGrid._w; key: "eng.egt" }
+                MLKeyTile { width: engineGrid._w; key: "eng.thr" }
                 MLKeyTile { width: engineGrid._w; key: "oil.temp" }
                 MLKeyTile { width: engineGrid._w; key: "oil.press" }
                 MLKeyTile { width: engineGrid._w; key: "eng.fuelPress" }
@@ -210,93 +297,80 @@ RowLayout {
         Layout.preferredWidth:      root._fw * 34
         Layout.horizontalStretchFactor: 3
         title:                      qsTr("항법 · 통신")
-        tag:                        "NAV · LINK"
+        tag:                        "SYSTEM"
         detail:                     root.vehicle ? root.vehicle.firmwareTypeString : ""
 
         Flickable {
             id:             navFlick
             anchors.fill:   parent
-            contentHeight:  navGrid.height
+            contentHeight:  navColumn.implicitHeight
             clip:           true
             boundsBehavior: Flickable.StopAtBounds
 
-            Grid {
-                id:         navGrid
-                width:      navFlick.width
-                columns:    width > root._fw * 33 ? 3 : 2
-                spacing:    root._tileGap
+            Column {
+                id:     navColumn
+                width:  navFlick.width
 
-                readonly property real _w: (width - spacing * (columns - 1)) / columns
-
-                MLStatTile {
-                    width:  navGrid._w
+                MLStatusRow {
+                    width:  parent.width
                     label:  "GPS"
                     readonly property real _lock: root.vehicle ? root.fv(root.vehicle.gps.lock) : NaN
-                    value:  isNaN(_lock) ? "—" : (_lock >= 6 ? "RTK" : (_lock === 5 ? "RTK F" : (_lock >= 3 ? "3D" : (_lock === 2 ? "2D" : qsTr("없음")))))
-                    level:  isNaN(_lock) ? 0 : (_lock >= 3 ? 1 : 3)
+                    readonly property real _n:    root.vehicle ? root.fv(root.vehicle.gps.count) : NaN
+                    value:  isNaN(_lock) ? "—" : (_lock >= 6 ? "RTK FIX" : (_lock === 5 ? "RTK FLOAT" : (_lock >= 3 ? "3D FIX" : (_lock === 2 ? "2D" : qsTr("없음"))))) + (isNaN(_n) ? "" : " (" + _n.toFixed(0) + ")")
+                    level:  isNaN(_lock) ? 0 : (_lock >= 3 ? (_n < 8 ? 2 : 1) : 3)
+                    bars:   isNaN(_n) ? 0 : Math.min(4, Math.floor(_n / 4))
                 }
-                MLStatTile {
-                    width:  navGrid._w
-                    label:  qsTr("위성 · HDOP")
-                    readonly property real _n: root.vehicle ? root.fv(root.vehicle.gps.count) : NaN
+                MLStatusRow {
+                    width:  parent.width
+                    label:  "HDOP"
                     readonly property real _h: root.vehicle ? root.fv(root.vehicle.gps.hdop) : NaN
-                    value:  (isNaN(_n) ? "—" : _n.toFixed(0)) + (isNaN(_h) ? "" : " · " + _h.toFixed(1))
-                    level:  isNaN(_n) ? 0 : (_n < 6 ? 3 : (_n < 10 || _h > 2 ? 2 : 1))
+                    value:  isNaN(_h) ? "—" : _h.toFixed(1)
+                    level:  isNaN(_h) ? 0 : (_h > 2.5 ? 2 : 1)
                 }
-                MLStatTile {
-                    width:  navGrid._w
+                MLStatusRow {
+                    width:  parent.width
                     label:  qsTr("텔레메트리")
                     readonly property real _rssi: root.vehicle ? root.fv(root.vehicle.radioStatus.lrssi) : NaN
-                    value:  !root.vehicle ? "—" : (root._commLost ? qsTr("두절") : (isNaN(_rssi) || _rssi === 0 ? qsTr("연결") : _rssi.toFixed(0)))
-                    unit:   (root.vehicle && !root._commLost && !isNaN(_rssi) && _rssi !== 0) ? "dBm" : ""
-                    level:  !root.vehicle ? 0 : (root._commLost ? 3 : 1)
+                    readonly property bool _has:  !isNaN(_rssi) && _rssi !== 0
+                    value:  !root.vehicle ? "—" : (root._commLost ? qsTr("두절") : (_has ? _rssi.toFixed(0) : qsTr("연결")))
+                    unit:   root.vehicle && !root._commLost && _has ? "dBm" : ""
+                    level:  !root.vehicle ? 0 : (root._commLost ? 3 : (_has && _rssi < -90 ? 2 : 1))
+                    bars:   !root.vehicle || root._commLost ? 0 : (!_has ? 4 : Math.max(0, Math.min(4, Math.round((_rssi + 105) / 10))))
                 }
-                MLStatTile {
-                    width:  navGrid._w
-                    label:  qsTr("조종기 RSSI")
+                MLStatusRow {
+                    width:  parent.width
+                    label:  qsTr("조종기")
                     readonly property real _rc: root.vehicle ? root.fv(root.vehicle.rcRSSI) : NaN
-                    value:  (isNaN(_rc) || _rc > 100 || _rc < 0) ? "—" : _rc.toFixed(0)
-                    unit:   (isNaN(_rc) || _rc > 100 || _rc < 0) ? "" : "%"
-                    level:  (isNaN(_rc) || _rc > 100 || _rc < 0) ? 0 : (_rc < 20 ? 3 : (_rc < 40 ? 2 : 1))
+                    readonly property bool _ok: !isNaN(_rc) && _rc >= 0 && _rc <= 100
+                    value:  _ok ? _rc.toFixed(0) : "—"
+                    unit:   _ok ? "%" : ""
+                    level:  !_ok ? 0 : (_rc < 20 ? 3 : (_rc < 40 ? 2 : 1))
+                    bars:   _ok ? Math.round(_rc / 25) : 0
                 }
-                MLStatTile {
-                    width:  navGrid._w
+                MLStatusRow {
+                    width:  parent.width
                     label:  qsTr("진동")
                     readonly property real _vib: root.vehicle ? Math.max(root.fv(root.vehicle.vibration.xAxis), root.fv(root.vehicle.vibration.yAxis), root.fv(root.vehicle.vibration.zAxis)) : NaN
-                    value:  isNaN(_vib) ? "—" : _vib.toFixed(0)
+                    value:  isNaN(_vib) ? "—" : (_vib > 60 ? qsTr("높음 ") : (_vib > 30 ? qsTr("주의 ") : qsTr("정상 "))) + _vib.toFixed(0)
                     unit:   isNaN(_vib) ? "" : "m/s²"
                     level:  isNaN(_vib) ? 0 : (_vib > 60 ? 3 : (_vib > 30 ? 2 : 1))
                 }
-                MLStatTile {
-                    width:  navGrid._w
+                MLStatusRow {
+                    width:  parent.width
                     label:  qsTr("홈 거리")
                     readonly property real _d: root.vehicle ? root.fv(root.vehicle.distanceToHome) : NaN
                     value:  isNaN(_d) ? "—" : (_d >= 1000 ? (_d / 1000).toFixed(2) : _d.toFixed(0))
                     unit:   isNaN(_d) ? "" : (_d >= 1000 ? "km" : "m")
                     level:  isNaN(_d) ? 0 : 1
                 }
-                MLStatTile {
-                    width:  navGrid._w
-                    label:  qsTr("비행 시간")
+                MLStatusRow {
+                    width:  parent.width
+                    label:  qsTr("비행 시간 · 거리")
                     readonly property real _s: root.vehicle ? root.fv(root.vehicle.flightTime) : NaN
-                    value:  isNaN(_s) ? "—" : Math.floor(_s / 60) + ":" + ("0" + Math.floor(_s % 60)).slice(-2)
-                    level:  isNaN(_s) ? 0 : 1
-                }
-                MLStatTile {
-                    width:  navGrid._w
-                    label:  qsTr("비행 거리")
                     readonly property real _d: root.vehicle ? root.fv(root.vehicle.flightDistance) : NaN
-                    value:  isNaN(_d) ? "—" : (_d >= 1000 ? (_d / 1000).toFixed(2) : _d.toFixed(0))
-                    unit:   isNaN(_d) ? "" : (_d >= 1000 ? "km" : "m")
-                    level:  isNaN(_d) ? 0 : 1
-                }
-                MLStatTile {
-                    width:  navGrid._w
-                    label:  qsTr("GCS 거리")
-                    readonly property real _d: root.vehicle ? root.fv(root.vehicle.distanceToGCS) : NaN
-                    value:  isNaN(_d) || _d === 0 ? "—" : (_d >= 1000 ? (_d / 1000).toFixed(2) : _d.toFixed(0))
-                    unit:   isNaN(_d) || _d === 0 ? "" : (_d >= 1000 ? "km" : "m")
-                    level:  isNaN(_d) || _d === 0 ? 0 : 1
+                    value:  (isNaN(_s) ? "—" : Math.floor(_s / 60) + ":" + ("0" + Math.floor(_s % 60)).slice(-2))
+                            + "  ·  " + (isNaN(_d) ? "—" : (_d >= 1000 ? (_d / 1000).toFixed(2) + " km" : _d.toFixed(0) + " m"))
+                    level:  isNaN(_s) && isNaN(_d) ? 0 : 1
                 }
             }
         }

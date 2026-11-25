@@ -27,7 +27,7 @@ set(ML_QML_FILES
     ${ML_QML_DIR}/MLKeyTile.qml
     ${ML_QML_DIR}/MLBatteryView.qml
     ${ML_QML_DIR}/MLMotorView.qml
-    ${ML_QML_DIR}/MLRotorSync.qml
+    ${ML_QML_DIR}/MLArcGauge.qml
     ${ML_QML_DIR}/MLAlertPanel.qml
     ${ML_QML_DIR}/MLTopBand.qml
     ${ML_QML_DIR}/MLMissionPanel.qml
