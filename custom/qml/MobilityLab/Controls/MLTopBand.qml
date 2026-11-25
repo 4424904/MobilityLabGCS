@@ -49,7 +49,7 @@ RowLayout {
     MLPanel {
         id:                     pfdPanel
         Layout.fillHeight:      true
-        Layout.preferredWidth:  Math.round(Math.max(root._fw * 30, (root.height - root._fh * 3.6) / 0.66))
+        Layout.preferredWidth:  Math.round(Math.max(root._fw * 30, (root.height - root._fh * 3.6) / 0.56))
         title:                  root.vehicle ? MLTheme.vehicleTypeName(root.vehicle) + (QGroundControl.multiVehicleManager.vehicles.count > 1 ? "  #" + root.vehicle.id : "")
                                              : qsTr("기체 없음")
         tag:                    "FLIGHT"

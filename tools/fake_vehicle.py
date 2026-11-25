@@ -123,8 +123,6 @@ def main():
                              0, mav.MAV_STATE_ACTIVE)
             m.extended_sys_state_send(mav.MAV_VTOL_STATE_UNDEFINED, mav.MAV_LANDED_STATE_IN_AIR)
             m.sys_status_send(0, 0, 0, 500, 28100, 1200, 72, 0, 0, 0, 0, 0, 0)
-            # current mission item follows the position on the hexagon (seq 0 = takeoff)
-            m.mission_current_send(1 + int((ang % (2 * math.pi)) / (2 * math.pi) * MISSION_WPS + 1) % MISSION_WPS)
             if not sent_home:
                 m.home_position_send(int(HOME_LAT * 1e7), int(HOME_LON * 1e7), int(HOME_ALT * 1000),
                                      0, 0, 0, [1, 0, 0, 0], 0, 0, 0)
@@ -142,6 +140,10 @@ def main():
         ve = -speed * math.sin(ang)
         roll = math.radians(-12 + 1.5 * math.sin(t * 1.7))
         pitch = math.radians(-5 + 0.8 * math.sin(t * 1.3))
+
+        if int(t * args.rate) % int(args.rate) == 0:
+            # current mission item follows the position on the hexagon (seq 0 = takeoff)
+            m.mission_current_send(1 + (int((ang % (2 * math.pi)) / (2 * math.pi) * MISSION_WPS) + 1) % MISSION_WPS)
 
         m.attitude_send(boot_ms, roll, pitch, math.radians(hdg if hdg <= 180 else hdg - 360), 0, 0, 0)
         m.global_position_int_send(boot_ms, int(lat * 1e7), int(lon * 1e7), int((HOME_ALT + alt) * 1000),

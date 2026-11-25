@@ -67,7 +67,7 @@ Item {
     readonly property bool _consoleVisible: !QGroundControl.videoManager.fullScreen
     readonly property real _gap:            Math.round(ScreenTools.defaultFontPixelWidth * 0.6)
     readonly property real _bandHeight:     Math.round(Math.max(ScreenTools.defaultFontPixelHeight * 14.5,
-                                                                Math.min(ScreenTools.defaultFontPixelHeight * 21, (height - toolbar.height) * 0.36)))
+                                                                Math.min(ScreenTools.defaultFontPixelHeight * 27, (height - toolbar.height) * 0.36)))
     readonly property real _sideWidth:      Math.round(Math.max(ScreenTools.defaultFontPixelWidth * 36,
                                                                 Math.min(ScreenTools.defaultFontPixelWidth * 54, width * 0.23)))
 
