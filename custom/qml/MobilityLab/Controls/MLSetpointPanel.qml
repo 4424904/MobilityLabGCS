@@ -400,8 +400,9 @@ Rectangle {
         property int ticks: 0
         onTriggered: {
             if (root._testStep === 0) {
-                if (root._inMission) { ticks++ } else { ticks = 0 }
-                if (ticks >= 12) { console.log("MLTEST speed 2.5"); root.sendSpeed(2.5); root._testStep = 1; ticks = 0 }
+                // start once airborne at mission altitude (not keyed on the mode name)
+                if (root._flying && root._alt > 15) { ticks++ } else { ticks = 0 }
+                if (ticks >= 15) { console.log("MLTEST speed 2.5"); root.sendSpeed(2.5); root._testStep = 1; ticks = 0 }
             } else if (root._testStep === 1) {
                 if (++ticks >= 25) { console.log("MLTEST altitude +15 from", root._alt); root.sendAltitude(root._alt + 15); root._testStep = 2; ticks = 0 }
             } else if (root._testStep === 2) {
