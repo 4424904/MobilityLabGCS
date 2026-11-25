@@ -16,8 +16,9 @@ import QGroundControl.Controls
 //
 // Commands use QGC's own vehicle calls, so each firmware gets what QGC sends:
 //   speed    → MAV_CMD_DO_CHANGE_SPEED (PX4 and ArduPilot keep flying the mission)
-//   altitude → guided altitude change (the mission pauses; resume from the command bar)
-//   heading  → PX4 DO_REPOSITION yaw / ArduPilot CONDITION_YAW
+//   altitude → ArduPilot: guided altitude change; PX4: DO_REPOSITION at the current
+//              position (Hold). The mission pauses; resume from the command bar.
+//   heading  → ArduPilot CONDITION_YAW; PX4 DO_REPOSITION yaw at the current position
 // Every send needs two presses, like the command bar.
 Rectangle {
     id: root
@@ -74,12 +75,39 @@ Rectangle {
         if (_airspeed) vehicle.guidedModeChangeEquivalentAirspeedMetersSecond(metersPerSecond)
         else           vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
     }
+    // PX4: an altitude- or yaw-only DO_REPOSITION keeps flying toward the current
+    // mission waypoint. To change altitude/heading "here", send the reposition with
+    // the vehicle's own position, the wanted altitude and yaw (Hold mode).
+    readonly property int _mavCmdDoReposition: 192
+    property real _px4HoldAmsl: NaN     // altitude last commanded through this panel (AMSL)
+    on_InMissionChanged: if (_inMission) _px4HoldAmsl = NaN
+
+    function _px4Reposition(yawDeg, amsl) {
+        var c = vehicle.coordinate
+        if (!c.isValid || isNaN(amsl)) return false
+        vehicle.sendCommand(1, _mavCmdDoReposition, true,
+                            -1,                 // keep ground speed
+                            1,                  // MAV_DO_REPOSITION_FLAGS_CHANGE_MODE
+                            0,
+                            isNaN(yawDeg) ? NaN : yawDeg * Math.PI / 180,
+                            c.latitude, c.longitude, amsl)
+        return true
+    }
+
     function sendAltitude(targetRelMeters) {
         if (!_has || isNaN(_alt)) return
+        if (vehicle.px4Firmware && vehicle.homePosition.isValid && !isNaN(vehicle.homePosition.altitude)) {
+            _px4HoldAmsl = vehicle.homePosition.altitude + targetRelMeters
+            if (_px4Reposition(NaN, _px4HoldAmsl)) return
+        }
         vehicle.guidedModeChangeAltitude(targetRelMeters - _alt, false)
     }
     function sendHeading(degrees) {
         if (!_has || !vehicle.coordinate.isValid) return
+        if (vehicle.px4Firmware) {
+            var amsl = !isNaN(_px4HoldAmsl) ? _px4HoldAmsl : _num(vehicle.altitudeAMSL)
+            if (_px4Reposition(degrees, amsl)) return
+        }
         vehicle.guidedModeChangeHeading(vehicle.coordinate.atDistanceAndAzimuth(1000, degrees))
     }
 

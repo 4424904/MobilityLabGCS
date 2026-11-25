@@ -27,7 +27,7 @@ permissions:
 env:
   QGC_REPO: mavlink/qgroundcontrol
   QGC_REF: v5.1.5
-  PX4_REF: v1.15.4
+  PX4_REF: v1.16.2
   AQT_SOURCE: 'git+https://github.com/miurahr/aqtinstall.git@8d961e61720b3c06583517fbc68d57ec0a4e9f95'
 
 jobs:
@@ -116,7 +116,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 50
         env:
-          CMAKE_POLICY_VERSION_MINIMUM: '3.5'   # runner has CMake 4; PX4 v1.15 submodules declare older minimums
+          CMAKE_POLICY_VERSION_MINIMUM: '3.5'   # runner has CMake 4; PX4 submodules declare older minimums
         run: |
           git clone -q --depth 1 --branch "$PX4_REF" --recursive --shallow-submodules -j8 https://github.com/PX4/PX4-Autopilot.git "${RUNNER_TEMP}/px4"
           # newer pip rejects ">=3.0.*" specifiers in PX4's list; strip the ".*"
