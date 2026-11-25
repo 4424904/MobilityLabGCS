@@ -124,6 +124,8 @@ jobs:
           sed 's/\.\*//g' "${RUNNER_TEMP}/px4/Tools/setup/requirements.txt" > "${RUNNER_TEMP}/px4-req.txt"
           python3 -m pip install --quiet -r "${RUNNER_TEMP}/px4-req.txt" || \
             python3 -m pip install --quiet --break-system-packages -r "${RUNNER_TEMP}/px4-req.txt"
+          # shallow clone has no NuttX release tags; PX4's version header script expects one
+          git -C "${RUNNER_TEMP}/px4/platforms/nuttx/NuttX/nuttx" tag nuttx-0.0.0 2>/dev/null || true
           cd "${RUNNER_TEMP}/px4" && make px4_sitl_default CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
           ls -la build/px4_sitl_default/bin | head
 
