@@ -19,6 +19,9 @@ import QGroundControl.Controls
 Rectangle {
     id: root
 
+    property bool setpointsOpen: false
+    signal toggleSetpoints()
+
     readonly property var  _vehicle:    QGroundControl.multiVehicleManager.activeVehicle
     readonly property var  _guided:     globals.guidedControllerFlyView
     readonly property var  _t:          typeof mlTandem !== "undefined" ? mlTandem : null
@@ -256,6 +259,16 @@ Rectangle {
             available:      root.show("showLand")
             disabledReason: root.reason(qsTr("이미 착륙 중입니다"))
             onClicked:      root.execute(root._guided.actionLand)
+        }
+        MLCommandButton {
+            visible:        root._flying
+            twoStep:        false
+            text:           qsTr("목표 조정")
+            subText:        root.setpointsOpen ? qsTr("닫기") : "HDG · ALT · SPD"
+            tone:           "normal"
+            available:      root._connected && !root._commLost
+            disabledReason: root.reason("")
+            onClicked:      root.toggleSetpoints()
         }
 
     }

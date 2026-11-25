@@ -111,6 +111,8 @@ Item {
 
     MLCommandBar {
         id:                 commandBar
+        setpointsOpen:      setpointPanel.visible
+        onToggleSetpoints:  setpointPanel.visible = !setpointPanel.visible
         anchors.left:       parent.left
         anchors.right:      parent.right
         anchors.bottom:     parent.bottom
@@ -256,6 +258,17 @@ Item {
             anchors.topMargin:  _consoleVisible ? 0 : toolbar.height
             z:                  QGroundControl.zOrderTopMost
             visible:            false
+        }
+
+        // 목표 조정 (heading / altitude / speed), opened from the command bar
+        MLSetpointPanel {
+            id:                 setpointPanel
+            anchors.left:       parent.left
+            anchors.bottom:     parent.bottom
+            anchors.margins:    _gap * 2
+            z:                  QGroundControl.zOrderTopMost
+            visible:            typeof mlTestSetpoints !== "undefined" && mlTestSetpoints
+            onCloseRequested:   visible = false
         }
 
         // Thin frame so the map reads as one console pane

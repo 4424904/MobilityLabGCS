@@ -194,6 +194,9 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     _qmlEngine = QGCCorePlugin::createQmlApplicationEngine(parent);
     _qmlEngine->addImportPath(QStringLiteral("qrc:/qml"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTandem"), _tandem);
+    // CI only: ML_TEST_SETPOINTS=1 makes the 목표 조정 panel run its scripted SITL check
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestSetpoints"),
+                                                  qEnvironmentVariable("ML_TEST_SETPOINTS") == QStringLiteral("1"));
 
     _urlInterceptor = new MLOverrideInterceptor();
     _qmlEngine->addUrlInterceptor(_urlInterceptor);

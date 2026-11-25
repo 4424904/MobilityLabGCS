@@ -27,6 +27,7 @@ permissions:
 env:
   QGC_REPO: mavlink/qgroundcontrol
   QGC_REF: v5.1.5
+  PX4_REF: v1.15.4
   AQT_SOURCE: 'git+https://github.com/miurahr/aqtinstall.git@8d961e61720b3c06583517fbc68d57ec0a4e9f95'
 
 jobs:
@@ -100,6 +101,34 @@ jobs:
       - name: Screen check with simulated aircraft
         if: success()
         run: bash mlgcs/tools/ci_screens.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens"
+
+      # ---- SITL: ArduPilot (downloaded ArduCopter SITL) and PX4 (SIH, built here) ----
+      - name: Restore PX4 build cache
+        if: success()
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/px4-ccache
+          key: px4-ccache-${{ env.PX4_REF }}-${{ github.run_id }}
+          restore-keys: px4-ccache-${{ env.PX4_REF }}-
+
+      - name: Build PX4 SITL ${{ env.PX4_REF }}
+        if: success()
+        continue-on-error: true
+        timeout-minutes: 40
+        env:
+          CCACHE_DIR: ${{ runner.temp }}/px4-ccache
+        run: |
+          git clone -q --depth 1 --branch "$PX4_REF" --recursive --shallow-submodules -j8 https://github.com/PX4/PX4-Autopilot.git "${RUNNER_TEMP}/px4"
+          python3 -m pip install --quiet -r "${RUNNER_TEMP}/px4/Tools/setup/requirements.txt" || \
+            python3 -m pip install --quiet --break-system-packages -r "${RUNNER_TEMP}/px4/Tools/setup/requirements.txt"
+          cd "${RUNNER_TEMP}/px4" && make px4_sitl_default
+          ls -la build/px4_sitl_default/bin | head
+
+      - name: SITL check (목표 조정 commands)
+        if: success()
+        continue-on-error: true
+        timeout-minutes: 25
+        run: bash mlgcs/tools/ci_sitl.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens" "${RUNNER_TEMP}/px4/build/px4_sitl_default"
 
       - name: Publish screenshots to the ci-screens branch
         if: always()
