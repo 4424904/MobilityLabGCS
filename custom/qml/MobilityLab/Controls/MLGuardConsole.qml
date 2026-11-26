@@ -180,7 +180,7 @@ Rectangle {
                         }
                         Btn { text: qsTr("본 시연"); tone: "active"; twoStep: false; selected: scMode.demo; onClicked: scMode.demo = true }
                         Btn { text: qsTr("리허설"); tone: "active"; twoStep: false; selected: !scMode.demo; onClicked: scMode.demo = false }
-                        QtObject { id: scMode; property bool demo: false }
+                        QtObject { id: scMode; property bool demo: mlGuard.scenarioMode !== "rehearsal" }
                         Btn {
                             text: qsTr("업로드")
                             tone: "go"
