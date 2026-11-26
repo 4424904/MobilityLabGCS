@@ -59,6 +59,10 @@ jobs:
       - name: Apply MobilityLab customisation
         run: bash mlgcs/tools/ci_prepare.sh
 
+      # The C++ ACACT engine must make the same decisions as the original Python guard
+      - name: ACACT equivalence (original Python vs C++ port)
+        run: bash mlgcs/tools/acact_compare/run.sh "${RUNNER_TEMP}/acact_traces"
+
       - name: Setup build environment
         uses: ./.github/actions/build-setup
         with:
@@ -196,7 +200,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/gtest" && cp -r custom/acact_guard "$RUNNER_TEMP/gtest" && cd "$RUNNER_TEMP/gtest"
           PYTHONUTF8=1 "$PY" -c "import mavsdk, numpy, grpc, config, scenarios, core; print('guard imports ok', len(scenarios.SCENARIOS))"
           PYTHONUTF8=1 "$PY" -c "from servers import Servers; s = Servers().start(); print('mavsdk_server x', len(s.procs)); s.stop()"
-          PYTHONUTF8=1 "$PY" sim_check.py S7_duo --seeds 1 | tail -5
+          PYTHONUTF8=1 "$PY" sim_check.py S7_duo --drones D1,D2 --seeds 1 | tail -5
 
       - name: Setup build environment
         id: build-setup
