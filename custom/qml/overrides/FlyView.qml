@@ -229,13 +229,15 @@ Item {
         }
     }
 
-    // SITL test (ML_TEST_ACACT=1): when the vehicles named in ML_TEST_ACACT_N are
-    // connected with their missions, start the guard, then the sequential flight start.
+    // SITL test (ML_TEST_ACACT=1) — the operator workflow of guard.py rev1, done from the GCS:
+    //   site from the vehicles (bearing = mean heading) → load S7_duo demo (build, upload, verify)
+    //   → guard start → preflight → sequential start → auto-advance through the sync points.
     property int _acactTestStage: 0
+    property int _acactTestTries: 0
     Timer {
         interval: 2000
         repeat:   true
-        running:  typeof mlTestAcact !== "undefined" && mlTestAcact && _acactTestStage < 3
+        running:  typeof mlTestAcact !== "undefined" && mlTestAcact && _acactTestStage < 5
         onTriggered: {
             var vs = QGroundControl.multiVehicleManager.vehicles
             if (_acactTestStage === 0) {
@@ -243,13 +245,24 @@ Item {
                 var ready = 0
                 for (var i = 0; i < vs.count; i++) {
                     var v = vs.get(i)
-                    if (v.coordinate.isValid) ready++
+                    if (v.coordinate.isValid && v.homePosition.isValid) ready++
                 }
-                if (ready < mlTestAcactN) return
-                console.log("MLACACT test: " + vs.count + " vehicles, starting guard")
-                mlGuard.start()
-                _acactTestStage = 1
+                if (ready < mlTestAcactN || mlGuard.activeIds.split(",").length < mlTestAcactN) return
+                console.log("MLACACT test: " + vs.count + " vehicles (" + mlGuard.activeIds + "), site from vehicles")
+                mlGuard.profile = "oregon"
+                mlGuard.setSiteFromVehicles(-1)
+                if (mlGuard.site.lat !== undefined) _acactTestStage = 1
             } else if (_acactTestStage === 1) {
+                if (mlGuard.busyText !== "") return
+                if (mlGuard.scenario === "S7_duo") {
+                    console.log("MLACACT test: S7_duo/demo loaded, starting guard")
+                    mlGuard.start()
+                    _acactTestStage = 2
+                    return
+                }
+                if (_acactTestTries++ > 0) console.log("MLACACT test: load retry " + _acactTestTries)
+                mlGuard.loadScenario("S7_duo", "demo")
+            } else if (_acactTestStage === 2) {
                 var pf = mlGuard.runPreflight()
                 var ok = true
                 for (var k = 0; k < pf.length; k++) {
@@ -257,10 +270,10 @@ Item {
                 }
                 if (!ok) return
                 console.log("MLACACT test: preflight ok, start flight")
-                if (mlGuard.startFlight()) _acactTestStage = 2
-            } else if (_acactTestStage === 2) {
+                if (mlGuard.startFlight()) _acactTestStage = 3
+            } else if (_acactTestStage === 3) {
                 MLState.guardConsoleOpen = true
-                _acactTestStage = 3
+                _acactTestStage = 5
             }
         }
     }

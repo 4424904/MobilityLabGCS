@@ -115,7 +115,7 @@ fi
 
 echo "=================== SITL summary"
 cat "$OUT"/sitl-*.json
-# ---- ACACT built into the GCS: two PX4 SIH quadcopters, head-on ----------------
+# ---- ACACT built into the GCS: two PX4 SIH quadcopters, rev1 S7_duo (oregon layout D1/D2, bearing 0) ----------------
 run_acact () {
     local disp=":$((90 + RANDOM % 9))"
     echo "=================== ACACT (2 x PX4 SIH) on $disp"
@@ -131,20 +131,20 @@ run_acact () {
     # same vehicle parameters as the original set_params.py, except what SITL has no hardware for (RC)
     local common="PX4_SIM_MODEL=sihsim_quadx PX4_PARAM_COM_OF_LOSS_T=1.0 PX4_PARAM_COM_OBL_RC_ACT=5 PX4_PARAM_NAV_ACC_RAD=2.0 \
 PX4_PARAM_MPC_TKO_SPEED=1.0 PX4_PARAM_MPC_XY_CRUISE=3.0 PX4_PARAM_MIS_TAKEOFF_ALT=8.0 PX4_PARAM_RTL_CONE_ANG=0 \
-PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX4_PARAM_NAV_DLL_ACT=0 PX4_PARAM_SIH_LOC_LAT0=37.21"
+PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX4_PARAM_NAV_DLL_ACT=0 "
     rm -rf "$PX4_BUILD/rootfs0" "$PX4_BUILD/rootfs1"; mkdir -p "$PX4_BUILD/rootfs0" "$PX4_BUILD/rootfs1"
-    (cd "$PX4_BUILD/rootfs0" && eval "$common PX4_PARAM_SIH_LOC_LON0=126.83 PX4_PARAM_RTL_RETURN_ALT=20 ../bin/px4 -i 0 -d ../etc") > "$OUT/sitl-acact-px4-0.log" 2>&1 &
+    (cd "$PX4_BUILD/rootfs0" && eval "$common PX4_PARAM_SIH_LOC_LAT0=37.2100856 PX4_PARAM_SIH_LOC_LON0=126.8307462 PX4_PARAM_RTL_RETURN_ALT=20 ../bin/px4 -i 0 -d ../etc") > "$OUT/sitl-acact-px4-0.log" 2>&1 &
     local p0=$!
-    (cd "$PX4_BUILD/rootfs1" && eval "$common PX4_PARAM_SIH_LOC_LON0=126.8305 PX4_PARAM_RTL_RETURN_ALT=26 ../bin/px4 -i 1 -d ../etc") > "$OUT/sitl-acact-px4-1.log" 2>&1 &
+    (cd "$PX4_BUILD/rootfs1" && eval "$common PX4_PARAM_SIH_LOC_LAT0=37.2100856 PX4_PARAM_SIH_LOC_LON0=126.8309154 PX4_PARAM_RTL_RETURN_ALT=26 ../bin/px4 -i 1 -d ../etc") > "$OUT/sitl-acact-px4-1.log" 2>&1 &
     local p1=$!
-    python3 "$HERE/acact_sitl.py" --out "$OUT" --timeout 600 > "$OUT/sitl-acact-check.log" 2>&1 &
+    python3 "$HERE/acact_sitl.py" --out "$OUT" --timeout 1200 > "$OUT/sitl-acact-check.log" 2>&1 &
     local chk=$!
     local n=0
     while kill -0 "$chk" 2>/dev/null; do
         sleep 20
         n=$((n + 1))
         shot "$disp" "$OUT/sitl-acact-$n.png"
-        [[ $n -ge 40 ]] && break
+        [[ $n -ge 75 ]] && break
     done
     wait "$chk"; local rc=$?
     shot "$disp" "$OUT/sitl-acact-final.png"

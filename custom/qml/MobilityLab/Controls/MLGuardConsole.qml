@@ -142,6 +142,66 @@ Rectangle {
                 }
             }
 
+            // ---- scenario (scenarios.py → build, upload, verify; guard.py `load`) ----
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: scCol.implicitHeight + 20 * u
+                radius: 6 * u
+                color: "#0D1115"
+                border.color: mlGuard.scenario !== "" ? "#244A3A" : MLTheme.line
+                ColumnLayout {
+                    id: scCol
+                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                    anchors.margins: 10 * u
+                    spacing: 8 * u
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8 * u
+                        Caption { text: qsTr("시나리오") }
+                        MLText {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            font.pixelSize: MLTheme.fsSmall
+                            color: mlGuard.busyText !== "" ? MLTheme.caution : (mlGuard.scenario !== "" ? MLTheme.active : MLTheme.dim)
+                            text: mlGuard.busyText !== "" ? mlGuard.busyText
+                                  : mlGuard.scenario !== "" ? qsTr("준비됨 · %1 / %2").arg(mlGuard.scenario).arg(mlGuard.scenarioMode === "demo" ? qsTr("본 시연") : qsTr("리허설"))
+                                  : mlGuard.activeIds === "" ? qsTr("제어 가능한 PX4 기체 없음") : qsTr("미업로드 · 대상 %1").arg(mlGuard.activeIds)
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8 * u
+                        QGCComboBox {
+                            id: scCombo
+                            Layout.fillWidth: true
+                            model: mlGuard.scenarios
+                            textRole: "title"
+                            enabled: mlGuard.scenarios.length > 0
+                        }
+                        Btn { text: qsTr("본 시연"); tone: "active"; twoStep: false; selected: scMode.demo; onClicked: scMode.demo = true }
+                        Btn { text: qsTr("리허설"); tone: "active"; twoStep: false; selected: !scMode.demo; onClicked: scMode.demo = false }
+                        QtObject { id: scMode; property bool demo: false }
+                        Btn {
+                            text: qsTr("업로드")
+                            tone: "go"
+                            readonly property var _sel: scCombo.currentIndex >= 0 && scCombo.currentIndex < mlGuard.scenarios.length ? mlGuard.scenarios[scCombo.currentIndex] : null
+                            available: _sel !== null && _sel.available && mlGuard.site.lat !== undefined && mlGuard.busyText === ""
+                            disabledReason: mlGuard.site.lat === undefined ? qsTr("설정 탭에서 시연 구역을 먼저 정하세요")
+                                           : (_sel !== null && !_sel.available) ? qsTr("이 기체 수에서는 쓸 수 없는 시나리오")
+                                           : qsTr("업로드 진행 중")
+                            onClicked: mlGuard.loadScenario(_sel.name, scMode.demo ? "demo" : "rehearsal")
+                        }
+                    }
+                    MLText {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: MLTheme.fsLabel
+                        color: MLTheme.faint
+                        text: qsTr("리허설 = 기체별 층 고도로 수직 분리 · 본 시연 = 시나리오 공통 고도. 지상·시동 꺼짐 상태에서만 업로드됩니다.")
+                    }
+                }
+            }
+
             Caption { text: qsTr("기체"); Layout.topMargin: 4 * u }
             Repeater {
                 model: root._run ? mlGuard.drones : []
@@ -273,7 +333,23 @@ Rectangle {
                     color: MLTheme.text
                     text: mlGuard.site.lat !== undefined
                           ? qsTr("%1, %2 · 방위 %3°%4").arg(Number(mlGuard.site.lat).toFixed(6)).arg(Number(mlGuard.site.lon).toFixed(6)).arg(Number(mlGuard.site.bearing).toFixed(0)).arg(mlGuard.site.fixed ? "" : qsTr(" (자동)"))
-                          : qsTr("미설정 — 가드 시작 시 첫 기체 위치 사용")
+                          : qsTr("미설정 — 기체를 이륙 위치에 기수를 비행 방향으로 놓고 '기수 방향으로 자동'")
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8 * u
+                    MLText { text: qsTr("배치"); color: MLTheme.dim; font.pixelSize: MLTheme.fsSmall }
+                    Repeater {
+                        model: [{k: "hwaseong", t: qsTr("화성 헬리패드 2×2")}, {k: "oregon", t: qsTr("오리건 이륙선")}, {k: "oregon2", t: qsTr("오리건 2")}]
+                        Btn {
+                            required property var modelData
+                            text: modelData.t; tone: "active"; twoStep: false
+                            selected: mlGuard.profile === modelData.k
+                            available: !root._run; disabledReason: qsTr("가드 정지 상태에서")
+                            onClicked: mlGuard.profile = modelData.k
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
                 }
                 RowLayout {
                     Layout.fillWidth: true
@@ -282,7 +358,8 @@ Rectangle {
                     QGCTextField { id: bearingField; Layout.preferredWidth: 70 * u; text: mlGuard.site.bearing !== undefined ? Number(mlGuard.site.bearing).toFixed(0) : "0"; validator: DoubleValidator { bottom: 0; top: 360 } }
                     MLText { text: "°"; color: MLTheme.dim }
                     Item { Layout.fillWidth: true }
-                    Btn { text: qsTr("기체 홈 중심으로 설정"); twoStep: false; available: !root._run; disabledReason: qsTr("가드 정지 상태에서"); onClicked: mlGuard.setSiteFromVehicles(Number(bearingField.text)) }
+                    Btn { text: qsTr("기수 방향으로 자동"); twoStep: false; available: !root._run; disabledReason: qsTr("가드 정지 상태에서"); onClicked: mlGuard.setSiteFromVehicles(-1) }
+                    Btn { text: qsTr("입력 방위로 설정"); twoStep: false; available: !root._run; disabledReason: qsTr("가드 정지 상태에서"); onClicked: mlGuard.setSiteFromVehicles(Number(bearingField.text)) }
                     Btn { text: qsTr("지우기"); twoStep: false; available: !root._run; disabledReason: qsTr("가드 정지 상태에서"); onClicked: mlGuard.clearSite() }
                 }
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: MLTheme.line; Layout.topMargin: 4 * u }

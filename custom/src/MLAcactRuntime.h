@@ -2,7 +2,7 @@
 //
 // MLAcactRuntime — ACACT Guard running inside the GCS.
 //
-// Replaces guard.py (vendor/acact_guard_original) for operation from the GCS:
+// Replaces guard.py (vendor/acact_guard/rev1) for operation from the GCS:
 // the decision logic is AcactCore (C++ port of core.py, verified identical to
 // the original by tools/acact_compare); this class does what guard.py does
 // around it, but over the GCS's own MAVLink links instead of mavsdk_server +
@@ -24,7 +24,7 @@
 // traffic: the guard avoids them but never takes control of them.
 //
 #include "acact/AcactCore.h"
-#include "acact/AcactFrame.h"
+#include "acact/AcactScenarios.h"
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QtNumeric>
@@ -36,6 +36,8 @@
 #include <QtCore/QVariantList>
 #include <QtCore/QVariantMap>
 
+#include <array>
+#include <functional>
 #include <memory>
 
 #include "MAVLinkLib.h"
@@ -68,6 +70,12 @@ class MLAcactRuntime : public QObject
     Q_PROPERTY(QString      supportScope    READ supportScope   CONSTANT)
     Q_PROPERTY(QString      logDir          READ logDir         CONSTANT)
     Q_PROPERTY(QString      lastLogFile     READ lastLogFile    NOTIFY runningChanged)
+    // scenarios (scenarios.py / plan_gen.py)
+    Q_PROPERTY(QVariantList scenarios       READ scenarios      NOTIFY scenariosChanged)
+    Q_PROPERTY(QString      profile         READ profile        WRITE setProfile NOTIFY paramsChanged)
+    Q_PROPERTY(QStringList  profiles        READ profiles       CONSTANT)
+    Q_PROPERTY(QString      busyText        READ busyText       NOTIFY updated)
+    Q_PROPERTY(QString      activeIds       READ activeIds      NOTIFY runningChanged)
 
 public:
     explicit MLAcactRuntime(QObject *parent = nullptr);
@@ -95,6 +103,12 @@ public:
     QString supportScope() const;
     QString logDir() const;
     QString lastLogFile() const { return _logPath; }
+    QVariantList scenarios() const;
+    QString profile() const { return _profile; }
+    void setProfile(const QString &p);
+    QStringList profiles() const { return {QStringLiteral("hwaseong"), QStringLiteral("oregon"), QStringLiteral("oregon2")}; }
+    QString busyText() const { return _busy; }
+    QString activeIds() const;
 
     // ---- operation ----------------------------------------------------------
     /// Start guarding every connected vehicle (MAVLink system id n → "Dn").
@@ -129,7 +143,10 @@ public:
     Q_INVOKABLE void resetParams();
     /// Demo frame origin and forward bearing. Without a site the first vehicle position is used (bearing 0).
     Q_INVOKABLE void setSite(double lat, double lon, double bearingDeg, double radius = 25.0);
+    /// plan_gen.py --from-vehicles: demo frame from the vehicles' home positions; bearingDeg < 0 → heading average
     Q_INVOKABLE void setSiteFromVehicles(double bearingDeg);
+    /// load <name> <demo|rehearsal>: build the scenario missions (scenarios.py), upload and verify them
+    Q_INVOKABLE void loadScenario(const QString &name, const QString &mode);
     Q_INVOKABLE void clearSite();
 
 signals:
@@ -137,6 +154,7 @@ signals:
     void updated();
     void paramsChanged();
     void siteChanged();
+    void scenariosChanged();
     void guardEvent(int seq, double time, const QString &who, const QString &text);
 
 private slots:
@@ -155,7 +173,7 @@ private:
     void _attach(Vehicle *vehicle);
     void _onMessage(VS *d, const mavlink_message_t &message);
     void _rebuildCore();
-    mlacact::Params _effectiveParams(int n) const;
+    acact::Config _effectiveParams(int n) const;
 
     // vehicle commands
     void _sendSetpoint(VS *d);
@@ -163,7 +181,15 @@ private:
     void _hold(VS *d);
     void _startMission(VS *d);
     void _setCurrent(VS *d, int seq);
-    void _takeover(VS *d, const double v[3]);
+    /// rev1: MISSION_SET_CURRENT once per try and check progress (≤3 tries); done(ok, error)
+    void _setCurrentChecked(VS *d, int k, std::function<void(bool, QString)> done);
+    /// rev1 goto_next_item: skip DO items (apply a skipped speed change directly), then set current
+    void _gotoNextItem(VS *d, std::function<void(bool, QString)> done);
+    void _uploadNext(QStringList ids, QString name, QString mode, bool ok);
+    QStringList _activeIdList() const;               // controllable PX4 vehicles D1..D4 (scenario fleet)
+    std::array<double, 2> _homeLl(const QString &id) const;   // site.json homes, else planned home
+    acact::Config _cfg() const { return _core ? _core->config() : _effectiveParams(std::max(2, static_cast<int>(_vs_.size()))); }
+    void _takeover(VS *d, const acact::Vec3 &v);
     void _release(VS *d);
     bool _canTake(VS *d);
     void _stopHold(VS *d);
@@ -172,14 +198,14 @@ private:
     std::pair<int, int> _goalOf(VS *d) const;           // (item index, previous position item index)
     void _syncState(QList<VS *> &ready, QList<VS *> &notReady, bool &landing) const;
     void _autoTick(double t);
-    void _writeLog(double t, const std::vector<mlacact::DroneIn> &ins);
-    void _publish(const std::vector<mlacact::DroneIn> &ins);
+    void _writeLog(double t, const std::vector<acact::DroneIn> &ins);
+    void _publish(const std::vector<acact::DroneIn> &ins);
     void _writeSummary();
     void _loadSettings();
 
     QList<VS *>                         _vs_;
-    std::unique_ptr<mlacact::GuardCore> _core;
-    std::unique_ptr<mlacact::Frame>     _frame;
+    std::unique_ptr<acact::GuardCore> _core;
+    std::unique_ptr<acact::Frame>       _frame;
     bool        _siteSet = false;
     double      _siteRadius = 25.0;
     QTimer      _timer;
@@ -206,6 +232,10 @@ private:
     QList<QString> _startQueue;
     QTimer      _startTimer;
     QMap<QString, double> _paramOverrides;
+
+    QString     _profile = QStringLiteral("oregon");   // config.py PROFILE default
+    QString     _busy;
+    QMap<QString, QPair<double, double>> _siteHomes;   // site.json "homes"
 
     QFile       _logFile;
     QFile       _evFile;

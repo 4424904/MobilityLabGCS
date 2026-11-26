@@ -71,9 +71,11 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TandemTelemetry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLAcactRuntime.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLAcactRuntime.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactCore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactConfig.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactCore.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactCore.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactFrame.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactScenarios.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactScenarios.h
     CACHE INTERNAL "" FORCE
 )
 

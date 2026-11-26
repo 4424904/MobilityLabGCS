@@ -60,8 +60,8 @@ jobs:
         run: bash mlgcs/tools/ci_prepare.sh
 
       # The C++ ACACT engine must make the same decisions as the original Python guard
-      - name: ACACT equivalence (original Python vs C++ port)
-        run: bash mlgcs/tools/acact_compare/run.sh "${RUNNER_TEMP}/acact_traces"
+      - name: ACACT equivalence (rev1 Python vs C++ engine)
+        run: bash mlgcs/tools/acact_verify/run.sh "${RUNNER_TEMP}/acact_verify"
 
       - name: Setup build environment
         uses: ./.github/actions/build-setup

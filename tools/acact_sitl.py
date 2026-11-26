@@ -1,26 +1,22 @@
 #!/usr/bin/env python3
 """
-acact_sitl.py — ACACT built into the GCS, flown against two PX4 SIH instances.
+acact_sitl.py — ACACT built into the GCS, flown against two PX4 SIH instances (passive checker).
 
-Setup (this script, over each vehicle's onboard link 14540+i):
-  - two quadcopters 40 m apart (spawn set by ci_sitl.sh)
-  - head-on missions at the same altitude (8 m):
-      D1: takeoff → wait point W (LOITER_UNLIM) → fly to E → wait point → land
-      D2: takeoff → wait point E (LOITER_UNLIM) → fly to W → wait point → land
-    i.e. after the synchronised start both cross the same line in opposite
-    directions; without avoidance they would meet nose to nose.
-Everything else is done by the GCS (ML_TEST_ACACT=1): it starts its guard,
-runs the preflight, arms and starts both vehicles one after the other
-(highest id first), advances the wait points itself (auto-advance), and must
-avoid the collision on its own.
+The GCS does everything itself (ML_TEST_ACACT=1), exactly the guard.py rev1 operator workflow:
+  site from the vehicles (bearing auto = mean heading, oregon layout) → load S7_duo demo
+  (scenarios.py built by the C++ engine, uploaded and read back by the GCS) → guard start → preflight
+  → sequential arm/start → auto-advance through every sync point → land.
+This script only listens on each vehicle's onboard link (14540+i) and checks the outcome.
 
 Checks:
+  mission_loaded      both vehicles report a mission (MISSION_CURRENT total > 5) — uploaded by the GCS
   both_airborne       both climbed above 6 m
+  advanced            both went through ≥ 3 sync points (mission sequence advanced by the GCS)
   takeover            at least one vehicle went to OFFBOARD (guard took over)
-  separation          minimum horizontal distance while both airborne and at the same
-                      layer (|dz| < 4 m) >= 5.5 m (D_EMERG)  — the guard's own bound
-  returned            every vehicle that the guard took over went back to MISSION
-  completed           both landed and disarmed at the far side
+  separation          minimum horizontal distance while both airborne at the same layer (|dz| < 4 m)
+                      >= 5.5 m (D_EMERG)
+  returned            every vehicle the guard took over went back to MISSION
+  completed           both landed and disarmed
 Result: sitl-acact.json
 """
 import argparse
@@ -33,8 +29,6 @@ import time
 from pymavlink import mavutil
 
 mav = mavutil.mavlink
-ALT = 8.0
-LEG = 40.0          # W ↔ E distance [m]
 
 
 def log(*a):
@@ -66,6 +60,8 @@ class V:
         self.seq = -1
         self.modes_seen = []
         self.max_alt = 0.0
+        self.seqs = []
+        self.total = 0
 
     def pump(self):
         while True:
@@ -88,28 +84,12 @@ class V:
             elif t == "EXTENDED_SYS_STATE":
                 self.landed = m.landed_state
             elif t == "MISSION_CURRENT":
+                if m.seq != self.seq:
+                    self.seqs.append(m.seq)
                 self.seq = m.seq
+                self.total = getattr(m, "total", 0) or self.total
             elif t == "STATUSTEXT":
                 log(self.name, "PX4:", m.text)
-
-    def upload(self, items):
-        c = self.c
-        c.mav.mission_clear_all_send(c.target_system, c.target_component)
-        time.sleep(0.5)
-        c.mav.mission_count_send(c.target_system, c.target_component, len(items), 0)
-        end = time.time() + 30
-        while time.time() < end:
-            m = c.recv_match(type=["MISSION_REQUEST_INT", "MISSION_REQUEST", "MISSION_ACK"], blocking=True, timeout=1)
-            if m is None:
-                continue
-            if m.get_type() == "MISSION_ACK":
-                log(self.name, "mission ack", m.type)
-                return m.type == 0
-            cmd, lat, lon, alt = items[m.seq]
-            frame = mav.MAV_FRAME_MISSION if cmd in (mav.MAV_CMD_NAV_LAND,) and lat == 0 else mav.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
-            c.mav.mission_item_int_send(c.target_system, c.target_component, m.seq, frame, cmd, 0, 1,
-                                        0, 0, 0, float("nan"), int(lat * 1e7), int(lon * 1e7), alt, 0)
-        return False
 
 
 def main():
@@ -147,28 +127,7 @@ def main():
     sep0 = dist_m((vs[0].lat, vs[0].lon), (vs[1].lat, vs[1].lon))
     log("spawn separation", round(sep0, 1), "m")
     res["metrics"]["spawn_separation_m"] = round(sep0, 1)
-    if sep0 < 20:
-        res["notes"].append(f"spawn positions too close ({sep0:.1f} m) — PX4_PARAM_SIH_LOC_* not applied?")
-        finish(2)
-
-    # head-on missions: W = 20 m north of D1, E = 20 m north of D2
-    W = offset(vs[0].lat, vs[0].lon, 20, 0)
-    E = offset(vs[1].lat, vs[1].lon, 20, 0)
-    TK, WP, LU, LD = mav.MAV_CMD_NAV_TAKEOFF, mav.MAV_CMD_NAV_WAYPOINT, mav.MAV_CMD_NAV_LOITER_UNLIM, mav.MAV_CMD_NAV_LAND
-    plans = [
-        [(TK, vs[0].lat, vs[0].lon, ALT), (LU, W[0], W[1], ALT), (WP, E[0], E[1], ALT), (LU, E[0], E[1], ALT), (LD, E[0], E[1], 0)],
-        [(TK, vs[1].lat, vs[1].lon, ALT), (LU, E[0], E[1], ALT), (WP, W[0], W[1], ALT), (LU, W[0], W[1], ALT), (LD, W[0], W[1], 0)],
-    ]
-    # D2 lands at W, D1 at E — keep the landing points apart from each other's track ends
-    plans[0][-2] = (LU, *offset(E[0], E[1], 0, 12), ALT)
-    plans[0][-1] = (LD, *offset(E[0], E[1], 0, 12), 0)
-    plans[1][-2] = (LU, *offset(W[0], W[1], 0, -12), ALT)
-    plans[1][-1] = (LD, *offset(W[0], W[1], 0, -12), 0)
-    for v, p in zip(vs, plans):
-        if not v.upload(p):
-            res["notes"].append(f"{v.name}: mission upload failed")
-            finish(2)
-    log("missions uploaded; the GCS takes it from here")
+    log("the GCS takes it from here (site, S7_duo upload, guard, start, auto-advance)")
 
     t0 = time.time()
     min_h = 1e9
@@ -189,16 +148,19 @@ def main():
             d = dist_m((vs[0].lat, vs[0].lon), (vs[1].lat, vs[1].lon))
             if d < min_h:
                 min_h, min_t = d, round(time.time() - t0, 1)
-        done = len(airborne) == 2 and all(not v.armed for v in vs)
+        done = len(airborne) == 2 and all(not v.armed and v.landed in (None, 1) for v in vs)
         if done:
             break
         time.sleep(0.05)
 
     res["metrics"].update({"min_horizontal_same_layer_m": round(min_h, 2) if min_h < 1e8 else None, "min_at_s": min_t,
                            "takeovers": sorted(took), "returned": sorted(returned),
+                           "mission_total": {v.name: v.total for v in vs}, "seq_history": {v.name: v.seqs for v in vs},
                            "modes": {v.name: v.modes_seen for v in vs}, "max_alt": {v.name: round(v.max_alt, 1) for v in vs}})
     res["checks"] = {
+        "mission_loaded": all(v.total > 5 for v in vs),
         "both_airborne": len(airborne) == 2,
+        "advanced": all(len(set(v.seqs)) >= 6 for v in vs),
         "takeover": len(took) >= 1,
         "separation": min_h >= 5.5,
         "returned": len(took) >= 1 and took == returned,

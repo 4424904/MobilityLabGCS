@@ -8,6 +8,10 @@
 #include "QmlObjectListModel.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
+#include "Fact.h"
+#include "GeoFenceManager.h"
+#include "ParameterManager.h"
+#include "QGCFenceCircle.h"
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDateTime>
@@ -21,7 +25,7 @@
 
 Q_LOGGING_CATEGORY(MLAcactLog, "MobilityLab.ACACT")
 
-using namespace mlacact;
+using namespace acact;
 
 namespace {
 // PX4 custom modes (px4_custom_mode.h)
@@ -35,9 +39,10 @@ constexpr int CMD_LOITER_UNLIM = 17;
 constexpr int CMD_LAND = 21;
 
 constexpr double LOOP_HZ = 20.0;
-constexpr double BATT_WARN = 35.0;
-constexpr bool   AUTO_LAND = true;
-constexpr double AUTO_SYNC_DELAY = 5.0;
+constexpr int    CMD_CHANGE_SPEED = 178;
+constexpr double SET_CURRENT_WAIT = 2.0;   // [s] per MISSION_SET_CURRENT try (guard.py rev1)
+constexpr int    SET_CURRENT_TRIES = 3;
+constexpr double FENCE_RADIUS = 55.0;      // plan_gen.py
 
 // mavsdk FlightMode → guard mode (guard.py MODE_MAP)
 QString px4ModeName(uint32_t customMode)
@@ -62,31 +67,53 @@ QString px4ModeName(uint32_t customMode)
     }
 }
 
-struct ParamDef { const char *key; const char *label; const char *group; const char *unit; double mlacact::Params::*field; double lo, hi; };
+constexpr double kRadToDeg = 180.0 / 3.14159265358979323846;
+constexpr double kDegToRad = 3.14159265358979323846 / 180.0;
+
+// Config value by key (top-level fields and the ACACT gains)
+using CfgRef = double &(*)(Config &);
+struct ParamDef { const char *key; const char *label; const char *group; const char *unit; CfgRef ref; double lo, hi; };
+#define CF(f) [](Config &c) -> double & { return c.f; }
 const ParamDef kParams[] = {
-    {"dSafe",          "개입 판단 거리 (D_SAFE)",        "판단",   "m",   &mlacact::Params::dSafe, 4, 40},
-    {"dEmerg",         "긴급 거리 (D_EMERG)",            "판단",   "m",   &mlacact::Params::dEmerg, 2, 20},
-    {"tLook",          "최근접 예측 시간 (T_LOOK)",       "판단",   "s",   &mlacact::Params::tLook, 2, 20},
-    {"vSep",           "고도 분리 기준 (V_SEP)",          "판단",   "m",   &mlacact::Params::vSep, 1, 20},
-    {"releaseMargin",  "해제 여유 (RELEASE_MARGIN)",      "해제",   "m",   &mlacact::Params::releaseMargin, 0, 10},
-    {"releaseHold",    "해제 유지 시간 (RELEASE_HOLD)",   "해제",   "s",   &mlacact::Params::releaseHold, 0, 10},
-    {"minOwnTime",     "최소 개입 시간 (MIN_OWN_TIME)",   "해제",   "s",   &mlacact::Params::minOwnTime, 0, 20},
-    {"minTakeoverAlt", "개입 최저 고도",                  "해제",   "m",   &mlacact::Params::minTakeoverAlt, 1, 50},
-    {"goalHandoff",    "목표 인계 거리 (GOAL_HANDOFF)",   "해제",   "m",   &mlacact::Params::goalHandoff, 0.5, 5},
-    {"maxHSpeed",      "회피 최대 수평속도",              "회피",   "m/s", &mlacact::Params::maxHSpeed, 0.5, 10},
-    {"maxClimb",       "긴급 상승 속도",                  "회피",   "m/s", &mlacact::Params::maxClimb, 0.2, 3},
-    {"emergClimbMax",  "긴급 상승 최대량",                "회피",   "m",   &mlacact::Params::emergClimbMax, 0, 20},
-    {"rs",             "반발 반경 (rs)",                  "ACACT", "m",   &mlacact::Params::rs, 4, 40},
-    {"ts",             "안전 시간 (ts)",                  "ACACT", "s",   &mlacact::Params::ts, 0.5, 10},
-    {"kpa",            "인력 게인 (kpa)",                 "ACACT", "",    &mlacact::Params::kpa, 0, 5},
-    {"kpp",            "위치 반발 게인 (kpp)",            "ACACT", "",    &mlacact::Params::kpp, 0, 10},
-    {"kpv",            "상대속도 반발 게인 (kpv)",        "ACACT", "",    &mlacact::Params::kpv, 0, 5},
-    {"kRh",            "우측 통행 게인 (k_rh)",           "ACACT", "",    &mlacact::Params::kRh, 0, 5},
-    {"kCpa",           "사전 우측 회피 게인 (k_cpa)",     "ACACT", "m/s", &mlacact::Params::kCpa, 0, 10},
-    {"staleT",         "텔레메트리 끊김 판정 (STALE_T)",  "통신",   "s",   &mlacact::Params::staleT, 0.5, 5},
-    {"staleDropT",     "두절 기체 판단 제외 (STALE_DROP_T)", "통신", "s", &mlacact::Params::staleDropT, 5, 120},
-    {"degradedMargin", "두절 시 추가 여유",               "통신",   "m",   &mlacact::Params::degradedMargin, 0, 10},
+    {"dSafe",          "개입 판단 거리 (D_SAFE)",        "판단",   "m",   CF(dSafe), 4, 40},
+    {"dEmerg",         "긴급 거리 (D_EMERG)",            "판단",   "m",   CF(dEmerg), 2, 20},
+    {"tLook",          "최근접 예측 시간 (T_LOOK)",       "판단",   "s",   CF(tLook), 2, 20},
+    {"vSep",           "고도 분리 기준 (V_SEP)",          "판단",   "m",   CF(vSep), 1, 20},
+    {"releaseMargin",  "해제 여유 (RELEASE_MARGIN)",      "해제",   "m",   CF(releaseMargin), 0, 10},
+    {"releaseHold",    "해제 유지 시간 (RELEASE_HOLD)",   "해제",   "s",   CF(releaseHold), 0, 10},
+    {"minOwnTime",     "최소 개입 시간 (MIN_OWN_TIME)",   "해제",   "s",   CF(minOwnTime), 0, 20},
+    {"minTakeoverAlt", "개입 최저 고도",                  "해제",   "m",   CF(minTakeoverAlt), 1, 50},
+    {"goalHandoff",    "목표 인계 거리 (GOAL_HANDOFF)",   "해제",   "m",   CF(goalHandoff), 0.5, 5},
+    {"maxHSpeed",      "회피 최대 수평속도",              "회피",   "m/s", CF(maxHSpeed), 0.5, 10},
+    {"maxClimb",       "긴급 상승 속도",                  "회피",   "m/s", CF(maxClimb), 0.2, 3},
+    {"emergClimbMax",  "긴급 상승 최대량",                "회피",   "m",   CF(emergClimbMax), 0, 20},
+    {"rs",             "반발 반경 (rs)",                  "ACACT", "m",   CF(acact.rs), 4, 40},
+    {"ts",             "안전 시간 (ts)",                  "ACACT", "s",   CF(acact.ts), 0.5, 10},
+    {"kpa",            "인력 게인 (kpa)",                 "ACACT", "",    CF(acact.kpa), 0, 5},
+    {"kpp",            "위치 반발 게인 (kpp)",            "ACACT", "",    CF(acact.kpp), 0, 10},
+    {"kpv",            "상대속도 반발 게인 (kpv)",        "ACACT", "",    CF(acact.kpv), 0, 5},
+    {"kRh",            "우측 통행 게인 (k_rh)",           "ACACT", "",    CF(acact.k_rh), 0, 5},
+    {"kCpa",           "사전 우측 회피 게인 (k_cpa)",     "ACACT", "m/s", CF(acact.k_cpa), 0, 10},
+    {"staleT",         "텔레메트리 끊김 판정 (STALE_T)",  "통신",   "s",   CF(staleT), 0.5, 5},
+    {"staleDropT",     "두절 기체 판단 제외 (STALE_DROP_T)", "통신", "s", CF(staleDropT), 5, 120},
+    {"degradedMargin", "두절 시 추가 여유",               "통신",   "m",   CF(degradedMargin), 0, 10},
+    {"dlLossT",        "데이터링크 상실 (DL_LOSS_T)",     "통신",   "s",   CF(dlLossT), 1, 30},
+    {"demoAlt",        "시연 고도 (DEMO_ALT)",            "시나리오", "m", CF(demoAlt), 3, 50},
+    {"takeoffAlt",     "이륙 고도 (TAKEOFF_ALT)",         "시나리오", "m", CF(takeoffAlt), 3, 30},
+    {"scenarioSpeed",  "시나리오 속도",                   "시나리오", "m/s", CF(scenarioSpeed), 1, 8},
+    {"transitSpeed",   "층 이동 속도",                    "시나리오", "m/s", CF(transitSpeed), 1, 10},
+    {"autoSyncDelay",  "자동 진행 대기 (AUTO_SYNC_DELAY)", "진행",  "s",   CF(autoSyncDelay), 2, 30},
+    {"battWarn",       "배터리 경고 (BATT_WARN)",          "진행",  "%",   CF(battWarn), 10, 80},
 };
+#undef CF
+
+Config baseConfig(int n, const std::string &profile)
+{
+    Config c;
+    c.profile = profile;
+    c.applyFleetSize(n);
+    return c;
+}
 } // namespace
 
 struct MLAcactRuntime::VS {
@@ -124,6 +151,11 @@ struct MLAcactRuntime::VS {
     bool battWarned = false;
     double lastReload = -1e9;
     double takeoverCheckAt = -1;
+    int hbSysid = 0;              // HEARTBEAT system id (MISSION_SET_CURRENT target, rev1)
+    int paramSysid = -1;          // MAV_SYS_ID parameter (preflight)
+    int rcOk = -1;                // RC receiver health from SYS_STATUS (-1 unknown)
+    bool attSeen = false;
+    double layer = 20.0;          // RTL / transit layer (config DRONES[].layer)
 };
 
 MLAcactRuntime::MLAcactRuntime(QObject *parent)
@@ -160,6 +192,17 @@ void MLAcactRuntime::_loadSettings()
     QSettings s;
     s.beginGroup(QStringLiteral("MobilityLab/ACACT"));
     _auto = s.value(QStringLiteral("auto"), true).toBool();
+    _profile = s.value(QStringLiteral("profile"), QStringLiteral("oregon")).toString();
+    if (!profiles().contains(_profile)) {
+        _profile = QStringLiteral("oregon");
+    }
+    const QVariantMap homes = s.value(QStringLiteral("site/homes")).toMap();
+    for (auto it = homes.cbegin(); it != homes.cend(); ++it) {
+        const QVariantList ll = it.value().toList();
+        if (ll.size() == 2) {
+            _siteHomes[it.key()] = qMakePair(ll[0].toDouble(), ll[1].toDouble());
+        }
+    }
     s.beginGroup(QStringLiteral("params"));
     for (const QString &k : s.childKeys()) {
         _paramOverrides[k] = s.value(k).toDouble();
@@ -174,13 +217,13 @@ void MLAcactRuntime::_loadSettings()
     s.endGroup();
 }
 
-mlacact::Params MLAcactRuntime::_effectiveParams(int n) const
+acact::Config MLAcactRuntime::_effectiveParams(int n) const
 {
-    Params p = Params::forVehicleCount(n);
+    Config p = baseConfig(n, _profile.toStdString());
     for (const ParamDef &d : kParams) {
         auto it = _paramOverrides.find(QString::fromLatin1(d.key));
         if (it != _paramOverrides.end()) {
-            p.*(d.field) = std::clamp(it.value(), d.lo, d.hi);
+            d.ref(p) = std::clamp(it.value(), d.lo, d.hi);
         }
     }
     return p;
@@ -189,8 +232,8 @@ mlacact::Params MLAcactRuntime::_effectiveParams(int n) const
 QVariantList MLAcactRuntime::params() const
 {
     const int n = std::max<qsizetype>(2, _vs_.size());
-    const Params def = Params::forVehicleCount(static_cast<int>(n));
-    const Params cur = _core ? _core->params : _effectiveParams(static_cast<int>(n));
+    Config def = baseConfig(static_cast<int>(n), _profile.toStdString());
+    Config cur = _core ? _core->config() : _effectiveParams(static_cast<int>(n));
     QVariantList out;
     for (const ParamDef &d : kParams) {
         QVariantMap m;
@@ -198,8 +241,8 @@ QVariantList MLAcactRuntime::params() const
         m[QStringLiteral("label")] = QString::fromUtf8(d.label);
         m[QStringLiteral("group")] = QString::fromUtf8(d.group);
         m[QStringLiteral("unit")] = QString::fromUtf8(d.unit);
-        m[QStringLiteral("value")] = cur.*(d.field);
-        m[QStringLiteral("default")] = def.*(d.field);
+        m[QStringLiteral("value")] = d.ref(cur);
+        m[QStringLiteral("default")] = d.ref(def);
         m[QStringLiteral("min")] = d.lo;
         m[QStringLiteral("max")] = d.hi;
         m[QStringLiteral("changed")] = _paramOverrides.contains(QString::fromLatin1(d.key));
@@ -216,7 +259,7 @@ void MLAcactRuntime::setParam(const QString &key, double value)
             _paramOverrides[key] = value;
             QSettings().setValue(QStringLiteral("MobilityLab/ACACT/params/") + key, value);
             if (_core) {
-                _core->params.*(d.field) = value;
+                d.ref(_core->config()) = value;
             }
             _event(QStringLiteral("CFG"), QStringLiteral("설정 변경: %1 = %2").arg(QString::fromUtf8(d.label)).arg(value));
             emit paramsChanged();
@@ -230,7 +273,7 @@ void MLAcactRuntime::resetParams()
     _paramOverrides.clear();
     QSettings().remove(QStringLiteral("MobilityLab/ACACT/params"));
     if (_core) {
-        _core->params = _effectiveParams(static_cast<int>(_vs_.size()));
+        _core->config() = _effectiveParams(static_cast<int>(_vs_.size()));
     }
     _event(QStringLiteral("CFG"), QStringLiteral("설정 기본값 복원"));
     emit paramsChanged();
@@ -238,10 +281,10 @@ void MLAcactRuntime::resetParams()
 
 QVariantMap MLAcactRuntime::config() const
 {
-    const Params p = _core ? _core->params : _effectiveParams(static_cast<int>(std::max<qsizetype>(2, _vs_.size())));
+    const Config p = _core ? _core->config() : _effectiveParams(static_cast<int>(std::max<qsizetype>(2, _vs_.size())));
     return {
         {QStringLiteral("d_safe"), p.dSafe}, {QStringLiteral("d_emerg"), p.dEmerg}, {QStringLiteral("v_sep"), p.vSep},
-        {QStringLiteral("t_look"), p.tLook}, {QStringLiteral("rs"), p.rs}, {QStringLiteral("duo"), _vs_.size() == 2},
+        {QStringLiteral("t_look"), p.tLook}, {QStringLiteral("rs"), p.acact.rs}, {QStringLiteral("duo"), _vs_.size() == 2},
     };
 }
 
@@ -250,8 +293,8 @@ QVariantMap MLAcactRuntime::site() const
     if (!_frame) {
         return {};
     }
-    return {{QStringLiteral("lat"), _frame->lat0}, {QStringLiteral("lon"), _frame->lon0},
-            {QStringLiteral("bearing"), _frame->bearingDeg}, {QStringLiteral("radius"), _siteRadius},
+    return {{QStringLiteral("lat"), _frame->lat0()}, {QStringLiteral("lon"), _frame->lon0()},
+            {QStringLiteral("bearing"), _frame->bearingDeg()}, {QStringLiteral("radius"), _siteRadius},
             {QStringLiteral("fixed"), _siteSet}};
 }
 
@@ -271,28 +314,341 @@ void MLAcactRuntime::setSite(double lat, double lon, double bearingDeg, double r
     s.setValue(QStringLiteral("lon"), lon);
     s.setValue(QStringLiteral("bearing"), bearingDeg);
     s.setValue(QStringLiteral("radius"), radius);
+    s.remove(QStringLiteral("homes"));
+    _siteHomes.clear();
     _event(QStringLiteral("CFG"), QStringLiteral("시연 구역: %1, %2 · 방위 %3°").arg(lat, 0, 'f', 7).arg(lon, 0, 'f', 7).arg(bearingDeg, 0, 'f', 0));
     emit siteChanged();
 }
 
 void MLAcactRuntime::setSiteFromVehicles(double bearingDeg)
 {
-    double sl = 0, so = 0;
-    int n = 0;
-    for (VS *d : _vs_) {
-        const double la = d->homeValid ? d->homeLat : d->lat;
-        const double lo = d->homeValid ? d->homeLon : d->lon;
-        if (!std::isnan(la) && !std::isnan(lo)) {
-            sl += la;
-            so += lo;
-            n++;
-        }
-    }
-    if (n == 0) {
-        _event(QStringLiteral("CFG"), QStringLiteral("위치를 아는 기체가 없어 시연 구역을 정할 수 없음"));
+    // plan_gen.py --from-vehicles: real homes; bearing auto = mean heading of the vehicles (≤20° apart)
+    if (_running) {
+        _event(QStringLiteral("CFG"), QStringLiteral("가드 실행 중에는 시연 구역을 바꿀 수 없음"));
         return;
     }
-    setSite(sl / n, so / n, bearingDeg, _siteRadius);
+    const QStringList ids = _activeIdList();
+    QMap<QString, QPair<double, double>> homes;
+    double sx = 0, cx = 0;
+    QStringList heads;
+    QList<double> hs;
+    for (const QString &id : ids) {
+        VS *d = const_cast<MLAcactRuntime *>(this)->_vs(id);
+        const double la = d->homeValid ? d->homeLat : d->lat;
+        const double lo = d->homeValid ? d->homeLon : d->lon;
+        if (std::isnan(la) || std::isnan(lo)) {
+            _event(id, QStringLiteral("위치(홈) 모름 → 시연 구역 설정 불가"));
+            return;
+        }
+        homes[id] = qMakePair(la, lo);
+        if (d->attSeen) {
+            sx += std::sin(d->yaw * kDegToRad);
+            cx += std::cos(d->yaw * kDegToRad);
+            hs << d->yaw;
+            heads << QStringLiteral("%1 %2°").arg(id).arg(std::fmod(d->yaw + 360.0, 360.0), 0, 'f', 0);
+        }
+    }
+    if (homes.isEmpty()) {
+        _event(QStringLiteral("CFG"), QStringLiteral("제어 가능한 PX4 기체(D1~D4)가 없어 시연 구역을 정할 수 없음"));
+        return;
+    }
+    if (std::isnan(bearingDeg) || bearingDeg < 0) {
+        if (hs.isEmpty()) {
+            _event(QStringLiteral("CFG"), QStringLiteral("기수 방향을 아직 모름 → 방위를 직접 입력하세요"));
+            return;
+        }
+        const double mean = std::fmod(std::atan2(sx, cx) * kRadToDeg + 360.0, 360.0);
+        double worst = 0;
+        for (double h : hs) {
+            worst = std::max(worst, std::fabs(std::fmod(h - mean + 540.0, 360.0) - 180.0));
+        }
+        if (worst > 20.0) {
+            _event(QStringLiteral("CFG"), QStringLiteral("✖ 기체 기수 방향이 서로 %1° 넘게 다릅니다 [%2] — 모든 기체 기수가 비행 방향을 똑같이 보게 놓고 다시")
+                                              .arg(worst, 0, 'f', 0).arg(heads.join(QStringLiteral(", "))));
+            return;
+        }
+        bearingDeg = mean;
+        _event(QStringLiteral("CFG"), QStringLiteral("비행 방향(방위) 자동: %1° (기체 기수 방향 평균)").arg(bearingDeg, 0, 'f', 0));
+    }
+    // each real home moved back by its planned layout offset = centre candidate → mean
+    std::vector<std::string> sids;
+    for (const QString &id : ids) {
+        sids.push_back(id.toStdString());
+    }
+    const Scenarios sc(_effectiveParams(ids.size()), sids);
+    double clat = 0, clon = 0;
+    for (auto it = homes.cbegin(); it != homes.cend(); ++it) {
+        const Frame tmp(it.value().first, it.value().second, bearingDeg);
+        const auto h = sc.home(it.key().toStdString());
+        const auto c = tmp.frToLl(-h[0], -h[1]);
+        clat += c[0];
+        clon += c[1];
+    }
+    clat /= homes.size();
+    clon /= homes.size();
+    setSite(clat, clon, bearingDeg, _siteRadius);
+    const Frame fr(clat, clon, bearingDeg);
+    QVariantMap store;
+    for (auto it = homes.cbegin(); it != homes.cend(); ++it) {
+        const auto want = sc.home(it.key().toStdString());
+        const auto got = fr.llToFr(it.value().first, it.value().second);
+        const double dist = std::hypot(want[0] - got[0], want[1] - got[1]);
+        if (dist > 3.0) {
+            _event(it.key(), QStringLiteral("※ 위치가 권장 배치와 %1 m 다름 (권장 전방 %2, 우측 %3) — 기체 번호/위치 확인")
+                                 .arg(dist, 0, 'f', 0).arg(want[0], 0, 'f', 0).arg(want[1], 0, 'f', 0));
+        }
+        store[it.key()] = QVariantList{it.value().first, it.value().second};
+    }
+    _siteHomes = homes;
+    QSettings().setValue(QStringLiteral("MobilityLab/ACACT/site/homes"), store);
+    emit siteChanged();
+    emit scenariosChanged();
+}
+
+QStringList MLAcactRuntime::_activeIdList() const
+{
+    QStringList out;
+    const Config c;
+    for (const VS *d : _vs_) {
+        if (d->supported && d->connected && c.slot(d->id.toStdString())) {
+            out << d->id;
+        }
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+QString MLAcactRuntime::activeIds() const
+{
+    return _activeIdList().join(QStringLiteral(", "));
+}
+
+std::array<double, 2> MLAcactRuntime::_homeLl(const QString &id) const
+{
+    auto it = _siteHomes.find(id);
+    if (it != _siteHomes.end()) {
+        return {it.value().first, it.value().second};
+    }
+    std::vector<std::string> sids;
+    for (const QString &x : _activeIdList()) {
+        sids.push_back(x.toStdString());
+    }
+    const Scenarios sc(_effectiveParams(std::max<int>(1, static_cast<int>(sids.size()))), sids);
+    const auto h = sc.home(id.toStdString());
+    return _frame ? _frame->frToLl(h[0], h[1]) : std::array<double, 2>{qQNaN(), qQNaN()};
+}
+
+void MLAcactRuntime::setProfile(const QString &p)
+{
+    if (p == _profile || !profiles().contains(p)) {
+        return;
+    }
+    if (_running) {
+        _event(QStringLiteral("CFG"), QStringLiteral("가드 실행 중에는 배치 프로파일을 바꿀 수 없음"));
+        emit paramsChanged();
+        return;
+    }
+    _profile = p;
+    QSettings().setValue(QStringLiteral("MobilityLab/ACACT/profile"), p);
+    _event(QStringLiteral("CFG"), QStringLiteral("배치 프로파일: %1 — 시연 구역(기체 홈 기준)을 다시 설정하세요").arg(p));
+    emit paramsChanged();
+    emit scenariosChanged();
+}
+
+QVariantList MLAcactRuntime::scenarios() const
+{
+    std::vector<std::string> sids;
+    for (const QString &x : _activeIdList()) {
+        sids.push_back(x.toStdString());
+    }
+    QVariantList out;
+    if (sids.empty()) {
+        return out;
+    }
+    const Scenarios sc(_effectiveParams(static_cast<int>(sids.size())), sids);
+    for (const ScenarioInfo &si : Scenarios::list()) {
+        QVariantMap m;
+        m[QStringLiteral("name")] = QString::fromStdString(si.name);
+        m[QStringLiteral("title")] = QString::fromStdString(si.title);
+        m[QStringLiteral("available")] = sc.available(si.name);
+        out.append(m);
+    }
+    return out;
+}
+
+void MLAcactRuntime::loadScenario(const QString &name, const QString &mode)
+{
+    if (!_busy.isEmpty()) {
+        _event(QStringLiteral("CMD"), QStringLiteral("진행 중인 작업이 있음: %1").arg(_busy));
+        return;
+    }
+    for (VS *d : _vs_) {
+        if (d->connected && (d->inAir || d->armed)) {
+            _event(QStringLiteral("CMD"), QStringLiteral("load 는 모든 기체 지상·시동 꺼짐 상태에서만 가능"));
+            return;
+        }
+    }
+    if (!_frame) {
+        _event(QStringLiteral("CMD"), QStringLiteral("시연 구역(중심·방위)을 먼저 설정하세요"));
+        return;
+    }
+    if (mode != QLatin1String("demo") && mode != QLatin1String("rehearsal")) {
+        _event(QStringLiteral("CMD"), QStringLiteral("모드는 demo 또는 rehearsal"));
+        return;
+    }
+    const QStringList ids = _activeIdList();
+    if (ids.isEmpty()) {
+        _event(QStringLiteral("CMD"), QStringLiteral("제어 가능한 PX4 기체(D1~D4)가 없음"));
+        return;
+    }
+    std::vector<std::string> sids;
+    for (const QString &x : ids) {
+        sids.push_back(x.toStdString());
+    }
+    const Scenarios sc(_effectiveParams(ids.size()), sids);
+    bool known = false;
+    for (const ScenarioInfo &si : Scenarios::list()) {
+        known = known || si.name == name.toStdString();
+    }
+    if (!known || !sc.available(name.toStdString())) {
+        _event(QStringLiteral("CMD"), QStringLiteral("시나리오 %1 은(는) 기체 %2대 구성에서 사용할 수 없음").arg(name).arg(ids.size()));
+        return;
+    }
+    _scenario.clear();
+    _scenarioMode.clear();
+    _event(QStringLiteral("CMD"), QStringLiteral("시나리오 업로드: %1 / %2 → %3").arg(name, mode, ids.join(QStringLiteral(", "))));
+    _uploadNext(ids, name, mode, true);
+}
+
+void MLAcactRuntime::_uploadNext(QStringList ids, QString name, QString mode, bool ok)
+{
+    if (ids.isEmpty()) {
+        _busy.clear();
+        if (ok) {
+            _scenario = name;
+            _scenarioMode = mode;
+            _event(QStringLiteral("CMD"), QStringLiteral("시나리오 준비 완료: %1 / %2").arg(name, mode));
+        } else {
+            _event(QStringLiteral("CMD"), QStringLiteral("※ 시나리오 업로드 실패 — 기체별 메시지 확인 후 다시 load"));
+        }
+        runPreflight();
+        emit updated();
+        return;
+    }
+    const QString id = ids.takeFirst();
+    VS *d = _vs(id);
+    if (!d || !d->v || !d->connected) {
+        _event(id, QStringLiteral("※ 업로드 실패: 연결 안 됨"));
+        _uploadNext(ids, name, mode, false);
+        return;
+    }
+    _busy = QStringLiteral("%1 업로드 중 (%2/%3)").arg(id, name, mode);
+    emit updated();
+
+    std::vector<std::string> sids;
+    for (const QString &x : _activeIdList()) {
+        sids.push_back(x.toStdString());
+    }
+    const Scenarios sc(_effectiveParams(static_cast<int>(sids.size())), sids);
+    const auto built = sc.build(name.toStdString(), mode.toStdString());
+    auto bit = built.find(id.toStdString());
+    if (bit == built.end()) {
+        _event(id, QStringLiteral("※ 업로드 실패: 시나리오에 이 기체 없음"));
+        _uploadNext(ids, name, mode, false);
+        return;
+    }
+    const auto home = _homeLl(id);
+    auto r1 = [](double x) { char b[32]; std::snprintf(b, sizeof b, "%.1f", x); return std::atof(b); };   // round(x, 1)
+    QList<MissionItem *> items;
+    // seq 0 = planned home (PX4: QGC skips it on write)
+    items << new MissionItem(0, MAV_CMD_NAV_WAYPOINT, MAV_FRAME_GLOBAL, 0, 0, 0, 0, home[0], home[1], 0, true, false);
+    int seq = 1;
+    for (const Item &it : bit->second) {
+        MissionItem *mi = nullptr;
+        if (it.type == Item::Speed) {
+            mi = new MissionItem(seq, MAV_CMD_DO_CHANGE_SPEED, MAV_FRAME_MISSION, 1, it.v, -1, 0, 0, 0, 0, true, false);
+        } else {
+            std::array<double, 2> ll = home;
+            if (it.type != Item::Takeoff && it.type != Item::Land) {
+                ll = _frame->frToLl(it.f, it.r);
+            }
+            const double alt = r1(it.alt.value_or(0.0));
+            switch (it.type) {
+            case Item::Takeoff:
+                mi = new MissionItem(seq, MAV_CMD_NAV_TAKEOFF, MAV_FRAME_GLOBAL_RELATIVE_ALT, 0, 0, 0, qQNaN(), ll[0], ll[1], alt, true, false);
+                break;
+            case Item::Wp:
+                mi = new MissionItem(seq, MAV_CMD_NAV_WAYPOINT, MAV_FRAME_GLOBAL_RELATIVE_ALT, it.hasHold ? it.hold : 0.0, 0, 0, qQNaN(), ll[0], ll[1], alt, true, false);
+                break;
+            case Item::Sync:
+                mi = new MissionItem(seq, MAV_CMD_NAV_LOITER_UNLIM, MAV_FRAME_GLOBAL_RELATIVE_ALT, 0, 0, 0, qQNaN(), ll[0], ll[1], alt, true, false);
+                break;
+            case Item::Land:
+                mi = new MissionItem(seq, MAV_CMD_NAV_LAND, MAV_FRAME_GLOBAL_RELATIVE_ALT, 0, 0, 0, qQNaN(), ll[0], ll[1], 0, true, false);
+                break;
+            default:
+                break;
+            }
+        }
+        if (mi) {
+            items << mi;
+        }
+        seq++;
+    }
+    const int expect = items.size() - 1;
+
+    QPointer<Vehicle> v = d->v;
+    MissionManager *mm = v->missionManager();
+    if (mm->inProgress()) {
+        qDeleteAll(items);
+        _event(id, QStringLiteral("※ 업로드 실패: 미션 송수신이 진행 중 (잠시 후 다시)"));
+        _uploadNext(ids, name, mode, false);
+        return;
+    }
+    auto conn = std::make_shared<QMetaObject::Connection>();
+    auto timer = std::make_shared<QTimer>();
+    timer->setSingleShot(true);
+    auto finish = [this, ids, name, mode, ok, conn, timer, id](bool good) {
+        QObject::disconnect(*conn);
+        timer->stop();
+        QTimer::singleShot(0, this, [this, ids, name, mode, ok, good]() { _uploadNext(ids, name, mode, ok && good); });
+    };
+    connect(timer.get(), &QTimer::timeout, this, [this, id, finish]() {
+        _event(id, QStringLiteral("※ 업로드 실패: 30초 안에 끝나지 않음"));
+        finish(false);
+    });
+    *conn = connect(mm, &PlanManager::sendComplete, this, [this, v, id, expect, finish, conn, timer](bool error) {
+        QObject::disconnect(*conn);
+        if (error || !v) {
+            _event(id, QStringLiteral("※ 업로드 실패 (기체 거부/통신)"));
+            finish(false);
+            return;
+        }
+        // geofence (plan_gen.py: inclusion circle FENCE_RADIUS around the centre); failure does not fail the mission
+        if (v->geoFenceManager()->supported() && _frame) {
+            QmlObjectListModel polygons, circles;
+            circles.append(new QGCFenceCircle(QGeoCoordinate(_frame->lat0(), _frame->lon0()), FENCE_RADIUS, true, &circles));
+            v->geoFenceManager()->sendToVehicle(QGeoCoordinate(), polygons, circles);
+        }
+        // read back and verify the item count (guard.py download_mission)
+        *conn = connect(v->missionManager(), &PlanManager::newMissionItemsAvailable, this, [this, v, id, expect, finish](bool) {
+            const int got = v ? v->missionManager()->missionItems().size() : -1;
+            if (got != expect) {
+                _event(id, QStringLiteral("※ 업로드 검증 실패 (%1 != %2)").arg(got).arg(expect));
+                finish(false);
+            } else {
+                _event(id, QStringLiteral("업로드 OK (%1개)").arg(got));
+                finish(true);
+            }
+        });
+        QTimer::singleShot(500, this, [v]() {
+            if (v) {
+                v->missionManager()->loadFromVehicle();
+            }
+        });
+    });
+    timer->start(30000);
+    mm->writeMissionItems(items);
 }
 
 void MLAcactRuntime::clearSite()
@@ -375,6 +731,17 @@ void MLAcactRuntime::_attach(Vehicle *vehicle)
     }
     d->v = vehicle;
     d->connected = true;
+    if (const acact::DroneSlot *slot = Config().slot(d->id.toStdString())) {
+        d->layer = slot->layer;
+    } else {
+        d->layer = 20.0 + 6.0 * std::max(0, d->sysid - 1);
+    }
+    connect(vehicle->parameterManager(), &ParameterManager::parametersReadyChanged, this, [d, vehicle](bool ready) {
+        if (ready && vehicle->parameterManager()->parameterExists(ParameterManager::defaultComponentId, QStringLiteral("MAV_SYS_ID"))) {
+            d->paramSysid = vehicle->parameterManager()->getParameter(ParameterManager::defaultComponentId, QStringLiteral("MAV_SYS_ID"))->rawValue().toInt();
+        }
+    });
+    emit scenariosChanged();
     d->supported = vehicle->px4Firmware() && vehicle->multiRotor();
     connect(vehicle, &Vehicle::mavlinkMessageReceived, this, [this, d](const mavlink_message_t &m) { _onMessage(d, m); });
     connect(vehicle, &Vehicle::firmwareTypeChanged, this, [d, vehicle]() { d->supported = vehicle->px4Firmware() && vehicle->multiRotor(); });
@@ -399,6 +766,9 @@ void MLAcactRuntime::_onMessage(VS *d, const mavlink_message_t &m)
         }
         mavlink_heartbeat_t hb;
         mavlink_msg_heartbeat_decode(&m, &hb);
+        if (m.sysid != 0 && m.sysid != 255) {
+            d->hbSysid = m.sysid;
+        }
         d->armed = hb.base_mode & MAV_MODE_FLAG_SAFETY_ARMED;
         const QString mode = (hb.autopilot == MAV_AUTOPILOT_PX4) ? px4ModeName(hb.custom_mode) : QStringLiteral("OTHER");
         if (mode != d->mode) {
@@ -445,7 +815,8 @@ void MLAcactRuntime::_onMessage(VS *d, const mavlink_message_t &m)
     case MAVLINK_MSG_ID_ATTITUDE: {
         mavlink_attitude_t a;
         mavlink_msg_attitude_decode(&m, &a);
-        d->yaw = a.yaw * mlacact::kRadToDeg;
+        d->yaw = a.yaw * kRadToDeg;
+        d->attSeen = true;
         break;
     }
     case MAVLINK_MSG_ID_EXTENDED_SYS_STATE: {
@@ -469,6 +840,9 @@ void MLAcactRuntime::_onMessage(VS *d, const mavlink_message_t &m)
         mavlink_sys_status_t st;
         mavlink_msg_sys_status_decode(&m, &st);
         d->batt = st.battery_remaining >= 0 ? st.battery_remaining : qQNaN();
+        if (st.onboard_control_sensors_present & MAV_SYS_STATUS_SENSOR_RC_RECEIVER) {
+            d->rcOk = (st.onboard_control_sensors_health & MAV_SYS_STATUS_SENSOR_RC_RECEIVER) ? 1 : 0;
+        }
         break;
     }
     case MAVLINK_MSG_ID_GPS_RAW_INT: {
@@ -514,7 +888,7 @@ void MLAcactRuntime::_sendSetpoint(VS *d)
         link->mavlinkChannel(), &msg, static_cast<uint32_t>(_now() * 1000.0), static_cast<uint8_t>(v->id()),
         static_cast<uint8_t>(v->defaultComponentId()), MAV_FRAME_LOCAL_NED, mask, 0, 0, 0,
         static_cast<float>(d->sp[0]), static_cast<float>(d->sp[1]), static_cast<float>(d->sp[2]), 0, 0, 0,
-        static_cast<float>(d->yawHold * mlacact::kDegToRad), 0);
+        static_cast<float>(d->yawHold * kDegToRad), 0);
     v->sendMessageOnLinkThreadSafe(link.get(), msg);
 }
 
@@ -559,7 +933,7 @@ void MLAcactRuntime::_setCurrent(VS *d, int seq)
     mavlink_message_t msg;
     mavlink_msg_mission_set_current_pack_chan(static_cast<uint8_t>(MAVLinkProtocol::instance()->getSystemId()),
                                               static_cast<uint8_t>(MAVLinkProtocol::getComponentId()), link->mavlinkChannel(), &msg,
-                                              static_cast<uint8_t>(v->id()), static_cast<uint8_t>(v->defaultComponentId()),
+                                              static_cast<uint8_t>(d->hbSysid ? d->hbSysid : v->id()), MAV_COMP_ID_AUTOPILOT1,
                                               static_cast<uint16_t>(seq));
     v->sendMessageOnLinkThreadSafe(link.get(), msg);
 }
@@ -577,13 +951,13 @@ bool MLAcactRuntime::_canTake(VS *d)
     return false;
 }
 
-void MLAcactRuntime::_takeover(VS *d, const double v[3])
+void MLAcactRuntime::_takeover(VS *d, const Vec3 &v)
 {
     d->yawHold = d->yaw;
     d->tTakeCmd = _now();
     const auto ne = _frame->frToNe(v[0], v[1]);
-    d->sp[0] = ne.first;
-    d->sp[1] = ne.second;
+    d->sp[0] = ne[0];
+    d->sp[1] = ne[1];
     d->sp[2] = -v[2];
     if (!_core->enabled || !_core->own[d->id.toStdString()].owned) {
         return;
@@ -629,7 +1003,9 @@ void MLAcactRuntime::_rebuildCore()
     for (VS *d : _vs_) {
         ids.push_back(d->id.toStdString());
     }
-    _core = std::make_unique<GuardCore>(ids, _effectiveParams(static_cast<int>(_vs_.size())));
+    // DUO overrides follow the controlled fleet (config.apply_fleet), not traffic
+    const int n = _activeIdList().size();
+    _core = std::make_unique<GuardCore>(_effectiveParams(n > 0 ? n : static_cast<int>(_vs_.size())), ids);
 }
 
 bool MLAcactRuntime::start()
@@ -792,8 +1168,8 @@ void MLAcactRuntime::setAutoMode(bool on)
     QSettings().setValue(QStringLiteral("MobilityLab/ACACT/auto"), on);
     _event(QStringLiteral("CMD"), QStringLiteral("자동 진행 %1 (대기 %2초, 착륙 %3)")
                                       .arg(on ? QStringLiteral("켜짐") : QStringLiteral("꺼짐"))
-                                      .arg(AUTO_SYNC_DELAY, 0, 'f', 0)
-                                      .arg(AUTO_LAND ? QStringLiteral("자동") : QStringLiteral("수동")));
+                                      .arg(_cfg().autoSyncDelay, 0, 'f', 0)
+                                      .arg(_cfg().autoLand ? QStringLiteral("자동") : QStringLiteral("수동")));
     emit updated();
 }
 
@@ -811,7 +1187,7 @@ void MLAcactRuntime::_syncState(QList<VS *> &ready, QList<VS *> &notReady, bool 
             const MissionItem *it = items[d->cur];
             const auto p0 = _frame->llToFr(it->param5(), it->param6());
             const auto p1 = _frame->llToFr(d->lat, d->lon);
-            atLoiter = std::hypot(p1.first - p0.first, p1.second - p0.second) < 2.5 && std::abs(d->relAlt - it->param7()) < 1.5;
+            atLoiter = std::hypot(p1[0] - p0[0], p1[1] - p0[1]) < 2.5 && std::abs(d->relAlt - it->param7()) < 1.5;
             if (d->cur + 1 < items.size() && static_cast<int>(items[d->cur + 1]->command()) == CMD_LAND) {
                 landing = true;
             }
@@ -844,17 +1220,98 @@ void MLAcactRuntime::sync(bool force)
     }
     _lastSyncT = _now();
     _autoSince = -1;
+    // all at once (guard.py rev1: goto_next_item per vehicle, then mission for those in HOLD)
     QStringList ids;
     for (VS *d : ready) {
-        _setCurrent(d, d->cur + 1);
         ids << d->id;
     }
+    auto remaining = std::make_shared<int>(ready.size());
     for (VS *d : ready) {
-        if (d->mode == QLatin1String("HOLD")) {
-            _startMission(d);
-        }
+        const QString id = d->id;
+        _gotoNextItem(d, [this, id, ids, remaining](bool ok, QString err) {
+            if (!ok) {
+                _event(id, QStringLiteral("※ 다음 항목 전환 실패: %1 — 상태 확인, 필요 시 '대기 기체만 출발' 또는 개별 조작").arg(err));
+            }
+            if (--(*remaining) == 0) {
+                for (const QString &rid : ids) {
+                    VS *x = _vs(rid);
+                    if (x && x->mode == QLatin1String("HOLD")) {
+                        _startMission(x);
+                    }
+                }
+                _event(QStringLiteral("CMD"), QStringLiteral("동기 출발: %1").arg(ids.join(QStringLiteral(", "))));
+            }
+        });
     }
-    _event(QStringLiteral("CMD"), QStringLiteral("동기 출발: %1").arg(ids.join(QStringLiteral(", "))));
+}
+
+void MLAcactRuntime::_setCurrentChecked(VS *d, int k, std::function<void(bool, QString)> done)
+{
+    const QString id = d->id;
+    const int cur0 = d->cur;
+    auto attempt = std::make_shared<std::function<void(int)>>();
+    *attempt = [this, id, k, cur0, done, attempt](int tryNo) {
+        VS *x = _vs(id);
+        if (!x || !x->v) {
+            done(false, QStringLiteral("기체 없음"));
+            return;
+        }
+        if (tryNo >= SET_CURRENT_TRIES) {
+            done(false, QStringLiteral("PX4 가 미션 순서 %1 로 바뀌지 않음 (현재 %2, %3회 송신)").arg(k).arg(x->cur).arg(SET_CURRENT_TRIES));
+            return;
+        }
+        _setCurrent(x, k);
+        const double tEnd = _now() + SET_CURRENT_WAIT;
+        auto poll = std::make_shared<std::function<void()>>();
+        *poll = [this, id, k, cur0, tEnd, tryNo, done, attempt, poll]() {
+            VS *y = _vs(id);
+            if (!y) {
+                done(false, QStringLiteral("기체 없음"));
+                return;
+            }
+            // k or beyond (passed at once) or any change → PX4 accepted; never resend (it could move it back)
+            if (y->cur >= k || y->cur != cur0) {
+                done(true, QString());
+                return;
+            }
+            if (_now() >= tEnd) {
+                (*attempt)(tryNo + 1);
+                return;
+            }
+            QTimer::singleShot(50, this, [poll]() { (*poll)(); });
+        };
+        QTimer::singleShot(50, this, [poll]() { (*poll)(); });
+    };
+    if (!d->hbSysid && !d->v) {
+        done(false, QStringLiteral("기체 MAVLink ID 모름 → 미션 순서 변경 불가"));
+        return;
+    }
+    (*attempt)(0);
+}
+
+void MLAcactRuntime::_gotoNextItem(VS *d, std::function<void(bool, QString)> done)
+{
+    if (!d->v) {
+        done(false, QStringLiteral("기체 없음"));
+        return;
+    }
+    const QList<MissionItem *> &items = d->v->missionManager()->missionItems();
+    int k = d->cur + 1;
+    double speed = -1;
+    while (k < items.size() && !NAV_POS_CMDS.contains(static_cast<int>(items[k]->command()))) {
+        if (static_cast<int>(items[k]->command()) == CMD_CHANGE_SPEED && items[k]->param2() > 0) {
+            speed = items[k]->param2();
+        }
+        k++;
+    }
+    if (k >= items.size()) {
+        done(false, QStringLiteral("다음 위치 항목 없음 (현재 %1)").arg(d->cur));
+        return;
+    }
+    if (speed > 0) {
+        d->v->sendMavCommand(d->v->defaultComponentId(), MAV_CMD_DO_CHANGE_SPEED, false, 1.0f, static_cast<float>(speed), -1.0f);
+    }
+    _setCurrentChecked(d, k, done);
 }
 
 void MLAcactRuntime::_autoTick(double t)
@@ -868,7 +1325,7 @@ void MLAcactRuntime::_autoTick(double t)
     _syncState(ready, notReady, landing);
     bool settled = !ready.isEmpty() && notReady.isEmpty();
     for (VS *d : ready) {
-        settled = settled && std::hypot(d->vn, d->ve) < 0.5 && (t - d->tPos) < _core->params.staleT && !_core->own[d->id.toStdString()].owned;
+        settled = settled && std::hypot(d->vn, d->ve) < 0.5 && (t - d->tPos) < _core->config().staleT && !_core->own[d->id.toStdString()].owned;
     }
     if (!settled) {
         if (_autoBadSince < 0) {
@@ -880,7 +1337,7 @@ void MLAcactRuntime::_autoTick(double t)
         return;
     }
     _autoBadSince = -1;
-    if (landing && !AUTO_LAND) {
+    if (landing && !_core->config().autoLand) {
         if (!_autoLandTold) {
             _autoLandTold = true;
             _event(QStringLiteral("AUTO"), QStringLiteral("%1대 이륙지점 상공 도착 — 착륙은 확인 후 '다음 단계'").arg(ready.size()));
@@ -892,10 +1349,10 @@ void MLAcactRuntime::_autoTick(double t)
         if (_autoToldAt != _lastSyncT) {
             _autoToldAt = _lastSyncT;
             _event(QStringLiteral("AUTO"), QStringLiteral("%1대 도착 — %2초 후 %3 (멈추려면 전체 HOLD)")
-                                               .arg(ready.size()).arg(AUTO_SYNC_DELAY, 0, 'f', 0)
+                                               .arg(ready.size()).arg(_core->config().autoSyncDelay, 0, 'f', 0)
                                                .arg(landing ? QStringLiteral("착륙") : QStringLiteral("다음 기동")));
         }
-    } else if (t - _autoSince >= AUTO_SYNC_DELAY) {
+    } else if (t - _autoSince >= _core->config().autoSyncDelay) {
         _autoSince = -1;
         _lastSyncT = t;
         sync(false);
@@ -912,6 +1369,28 @@ QVariantList MLAcactRuntime::runPreflight()
         if (d->gpsFix > 0 && d->gpsFix < 3) msg << QStringLiteral("GPS fix %1").arg(d->gpsFix);
         if (d->sats > 0 && d->sats < 10) msg << QStringLiteral("위성 %1개").arg(d->sats);
         if (!std::isnan(d->batt) && d->batt < 80) msg << QStringLiteral("배터리 %1%").arg(d->batt, 0, 'f', 0);
+        if (d->paramSysid >= 0 && d->paramSysid != d->sysid) {
+            msg << QStringLiteral("MAV_SYS_ID=%1 (기대 %2) — 모뎀/포트가 바뀌었을 수 있음").arg(d->paramSysid).arg(d->sysid);
+        }
+        if (_frame && d->attSeen && !d->inAir && d->supported) {
+            const double diff = std::fabs(std::fmod(d->yaw - _frame->bearingDeg() + 540.0, 360.0) - 180.0);
+            if (diff > 30.0) {
+                msg << QStringLiteral("기수 방향 %1° 가 설정 방위 %2° 와 %3° 다름 — 방위를 잘못 넣었거나 기체 방향이 틀림")
+                           .arg(std::fmod(d->yaw + 360.0, 360.0), 0, 'f', 0).arg(_frame->bearingDeg(), 0, 'f', 0).arg(diff, 0, 'f', 0);
+            }
+        }
+        if (d->rcOk == 0) {
+            msg << QStringLiteral("조종기 신호 없음 — 조종기 전원·바인딩 확인 (수동 개입 불가)");
+        }
+        if (_frame && d->supported && !std::isnan(d->lat) && _siteHomes.contains(d->id)) {
+            const auto hp = _siteHomes.value(d->id);
+            const auto p0 = _frame->llToFr(hp.first, hp.second);
+            const auto p1 = _frame->llToFr(d->lat, d->lon);
+            const double dist = std::hypot(p1[0] - p0[0], p1[1] - p0[1]);
+            if (dist > 3.0) {
+                msg << QStringLiteral("이륙 위치가 계획과 %1 m 다름").arg(dist, 0, 'f', 1);
+            }
+        }
         const QList<MissionItem *> items = d->v ? d->v->missionManager()->missionItems() : QList<MissionItem *>();
         if (items.isEmpty()) {
             msg << QStringLiteral("미션 없음");
@@ -920,7 +1399,7 @@ QVariantList MLAcactRuntime::runPreflight()
                 if (NAV_POS_CMDS.contains(static_cast<int>(it->command())) && (it->param5() != 0 || it->param6() != 0)) {
                     const auto p0 = _frame->llToFr(it->param5(), it->param6());
                     const auto p1 = _frame->llToFr(d->lat, d->lon);
-                    const double dist = std::hypot(p1.first - p0.first, p1.second - p0.second);
+                    const double dist = std::hypot(p1[0] - p0[0], p1[1] - p0[1]);
                     if (dist > 5.0) {
                         msg << QStringLiteral("미션 이륙점이 현재 위치와 %1 m 다름 — 다른 기체 미션일 수 있음!").arg(dist, 0, 'f', 0);
                     }
@@ -1156,7 +1635,7 @@ void MLAcactRuntime::_tick()
             const double age = t - d->tPos;
             if (d->inAir) {
                 d->maxGap = std::max(d->maxGap, age);
-                if (!std::isnan(d->batt) && d->batt < BATT_WARN && !d->battWarned) {
+                if (!std::isnan(d->batt) && d->batt < _core->config().battWarn && !d->battWarned) {
                     d->battWarned = true;
                     _event(d->id, QStringLiteral("※ 배터리 %1% — 이번 기동 후 착륙 권장").arg(d->batt, 0, 'f', 0));
                 }
@@ -1164,13 +1643,13 @@ void MLAcactRuntime::_tick()
             DroneIn in;
             in.id = d->id.toStdString();
             in.prio = d->prio;
-            in.fresh = age < _core->params.staleT;
+            in.fresh = age < _core->config().staleT;
             in.age = age;
-            in.f = fr.first;
-            in.r = fr.second;
+            in.f = fr[0];
+            in.r = fr[1];
             in.u = d->absAlt;
-            in.vf = vfr.first;
-            in.vr = vfr.second;
+            in.vf = vfr[0];
+            in.vr = vfr[1];
             in.vu = -d->vd;
             in.relAlt = d->relAlt;
             in.inAir = d->inAir;
@@ -1186,12 +1665,12 @@ void MLAcactRuntime::_tick()
                 if (pi >= 0 && d->mode == QLatin1String("MISSION") && !_core->own[in.id].owned && t - d->tRelease > 10.0) {
                     const MissionItem *pv = d->v->missionManager()->missionItems()[pi];
                     const auto a = _frame->llToFr(pv->param5(), pv->param6());
-                    const double lf = in.goal->first - a.first, lr = in.goal->second - a.second;
+                    const double lf = (*in.goal)[0] - a[0], lr = (*in.goal)[1] - a[1];
                     const double L = std::hypot(lf, lr);
                     if (L > 5.0) {
-                        const double s = ((in.f - a.first) * lf + (in.r - a.second) * lr) / (L * L);
+                        const double s = ((in.f - a[0]) * lf + (in.r - a[1]) * lr) / (L * L);
                         if (s > 0.1 && s < 0.9) {
-                            const double xt = std::abs((in.f - a.first) * lr - (in.r - a.second) * lf) / L;
+                            const double xt = std::abs((in.f - a[0]) * lr - (in.r - a[1]) * lf) / L;
                             d->xtMax = std::max(d->xtMax, xt);
                             d->xtSq += xt * xt;
                             d->xtN++;
@@ -1199,7 +1678,7 @@ void MLAcactRuntime::_tick()
                     }
                 }
             }
-            in.rtlAlt = 20.0 + 6.0 * std::clamp(d->sysid - 1, 0, 3);   // layer of D1..D4 (config.py DRONES[].layer)
+            in.rtlAlt = d->layer;   // config.py DRONES[].layer
             if (d->homeValid) {
                 in.home = _frame->llToFr(d->homeLat, d->homeLon);
             }
@@ -1239,7 +1718,7 @@ void MLAcactRuntime::_tick()
 
         const std::vector<Command> cmds = _core->step(t, ins);
         for (const Command &c : cmds) {
-            if (c.type == Command::Event) {
+            if (c.kind == CmdKind::Event) {
                 _event(QString::fromStdString(c.id), QString::fromStdString(c.text));
                 continue;
             }
@@ -1247,16 +1726,21 @@ void MLAcactRuntime::_tick()
             if (!d || !d->supported) {
                 continue;
             }
-            if (c.type == Command::Takeover) {
+            if (c.kind == CmdKind::Takeover) {
                 _takeover(d, c.v);
-            } else if (c.type == Command::Vel) {
+            } else if (c.kind == CmdKind::Vel) {
                 const auto ne = _frame->frToNe(c.v[0], c.v[1]);
-                d->sp[0] = ne.first;
-                d->sp[1] = ne.second;
+                d->sp[0] = ne[0];
+                d->sp[1] = ne[1];
                 d->sp[2] = -c.v[2];
-            } else if (c.type == Command::Release) {
+            } else if (c.kind == CmdKind::Release) {
                 d->tRelease = t;
                 _release(d);
+            } else if (c.kind == CmdKind::Advance) {
+                // rev1: keep OFFBOARD, move the mission sequence on (PX4 does not advance it in OFFBOARD)
+                if (d->mode == QLatin1String("OFFBOARD") && d->v && d->cur + 1 < d->v->missionManager()->missionItems().size()) {
+                    _gotoNextItem(d, [](bool, QString) {});
+                }
             }
         }
 
@@ -1356,8 +1840,8 @@ void MLAcactRuntime::_publish(const std::vector<DroneIn> &ins)
         m[QStringLiteral("takeovers")] = o.takeovers;
         m[QStringLiteral("ownedTime")] = o.ownedTime;
         if (x && x->goal && _frame) {
-            const auto ll = _frame->frToLl(x->goal->first, x->goal->second);
-            m[QStringLiteral("goal")] = QVariantList{ll.first, ll.second};
+            const auto ll = _frame->frToLl((*x->goal)[0], (*x->goal)[1]);
+            m[QStringLiteral("goal")] = QVariantList{ll[0], ll[1]};
         }
         drones.append(m);
     }
@@ -1405,7 +1889,7 @@ void MLAcactRuntime::_writeSummary()
     QStringList lines;
     lines << QStringLiteral("ACACT Guard 결과 요약 (MobilityLab GCS 내장)") << QString(40, QLatin1Char('='));
     lines << QStringLiteral("기록: %1").arg(_logPath);
-    lines << QStringLiteral("\n[기체 간 최소 거리]  (같은 층 = 고도차 %1 m 이내일 때의 수평거리)").arg(_core->params.vSep, 0, 'f', 0);
+    lines << QStringLiteral("\n[기체 간 최소 거리]  (같은 층 = 고도차 %1 m 이내일 때의 수평거리)").arg(_core->config().vSep, 0, 'f', 0);
     for (const auto &[k, v] : _core->minSep) {
         auto it = _core->min3d.find(k);
         const double v3 = it == _core->min3d.end() ? qQNaN() : it->second;
