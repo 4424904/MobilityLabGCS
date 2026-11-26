@@ -135,10 +135,10 @@ jobs:
           cp -a build/px4_sitl_default/bin build/px4_sitl_default/etc "${RUNNER_TEMP}/px4sitl/"
           du -sh "${RUNNER_TEMP}/px4sitl"
 
-      - name: SITL check (목표 조정 commands)
+      - name: SITL check (목표 조정 commands + ACACT 2-vehicle avoidance)
         if: success()
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 45
         run: bash mlgcs/tools/ci_sitl.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens" "${RUNNER_TEMP}/px4sitl"
 
       - name: Publish screenshots to the ci-screens branch
@@ -191,16 +191,6 @@ jobs:
 
       - name: Apply MobilityLab customisation
         run: bash mlgcs/tools/ci_prepare.sh
-
-      - name: Private Python for the ACACT guard
-        run: |
-          bash mlgcs/tools/fetch_guard_python.sh "$GITHUB_WORKSPACE/custom/guard_python"
-          # smoke test: the bundled interpreter runs the guard's own code
-          PY="$GITHUB_WORKSPACE/custom/guard_python/python.exe"
-          rm -rf "$RUNNER_TEMP/gtest" && cp -r custom/acact_guard "$RUNNER_TEMP/gtest" && cd "$RUNNER_TEMP/gtest"
-          PYTHONUTF8=1 "$PY" -c "import mavsdk, numpy, grpc, config, scenarios, core; print('guard imports ok', len(scenarios.SCENARIOS))"
-          PYTHONUTF8=1 "$PY" -c "from servers import Servers; s = Servers().start(); print('mavsdk_server x', len(s.procs)); s.stop()"
-          PYTHONUTF8=1 "$PY" sim_check.py S7_duo --drones D1,D2 --seeds 1 | tail -5
 
       - name: Setup build environment
         id: build-setup

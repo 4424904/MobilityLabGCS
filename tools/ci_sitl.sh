@@ -15,10 +15,7 @@ WORK="$(mktemp -d)"
 BIN="$(find "$BUILD_DIR" -maxdepth 3 -type f -name MobilityLabGCS -perm -u+x | head -n1)"
 [[ -z "$BIN" ]] && { echo "::error::MobilityLabGCS binary not found"; exit 1; }
 
-python3 -m pip install --quiet pymavlink pillow "mavsdk<4" numpy || python3 -m pip install --quiet --break-system-packages pymavlink pillow "mavsdk<4" numpy
-# ACACT guard run by the GCS itself (PX4 run): GCS starts guard.py, bridges the vehicle to its mavsdk_server
-GUARD_DIR="$WORK/acact_guard"
-cp -r "$HERE/../integrations/acact_guard/src" "$GUARD_DIR"
+python3 -m pip install --quiet pymavlink pillow || python3 -m pip install --quiet --break-system-packages pymavlink pillow
 
 shot () { python3 -c "from PIL import ImageGrab; ImageGrab.grab(xdisplay='$1').save('$2')" || echo "screenshot failed: $2"; }
 
@@ -84,11 +81,6 @@ run_fw () {
     tail -n 40 "$OUT/sitl-$fw-check.log"
     echo "--- $fw GCS test steps"
     grep -h "MLTEST" "$OUT/sitl-$fw-app.log" || echo "(no MLTEST lines)"
-    if [[ -n "$extra_env" ]]; then
-        echo "--- $fw guard (run by the GCS)"
-        grep -h "MLGUARD\|GuardRouter\|guard runs locally\|guard |" "$OUT/sitl-$fw-app.log" > "$OUT/sitl-$fw-guard.txt" || true
-        tail -n 40 "$OUT/sitl-$fw-guard.txt"
-    fi
 
     kill "$sim" 2>/dev/null; pkill -f arducopter 2>/dev/null; pkill -f "bin/px4" 2>/dev/null
     pkill -f "$BIN" 2>/dev/null; sleep 2; pkill -9 -f "$BIN" 2>/dev/null
@@ -114,8 +106,7 @@ if [[ -n "$PX4_BUILD" && -x "$PX4_BUILD/bin/px4" ]]; then
     rm -rf "$PX4_BUILD/rootfs" && mkdir -p "$PX4_BUILD/rootfs"
     run_fw px4 \
         "PX4_SIM_MODEL=sihsim_quadx PX4_HOME_LAT=37.21 PX4_HOME_LON=126.83 PX4_HOME_ALT=20 ../bin/px4 -d ../etc" \
-        "$PX4_BUILD/rootfs" "udpin:0.0.0.0:14540" "ACACT_GUARD_DIR='$GUARD_DIR' ACACT_PYTHON=python3" || status=1
-    pkill -f mavsdk_server 2>/dev/null
+        "$PX4_BUILD/rootfs" "udpin:0.0.0.0:14540" || status=1
 else
     echo "::warning::PX4 SITL not available"
     echo '{"fw":"px4","checks":{},"notes":["PX4 SITL build missing"]}' > "$OUT/sitl-px4.json"
@@ -124,4 +115,51 @@ fi
 
 echo "=================== SITL summary"
 cat "$OUT"/sitl-*.json
+# ---- ACACT built into the GCS: two PX4 SIH quadcopters, head-on ----------------
+run_acact () {
+    local disp=":$((90 + RANDOM % 9))"
+    echo "=================== ACACT (2 x PX4 SIH) on $disp"
+    Xvfb "$disp" -screen 0 1920x1080x24 -nolisten tcp &
+    local xvfb=$!
+    sleep 2
+    seed_settings
+    sg dialout -c "ML_TEST_ACACT=1 ML_TEST_ACACT_N=2 DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 nice -n 10 '$BIN' > '$OUT/sitl-acact-app.log' 2>&1" &
+    sleep 10
+    DISPLAY="$disp" xdotool search --onlyvisible --name ".*" 2>/dev/null | while read -r w; do
+        DISPLAY="$disp" xdotool windowmove "$w" 0 0 windowsize "$w" 100% 100% || true
+    done
+    # same vehicle parameters as the original set_params.py, except what SITL has no hardware for (RC)
+    local common="PX4_SIM_MODEL=sihsim_quadx PX4_PARAM_COM_OF_LOSS_T=1.0 PX4_PARAM_COM_OBL_RC_ACT=5 PX4_PARAM_NAV_ACC_RAD=2.0 \
+PX4_PARAM_MPC_TKO_SPEED=1.0 PX4_PARAM_MPC_XY_CRUISE=3.0 PX4_PARAM_MIS_TAKEOFF_ALT=8.0 PX4_PARAM_RTL_CONE_ANG=0 \
+PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX4_PARAM_NAV_DLL_ACT=0 PX4_PARAM_SIH_LOC_LAT0=37.21"
+    rm -rf "$PX4_BUILD/rootfs0" "$PX4_BUILD/rootfs1"; mkdir -p "$PX4_BUILD/rootfs0" "$PX4_BUILD/rootfs1"
+    (cd "$PX4_BUILD/rootfs0" && eval "$common PX4_PARAM_SIH_LOC_LON0=126.83 PX4_PARAM_RTL_RETURN_ALT=20 ../bin/px4 -i 0 -d ../etc") > "$OUT/sitl-acact-px4-0.log" 2>&1 &
+    local p0=$!
+    (cd "$PX4_BUILD/rootfs1" && eval "$common PX4_PARAM_SIH_LOC_LON0=126.8305 PX4_PARAM_RTL_RETURN_ALT=26 ../bin/px4 -i 1 -d ../etc") > "$OUT/sitl-acact-px4-1.log" 2>&1 &
+    local p1=$!
+    python3 "$HERE/acact_sitl.py" --out "$OUT" --timeout 600 > "$OUT/sitl-acact-check.log" 2>&1 &
+    local chk=$!
+    local n=0
+    while kill -0 "$chk" 2>/dev/null; do
+        sleep 20
+        n=$((n + 1))
+        shot "$disp" "$OUT/sitl-acact-$n.png"
+        [[ $n -ge 40 ]] && break
+    done
+    wait "$chk"; local rc=$?
+    shot "$disp" "$OUT/sitl-acact-final.png"
+    echo "--- ACACT check"; tail -n 30 "$OUT/sitl-acact-check.log"
+    echo "--- GCS ACACT events"; grep -h "MLACACT\\|MobilityLab.ACACT" "$OUT/sitl-acact-app.log" | tail -n 60
+    kill "$p0" "$p1" 2>/dev/null; pkill -f "bin/px4" 2>/dev/null
+    pkill -f "$BIN" 2>/dev/null; sleep 3; pkill -9 -f "$BIN" 2>/dev/null
+    # the GCS writes its own log + summary on exit
+    cp -r "$HOME/Documents/MobilityLab/ACACT" "$OUT/acact-logs" 2>/dev/null || true
+    kill "$xvfb" 2>/dev/null
+    wait 2>/dev/null
+    return $rc
+}
+if [[ -n "$PX4_BUILD" && -x "$PX4_BUILD/bin/px4" ]]; then
+    run_acact || status=1
+fi
+
 exit $status

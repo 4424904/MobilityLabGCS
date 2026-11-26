@@ -5,8 +5,6 @@ set -euo pipefail
 
 rm -rf custom
 cp -r mlgcs/custom custom
-# ACACT guard (Python) shipped with the GCS; Windows CI adds a private Python as custom/guard_python
-cp -r mlgcs/integrations/acact_guard/src custom/acact_guard
 
 shopt -s nullglob
 for p in mlgcs/patches/*.patch; do

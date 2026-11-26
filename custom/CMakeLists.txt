@@ -69,10 +69,11 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TandemTelemetry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TandemTelemetry.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLGuardLink.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLGuardLink.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLGuardRouter.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLGuardRouter.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLAcactRuntime.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLAcactRuntime.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactCore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactCore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactFrame.h
     CACHE INTERNAL "" FORCE
 )
 
@@ -98,22 +99,3 @@ set(CUSTOM_QT_COMPONENTS
     Network
     CACHE INTERNAL "" FORCE
 )
-
-# ---------------------------------------------------------------------------
-# ACACT guard shipped with the GCS (runs from the GCS; see MLGuardLink)
-#   <bin>/acact_guard   guard code (copied to a writable folder at first run)
-#   <bin>/python        private Python with mavsdk + numpy (Windows CI only)
-# ---------------------------------------------------------------------------
-include(GNUInstallDirs)
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/acact_guard/guard.py)
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/acact_guard/
-            DESTINATION ${CMAKE_INSTALL_BINDIR}/acact_guard
-            PATTERN "__pycache__" EXCLUDE)
-    message(STATUS "MobilityLab: bundling ACACT guard")
-endif()
-if(WIN32 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/guard_python/python.exe)
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/guard_python/
-            DESTINATION ${CMAKE_INSTALL_BINDIR}/python
-            PATTERN "__pycache__" EXCLUDE)
-    message(STATUS "MobilityLab: bundling guard Python")
-endif()

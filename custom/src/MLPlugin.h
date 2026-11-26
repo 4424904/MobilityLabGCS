@@ -9,7 +9,7 @@
 class MLOptions;
 class MLPlugin;
 class TandemTelemetry;
-class MLGuardLink;
+class MLAcactRuntime;
 class QQmlApplicationEngine;
 
 Q_DECLARE_LOGGING_CATEGORY(MLPluginLog)
@@ -80,7 +80,7 @@ private:
     MLOptions *_options = nullptr;
     TandemTelemetry *_tandem = nullptr;
     MLTools *_tools = nullptr;
-    MLGuardLink *_guard = nullptr;
+    MLAcactRuntime *_acact = nullptr;
     QQmlApplicationEngine *_qmlEngine = nullptr;
     class MLOverrideInterceptor *_urlInterceptor = nullptr;
 };

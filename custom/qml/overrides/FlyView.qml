@@ -218,68 +218,55 @@ Item {
         }
     }
 
-    // ACACT Guard events into the same event log
+    // ACACT (built-in guard, MLAcactRuntime) events into the same event log
     Connections {
         target: typeof mlGuard !== "undefined" ? mlGuard : null
         function onGuardEvent(seq, time, who, text) {
             var m = /^D(\d+)$/.exec(who)
-            var level = /긴급|두절|끊김|오류|실패|※/.test(text) ? 3 : (/회피|위험|개입|HOLD/.test(text) ? 2 : 0)
+            var level = /긴급|두절|끊김|오류|실패|※/.test(text) ? 3 : (/회피|위험|개입|HOLD|우선/.test(text) ? 2 : (/완료|시작|복귀/.test(text) ? 1 : 0))
             MLState.log("ACACT · " + (m ? "" : who + " · ") + text, level, m ? Number(m[1]) : 0, "ACACT")
-        }
-        // SITL test runs: guard terminal into the app log
-        property int _logged: 0
-        function onConsoleChanged() {
-            if (typeof mlTestSetpoints === "undefined" || !mlTestSetpoints) return
-            var c = mlGuard.console
-            if (c.length < _logged) _logged = 0
-            for (var i = _logged; i < c.length; i++) console.log("MLGUARD " + c[i])
-            _logged = c.length
-        }
-        function onActiveChanged() {
-            if (mlGuard.active) MLState.log(qsTr("ACACT 가드 연결됨 (%1)").arg(mlGuard.guardHost), 1, 0, "GCS")
-            else if (mlGuard.seen) MLState.log(qsTr("ACACT 가드 신호 끊김"), 3, 0, "GCS")
+            if (typeof mlTestAcact !== "undefined" && mlTestAcact) console.log("MLACACT " + who + " | " + text)
         }
     }
 
-    // Guard auto-start: once per session, when the agent is there, the guard is
-    // off and vehicles are connected (D-ids from their system ids). On Linux the
-    // agent itself is started from ~/acact_guard if nobody answers.
-    property bool _guardAutoDone:   false
-    property int  _guardAgentWait:  0
-    property string _guardLastDs:   ""
-    property int  _guardSteady:     0
+    // SITL test (ML_TEST_ACACT=1): when the vehicles named in ML_TEST_ACACT_N are
+    // connected with their missions, start the guard, then the sequential flight start.
+    property int _acactTestStage: 0
     Timer {
         interval: 2000
         repeat:   true
-        running:  typeof mlGuard !== "undefined"
+        running:  typeof mlTestAcact !== "undefined" && mlTestAcact && _acactTestStage < 3
         onTriggered: {
-            if (!mlGuard.agentFound) {
-                if (++_guardAgentWait === 3 && mlGuard.autoStart && mlGuard.canLaunchLocal) {
-                    if (mlGuard.launchLocalAgent()) MLState.log(qsTr("가드 에이전트 실행 (이 PC)"), 0, 0, "GCS")
+            var vs = QGroundControl.multiVehicleManager.vehicles
+            if (_acactTestStage === 0) {
+                if (vs.count < mlTestAcactN) return
+                var ready = 0
+                for (var i = 0; i < vs.count; i++) {
+                    var v = vs.get(i)
+                    if (v.coordinate.isValid) ready++
                 }
-                return
-            }
-            if (_guardAutoDone || !mlGuard.autoStart) return
-            if (mlGuard.agentState === "guard" || mlGuard.active) { _guardAutoDone = true; return }
-            // wait until the set of connected vehicles has been steady for ~6 s
-            var ds = MLState.guardDrones()
-            if (ds !== _guardLastDs) { _guardLastDs = ds; _guardSteady = 0; return }
-            if (++_guardSteady < 3) return
-            if (mlGuard.agentState === "idle" && ds !== "") {
-                _guardAutoDone = true
-                if (mlGuard.startGuard(ds)) MLState.command(qsTr("가드 자동 시작 %1 (%2)").arg(ds).arg(mlGuard.profile))
+                if (ready < mlTestAcactN) return
+                console.log("MLACACT test: " + vs.count + " vehicles, starting guard")
+                mlGuard.start()
+                _acactTestStage = 1
+            } else if (_acactTestStage === 1) {
+                var pf = mlGuard.runPreflight()
+                var ok = true
+                for (var k = 0; k < pf.length; k++) {
+                    if (!pf[k].ok) { ok = false; console.log("MLACACT test: preflight " + pf[k].id + " " + pf[k].issues.join(" / ")) }
+                }
+                if (!ok) return
+                console.log("MLACACT test: preflight ok, start flight")
+                if (mlGuard.startFlight()) _acactTestStage = 2
+            } else if (_acactTestStage === 2) {
+                MLState.guardConsoleOpen = true
+                _acactTestStage = 3
             }
         }
     }
 
     Component.onCompleted: {
         mainWindow.criticalVehicleMessageHandler = function(message) { alertBanner.push(message) }
-    }
-    // CI screen check: open the guard console for the second screenshot
-    Timer {
-        interval: 58000
-        running:  typeof mlTestGuardConsole !== "undefined" && mlTestGuardConsole
-        onTriggered: MLState.guardConsoleOpen = true
     }
     Component.onDestruction: mainWindow.criticalVehicleMessageHandler = null
 

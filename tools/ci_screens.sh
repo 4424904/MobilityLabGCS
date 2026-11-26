@@ -49,10 +49,6 @@ run_case () {
 
     python3 mlgcs/tools/fake_vehicle.py --scenario "$scenario" --airframe "$airframe" --orbit "$orbit" --duration 150 > "$OUT/$name-vehicle.log" 2>&1 &
     local veh=$!
-    if [ "$orbit" = "duo" ]; then
-        # ACACT Guard stand-in: guard status for the two orbiting vehicles
-        (cd mlgcs/tools && python3 fake_guard.py --delay2 25 --duration 150 > "$OUT/$name-guard.log" 2>&1) &
-    fi
     local veh2=""
     if [ -n "$second" ]; then
         # second vehicle (system id 2) to check the multi-vehicle view
@@ -63,7 +59,8 @@ run_case () {
 
     seed_settings
     local extra_env=""
-    [ "$orbit" = "duo" ] && extra_env="ML_TEST_GUARD_CONSOLE=1"
+    # duo: the built-in ACACT guard watches the two orbiting vehicles (generic autopilot → traffic only)
+    [ "$orbit" = "duo" ] && extra_env="ML_TEST_ACACT=1 ML_TEST_ACACT_N=2"
     sg dialout -c "$extra_env DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$OUT/$name-app.log' 2>&1" &
     local app=$!
 
@@ -82,7 +79,6 @@ run_case () {
     kill "$veh" 2>/dev/null
     [ -n "$veh2" ] && kill "$veh2" 2>/dev/null
     pkill -f fake_vehicle.py 2>/dev/null
-    pkill -f fake_guard.py 2>/dev/null
     pkill -f "$BIN" 2>/dev/null
     sleep 2
     pkill -9 -f "$BIN" 2>/dev/null

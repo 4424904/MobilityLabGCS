@@ -48,7 +48,7 @@ def offset(north, east):
 
 def duo_state(sysid, t):
     """Small counter-rotating orbits (ACACT S7 ④): UAV 1 on 21 m, UAV 2 on 15 m, 3 m/s, 8 m AGL.
-    Shared with fake_guard.py so the guard overlay matches the vehicles."""
+    Used for the ACACT overlay screenshots (two close, counter-rotating vehicles)."""
     r = 21.0 if sysid == 1 else 15.0
     sense = 1.0 if sysid == 1 else -1.0
     speed = 3.0

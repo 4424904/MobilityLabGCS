@@ -94,7 +94,7 @@ Rectangle {
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "ACACT GUARD"
+                    text: "ACACT"
                     color: root._g ? MLTheme.text : MLTheme.dim
                     font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel; font.letterSpacing: 1.2 * u
                 }
@@ -103,12 +103,8 @@ Rectangle {
                     font.pixelSize: MLTheme.fsSmall
                     color: root._g ? MLTheme.label : (root._gSeen ? MLTheme.warning : MLTheme.dim)
                     text: {
-                        if (!root._g) {
-                            if (mlGuard.agentFound && mlGuard.agentState === "guard") return qsTr("가드 시작 중…")
-                            if (mlGuard.agentFound) return qsTr("가드 꺼짐 · 에이전트 %1 · [가드 콘솔]에서 시작").arg(mlGuard.agentHost)
-                            return root._gSeen ? qsTr("가드 신호 끊김 · guard.py 확인") : qsTr("가드 에이전트 없음 · [가드 콘솔] 참고")
-                        }
-                        var s = mlGuard.scenario !== "" ? mlGuard.scenario + (mlGuard.scenarioMode !== "" ? " " + mlGuard.scenarioMode : "") : qsTr("시나리오 없음")
+                        if (!root._g) return qsTr("정지 · [ACACT] 에서 시작")
+                        var s = mlGuard.guardEnabled ? qsTr("감시 중") : qsTr("일시정지 (HOLD)")
                         return s + " · " + (mlGuard.autoMode ? qsTr("자동 진행") : qsTr("수동 진행"))
                     }
                 }
@@ -161,7 +157,7 @@ Rectangle {
                 twoStep:        false
                 selected:       MLState.guardConsoleOpen
                 tone:           "active"
-                text:           qsTr("가드 콘솔")
+                text:           qsTr("ACACT")
                 onClicked:      MLState.guardConsoleOpen = !MLState.guardConsoleOpen
             }
         }

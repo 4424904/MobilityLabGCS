@@ -1,6 +1,6 @@
 #include "MLPlugin.h"
 #include "TandemTelemetry.h"
-#include "MLGuardLink.h"
+#include "MLAcactRuntime.h"
 
 #include "AppSettings.h"
 #include "MissionManager.h"
@@ -47,7 +47,6 @@ MLPlugin::MLPlugin(QObject *parent)
     , _options(new MLOptions(this, this))
     , _tandem(new TandemTelemetry(this))
     , _tools(new MLTools(this))
-    , _guard(new MLGuardLink(this))
 {
     // Field operators get the simple UI; Advanced mode is still reachable from settings.
     _showAdvancedUI = false;
@@ -225,9 +224,16 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     _qmlEngine->addImportPath(QStringLiteral("qrc:/qml"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTandem"), _tandem);
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTools"), _tools);
-    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlGuard"), _guard);
-    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestGuardConsole"),
-                                                  qEnvironmentVariable("ML_TEST_GUARD_CONSOLE") == QStringLiteral("1"));
+    // ACACT guard built into the GCS. Created here (after the vehicle manager exists).
+    if (!_acact) {
+        _acact = new MLAcactRuntime(this);
+    }
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlGuard"), _acact);
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlAcact"), _acact);
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestAcact"),
+                                                  qEnvironmentVariable("ML_TEST_ACACT") == QStringLiteral("1"));
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestAcactN"),
+                                                  qEnvironmentVariableIsSet("ML_TEST_ACACT_N") ? qEnvironmentVariableIntValue("ML_TEST_ACACT_N") : 2);
     // CI only: ML_TEST_SETPOINTS=1 makes the 목표 조정 panel run its scripted SITL check
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestSetpoints"),
                                                   qEnvironmentVariable("ML_TEST_SETPOINTS") == QStringLiteral("1"));
