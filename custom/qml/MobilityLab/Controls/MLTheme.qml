@@ -52,6 +52,20 @@ QtObject {
     readonly property color brand:          "#D80E18"
     readonly property real  radius:         6 * u
 
+    // ---- floating panels over the map ---------------------------------------
+    readonly property color glass:          "#EB0A0D10"
+    readonly property color glassStrong:    "#F5090C0F"
+    readonly property color glassEdge:      "#242B33"
+    readonly property color glassEdgeHi:    "#33404B"
+    readonly property real  panelRadius:    10 * u
+
+    // ---- vehicle identity colours (map, lanes, event log) -------------------
+    readonly property var vehiclePalette: ["#5BC0EB", "#C39BFF", "#B9DE6A", "#FF8FB1", "#7FD8D0", "#F2C46D"]
+    function vehicleColor(id) {
+        var i = Math.max(0, Number(id) - 1) % vehiclePalette.length
+        return vehiclePalette[i]
+    }
+
     readonly property color zoneNormal:     "#1F3B2A"
     readonly property color zoneCaution:    "#5A4416"
     readonly property color zoneWarning:    "#B23A33"
@@ -124,7 +138,7 @@ QtObject {
                 for (var i = 0; i < 3; i++) { if (cur[i] !== rec[i]) { r.ok = cur[i] > rec[i]; break } }
             }
         }
-        r.modeUnknown = /custom:|unknown/i.test(String(vehicle.flightMode))
+        r.modeUnknown = (vehicle.px4Firmware || vehicle.apmFirmware) && /custom:|unknown/i.test(String(vehicle.flightMode))
         return r
     }
 }

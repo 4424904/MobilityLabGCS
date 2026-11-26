@@ -91,48 +91,70 @@ Item {
 
     Rectangle {
         anchors.fill:   parent
+        z:              -2
         color:          MLTheme.bg
     }
+
+    // ---- floating console panels over a full-window map ---------------------
+    readonly property real _m: Math.round(10 * _u)
 
     MLFlightColumn {
         id:                 flightColumn
         anchors.top:        toolbar.bottom
-        anchors.bottom:     commandBar.top
+        anchors.topMargin:  _m
+        anchors.bottom:     dock.top
+        anchors.bottomMargin: _m
         anchors.left:       parent.left
+        anchors.leftMargin: _m
         width:              _leftW
         visible:            _consoleVisible
-        Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
+        color:              MLTheme.glass
+        radius:             MLTheme.panelRadius
+        border.color:       MLTheme.glassEdge
+        clip:               true
     }
 
     MLSystemsColumn {
         id:                 systemsColumn
         anchors.top:        toolbar.bottom
-        anchors.bottom:     commandBar.top
+        anchors.topMargin:  _m
+        anchors.bottom:     dock.top
+        anchors.bottomMargin: _m
         anchors.right:      parent.right
+        anchors.rightMargin: _m
         width:              _rightW
         visible:            _consoleVisible
-        Rectangle { anchors.left: parent.left; width: 1; height: parent.height; color: MLTheme.line }
+        color:              MLTheme.glass
+        radius:             MLTheme.panelRadius
+        border.color:       MLTheme.glassEdge
+        clip:               true
     }
 
-    MLProfile {
-        id:                 profile
-        anchors.left:       flightColumn.right
-        anchors.right:      systemsColumn.left
-        anchors.bottom:     commandBar.top
-        height:             _profileH
-        visible:            _consoleVisible
-        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: MLTheme.line }
-    }
-
-    MLCommandBar {
-        id:                 commandBar
-        leftWidth:          _leftW
-        rightWidth:         _rightW
+    // bottom dock: fleet lanes (+ ACACT Guard) and the command bar
+    Column {
+        id:                 dock
         anchors.left:       parent.left
         anchors.right:      parent.right
         anchors.bottom:     parent.bottom
-        height:             implicitHeight
+        anchors.margins:    _m
+        spacing:            _m
         visible:            _consoleVisible
+
+        MLFleetLanes {
+            id:     fleetLanes
+            width:  parent.width
+            height: implicitHeight
+        }
+        MLCommandBar {
+            id:             commandBar
+            width:          parent.width
+            height:         implicitHeight
+            leftWidth:      _leftW
+            rightWidth:     _rightW
+            color:          MLTheme.glassStrong
+            radius:         MLTheme.panelRadius
+            border.color:   MLTheme.glassEdge
+        }
     }
 
     // Fleet (group) commands, opened from the top bar
@@ -186,16 +208,31 @@ Item {
         }
     }
 
+    // ACACT Guard events into the same event log
+    Connections {
+        target: typeof mlGuard !== "undefined" ? mlGuard : null
+        function onGuardEvent(seq, time, who, text) {
+            var m = /^D(\d+)$/.exec(who)
+            var level = /긴급|두절|끊김|오류|실패|※/.test(text) ? 3 : (/회피|위험|개입|HOLD/.test(text) ? 2 : 0)
+            MLState.log("ACACT · " + (m ? "" : who + " · ") + text, level, m ? Number(m[1]) : 0, "ACACT")
+        }
+        function onActiveChanged() {
+            if (mlGuard.active) MLState.log(qsTr("ACACT 가드 연결됨 (%1)").arg(mlGuard.guardHost), 1, 0, "GCS")
+            else if (mlGuard.seen) MLState.log(qsTr("ACACT 가드 신호 끊김"), 3, 0, "GCS")
+        }
+    }
+
     Component.onCompleted: mainWindow.criticalVehicleMessageHandler = function(message) { alertBanner.push(message) }
     Component.onDestruction: mainWindow.criticalVehicleMessageHandler = null
 
+    // Map (and video) fill the window under the floating panels
     Item {
-        id:                 mapHolder
+        id:                 mapLayer
+        z:                  -1
         anchors.top:        _consoleVisible ? toolbar.bottom : parent.top
-        anchors.bottom:     _consoleVisible ? profile.top : parent.bottom
-        anchors.left:       _consoleVisible ? flightColumn.right : parent.left
-        anchors.right:      _consoleVisible ? systemsColumn.left : parent.right
-        clip:               true
+        anchors.bottom:     parent.bottom
+        anchors.left:       parent.left
+        anchors.right:      parent.right
 
         FlyViewMap {
             id:                     mapControl
@@ -203,7 +240,7 @@ Item {
             rightPanelWidth:        ScreenTools.defaultFontPixelHeight * 9
             pipView:                _pipView
             pipMode:                !_mainWindowIsMap
-            toolInsets:             customOverlay.totalToolInsets
+            toolInsets:             _mapInsets
             mapName:                "FlightDisplayView"
             enabled:                !_is3DMode
             visible:                !_is3DMode
@@ -218,7 +255,8 @@ Item {
             id:                     _pipView
             anchors.left:           parent.left
             anchors.bottom:         parent.bottom
-            anchors.margins:        _toolsMargin
+            anchors.leftMargin:     _consoleVisible ? flightColumn.width + _m * 2 : _toolsMargin
+            anchors.bottomMargin:   _consoleVisible ? dock.height + _m * 2 : _toolsMargin
             item1IsFullSettingsKey: "MainFlyWindowIsMap"
             item1:                  mapControl
             item2:                  QGroundControl.videoManager.hasVideo ? videoControl : null
@@ -226,9 +264,100 @@ Item {
                                         (videoControl.pipState.state === videoControl.pipState.pipState || mapControl.pipState.state === mapControl.pipState.pipState)
             z:                      QGroundControl.zOrderWidgets
 
-            property real leftEdgeBottomInset: visible ? width + anchors.margins : 0
-            property real bottomEdgeLeftInset: visible ? height + anchors.margins : 0
+            property real leftEdgeBottomInset: visible ? width + _toolsMargin : 0
+            property real bottomEdgeLeftInset: visible ? height + _toolsMargin : 0
         }
+
+        Loader {
+            id:           viewer3DLoader
+            z:            1
+            anchors.fill: parent
+            visible:      _is3DMode
+        }
+
+        // ACACT Guard overlay (safety rings, pair distances, avoiding drones)
+        MLGuardMapLayer {
+            map: mapControl
+        }
+
+        // soft edge so the floating panels lift off the map
+        Rectangle {
+            anchors.fill:   parent
+            visible:        _consoleVisible
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0;  color: "#99060809" }
+                GradientStop { position: 0.22; color: "#00060809" }
+                GradientStop { position: 0.78; color: "#00060809" }
+                GradientStop { position: 1.0;  color: "#99060809" }
+            }
+        }
+    }
+
+    // Insets of the map area the operator can actually see (between the panels)
+    QGCToolInsets {
+        id:                     _mapInsets
+        readonly property real _l: _consoleVisible ? mapHolder.x - mapLayer.x : 0
+        readonly property real _r: _consoleVisible ? mapLayer.width - (mapHolder.x - mapLayer.x) - mapHolder.width : 0
+        readonly property real _t: _consoleVisible ? mapHolder.y - mapLayer.y : 0
+        readonly property real _b: _consoleVisible ? mapLayer.height - (mapHolder.y - mapLayer.y) - mapHolder.height : 0
+        leftEdgeCenterInset:    _l + customOverlay.totalToolInsets.leftEdgeCenterInset
+        leftEdgeTopInset:       _l + customOverlay.totalToolInsets.leftEdgeTopInset
+        leftEdgeBottomInset:    _l + customOverlay.totalToolInsets.leftEdgeBottomInset
+        rightEdgeCenterInset:   _r + customOverlay.totalToolInsets.rightEdgeCenterInset
+        rightEdgeTopInset:      _r + customOverlay.totalToolInsets.rightEdgeTopInset
+        rightEdgeBottomInset:   _r + customOverlay.totalToolInsets.rightEdgeBottomInset
+        topEdgeCenterInset:     _t + customOverlay.totalToolInsets.topEdgeCenterInset
+        topEdgeLeftInset:       _t + customOverlay.totalToolInsets.topEdgeLeftInset
+        topEdgeRightInset:      _t + customOverlay.totalToolInsets.topEdgeRightInset
+        bottomEdgeCenterInset:  _b + customOverlay.totalToolInsets.bottomEdgeCenterInset
+        bottomEdgeLeftInset:    _b + customOverlay.totalToolInsets.bottomEdgeLeftInset
+        bottomEdgeRightInset:   _b + customOverlay.totalToolInsets.bottomEdgeRightInset
+    }
+
+    // Visible map region: widgets, banners and the 목표 조정 panel live here
+    Item {
+        id:                 mapHolder
+        anchors.top:        _consoleVisible ? toolbar.bottom : parent.top
+        anchors.topMargin:  _consoleVisible ? _m : 0
+        anchors.bottom:     _consoleVisible ? dock.top : parent.bottom
+        anchors.bottomMargin: _consoleVisible ? _m : 0
+        anchors.left:       _consoleVisible ? flightColumn.right : parent.left
+        anchors.leftMargin: _consoleVisible ? _m : 0
+        anchors.right:      _consoleVisible ? systemsColumn.left : parent.right
+        anchors.rightMargin: _consoleVisible ? _m : 0
+
+        // 고도 단면 (mission altitude profile), toggled from the map
+        MLProfile {
+            id:                 profile
+            anchors.left:       parent.left
+            anchors.right:      parent.right
+            anchors.bottom:     parent.bottom
+            height:             _profileH
+            visible:            _consoleVisible && MLState.profileOpen
+            z:                  QGroundControl.zOrderWidgets + 1
+            color:              MLTheme.glass
+            radius:             MLTheme.panelRadius
+            border.color:       MLTheme.glassEdge
+        }
+        Rectangle {
+            id:                 profileToggle
+            anchors.right:      parent.right
+            anchors.bottom:     profile.visible ? profile.top : parent.bottom
+            anchors.bottomMargin: profile.visible ? _m : 0
+            z:                  QGroundControl.zOrderWidgets + 1
+            visible:            _consoleVisible
+            width:              ptText.implicitWidth + 24 * _u
+            height:             30 * _u
+            radius:             15 * _u
+            color:              MLState.profileOpen ? "#E611161B" : MLTheme.glass
+            border.color:       MLState.profileOpen ? MLTheme.accent : MLTheme.glassEdge
+            MLText { id: ptText; anchors.centerIn: parent; text: MLState.profileOpen ? qsTr("고도 단면 닫기") : qsTr("고도 단면"); font.pixelSize: MLTheme.fsSmall; color: MLState.profileOpen ? MLTheme.accent : MLTheme.label }
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: MLState.profileOpen = !MLState.profileOpen }
+        }
+
+
+
 
         FlyViewWidgetLayer {
             id:                     widgetLayer
@@ -287,8 +416,9 @@ Item {
         MLSetpointPanel {
             id:                 setpointPanel
             anchors.left:       parent.left
-            anchors.bottom:     parent.bottom
-            anchors.margins:    _gap * 2
+            anchors.bottom:     profile.visible ? profile.top : parent.bottom
+            anchors.leftMargin: _gap * 2
+            anchors.bottomMargin: profile.visible ? _m : _gap * 2
             z:                  QGroundControl.zOrderTopMost
             visible:            MLState.setpointsOpen || (typeof mlTestSetpoints !== "undefined" && mlTestSetpoints)
             onCloseRequested:   MLState.setpointsOpen = false
@@ -313,28 +443,7 @@ Item {
             visible:                _consoleVisible && !!_activeVehicle && !_is3DMode
         }
 
-        // Corner marks so the map reads as an instrument pane
-        Repeater {
-            model: 4
-            Item {
-                required property int index
-                readonly property real _len: 14 * _u
-                width:  _len; height: _len
-                x:      (index % 2 === 0) ? 6 * _u : mapHolder.width - width - 6 * _u
-                y:      (index < 2) ? 6 * _u : mapHolder.height - height - 6 * _u
-                z:      QGroundControl.zOrderWidgets
-                visible: _consoleVisible
-                Rectangle { width: parent.width; height: 1.5 * _u; color: "#995BC0EB"; y: index < 2 ? 0 : parent.height - height }
-                Rectangle { width: 1.5 * _u; height: parent.height; color: "#995BC0EB"; x: index % 2 === 0 ? 0 : parent.width - width }
-            }
-        }
 
-        Loader {
-            id:           viewer3DLoader
-            z:            1
-            anchors.fill: parent
-            visible:      _is3DMode
-        }
 
         Connections {
             target: QGCViewer3DManager
@@ -352,7 +461,7 @@ Item {
 
     FlyViewToolBar {
         id:                 toolbar
-        leftWidth:          _leftW
+        leftWidth:          _leftW + _m
         guidedValueSlider:  _guidedValueSlider
         visible:            !QGroundControl.videoManager.fullScreen
     }

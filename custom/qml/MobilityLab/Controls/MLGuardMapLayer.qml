@@ -1,0 +1,152 @@
+import QtQuick
+import QtLocation
+import QtPositioning
+
+import QGroundControl
+import QGroundControl.Controls
+
+// ACACT Guard state drawn on the fly-view map: the demo area, each drone's
+// safety ring (half of D_SAFE, so two rings touching = guard threshold),
+// a 3 s velocity vector, and a line with the distance between every pair the
+// guard is watching (grey normal · amber predicted conflict · red emergency).
+// Map items are created once (fixed pools) and only re-bound on updates.
+Item {
+    id: root
+
+    property var map
+
+    readonly property bool   _on:       typeof mlGuard !== "undefined" && mlGuard.active
+    readonly property var    _drones:   _on ? mlGuard.drones : []
+    readonly property var    _pairs:    _on ? mlGuard.pairs : []
+    readonly property var    _site:     _on ? mlGuard.site : ({})
+    readonly property real   _dSafe:    _on && mlGuard.config.d_safe ? mlGuard.config.d_safe : 10
+    readonly property real   u:         MLTheme.u
+
+    function _byId(id) {
+        for (var i = 0; i < _drones.length; i++) if (_drones[i].id === id) return _drones[i]
+        return null
+    }
+    function _coord(d) {
+        return (d && d.lat !== null && d.lat !== undefined && d.lon !== null) ? QtPositioning.coordinate(d.lat, d.lon) : QtPositioning.coordinate()
+    }
+    function _levelColor(level) { return level >= 2 ? MLTheme.warning : (level === 1 ? MLTheme.caution : "#8A939C") }
+
+    // demo area
+    property var _area: MapCircle {
+        visible:        root._on && !!root._site && root._site.lat !== undefined && root._site.lat !== null
+        center:         visible ? QtPositioning.coordinate(root._site.lat, root._site.lon) : QtPositioning.coordinate()
+        radius:         root._site && root._site.radius ? root._site.radius : 25
+        color:          "transparent"
+        border.color:   "#665BC0EB"
+        border.width:   1
+    }
+
+    Instantiator {
+        model: 4
+        delegate: QtObject {
+            id: dslot
+            readonly property int  slot:    index
+            readonly property var  d:       slot < root._drones.length ? root._drones[slot] : null
+            readonly property var  c:       root._coord(d)
+            readonly property bool ok:      !!d && c.isValid
+            readonly property color col:    d ? MLTheme.vehicleColor(d.sysid) : "white"
+            readonly property bool own:     !!d && d.own
+            readonly property bool lost:    !!d && !d.fresh
+
+            property var ring: MapCircle {
+                visible:        dslot.ok
+                center:         dslot.c
+                radius:         root._dSafe / 2
+                color:          dslot.own ? "#30FF5A52" : "#14FFFFFF"
+                border.color:   dslot.lost ? "#99FF5A52" : (dslot.own ? MLTheme.warning : dslot.col)
+                border.width:   dslot.own ? 2.5 : 1.5
+                opacity:        dslot.lost ? 0.5 : 1
+            }
+            property var vec: MapPolyline {
+                visible:        dslot.ok && Math.hypot(dslot.d.vn, dslot.d.ve) > 0.3
+                line.width:     3
+                line.color:     dslot.col
+                path: {
+                    if (!dslot.ok) return []
+                    var sp = Math.hypot(dslot.d.vn, dslot.d.ve)
+                    var az = (Math.atan2(dslot.d.ve, dslot.d.vn) * 180 / Math.PI + 360) % 360
+                    return [dslot.c, dslot.c.atDistanceAndAzimuth(sp * 3, az)]
+                }
+            }
+            property var tag: MapQuickItem {
+                visible:        dslot.ok
+                coordinate:     dslot.c
+                anchorPoint.x:  -14 * root.u
+                anchorPoint.y:  tagBox.height + 10 * root.u
+                sourceItem: Rectangle {
+                    id:     tagBox
+                    width:  tagCol.implicitWidth + 16 * root.u
+                    height: tagCol.implicitHeight + 10 * root.u
+                    radius: 4 * root.u
+                    color:  "#E6090C0F"
+                    border.color: dslot.own ? MLTheme.warning : (dslot.lost ? MLTheme.warning : "#33404B")
+                    Column {
+                        id: tagCol
+                        x: 8 * root.u; y: 5 * root.u
+                        spacing: 1 * root.u
+                        Text {
+                            text: dslot.d ? dslot.d.id + "  " + (dslot.d.alt === null ? "—" : Number(dslot.d.alt).toFixed(1) + " m") : ""
+                            color: dslot.col; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall
+                        }
+                        Text {
+                            text: !dslot.d ? "" : (dslot.lost ? qsTr("링크 두절") : (dslot.own ? qsTr("ACACT 회피 중") : (dslot.d.yield ? qsTr("양보") : (dslot.d.lock ? qsTr("조종기 개입") : qsTr("감시")))))
+                            color: dslot.own || dslot.lost ? MLTheme.warning : (dslot.d && dslot.d.lock ? MLTheme.caution : MLTheme.dim)
+                            font.family: MLTheme.sans; font.pixelSize: MLTheme.fsLabel; font.weight: dslot.own ? Font.DemiBold : Font.Normal
+                        }
+                    }
+                }
+            }
+        }
+        onObjectAdded: function(index, object) { if (root.map) { root.map.addMapItem(object.ring); root.map.addMapItem(object.vec); root.map.addMapItem(object.tag) } }
+        onObjectRemoved: function(index, object) { if (root.map) { root.map.removeMapItem(object.ring); root.map.removeMapItem(object.vec); root.map.removeMapItem(object.tag) } }
+    }
+
+    Instantiator {
+        model: 6
+        delegate: QtObject {
+            id: pslot
+            readonly property int slot: index
+            readonly property var p:    slot < root._pairs.length ? root._pairs[slot] : null
+            readonly property var a:    p ? root._coord(root._byId(p.a)) : QtPositioning.coordinate()
+            readonly property var b:    p ? root._coord(root._byId(p.b)) : QtPositioning.coordinate()
+            readonly property bool ok:  !!p && a.isValid && b.isValid
+            readonly property color col: p ? root._levelColor(p.level) : "grey"
+
+            property var line: MapPolyline {
+                visible:    pslot.ok
+                line.width: pslot.p && pslot.p.level ? 2.5 : 1
+                line.color: pslot.col
+                path:       pslot.ok ? [pslot.a, pslot.b] : []
+            }
+            property var label: MapQuickItem {
+                visible:        pslot.ok
+                coordinate:     pslot.ok ? pslot.a.atDistanceAndAzimuth(pslot.a.distanceTo(pslot.b) / 2, pslot.a.azimuthTo(pslot.b)) : QtPositioning.coordinate()
+                anchorPoint.x:  lbl.width / 2
+                anchorPoint.y:  lbl.height / 2
+                sourceItem: Rectangle {
+                    id:     lbl
+                    width:  lblText.implicitWidth + 12 * root.u
+                    height: lblText.implicitHeight + 6 * root.u
+                    radius: 3 * root.u
+                    color:  "#E6090C0F"
+                    border.color: pslot.col
+                    Text {
+                        id: lblText
+                        anchors.centerIn: parent
+                        text: !pslot.p ? "" : Number(pslot.p.d).toFixed(1) + " m" + (pslot.p.level && pslot.p.cpa !== null ? "  ▸ " + Number(pslot.p.cpa).toFixed(1) + " m · " + Number(pslot.p.tcpa).toFixed(0) + "s" : "")
+                        color: pslot.col; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel
+                    }
+                }
+            }
+        }
+        onObjectAdded: function(index, object) { if (root.map) { root.map.addMapItem(object.line); root.map.addMapItem(object.label) } }
+        onObjectRemoved: function(index, object) { if (root.map) { root.map.removeMapItem(object.line); root.map.removeMapItem(object.label) } }
+    }
+
+    Component.onCompleted: if (map) map.addMapItem(_area)
+}

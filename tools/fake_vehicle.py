@@ -46,6 +46,19 @@ def offset(north, east):
     return lat, lon
 
 
+def duo_state(sysid, t):
+    """Small counter-rotating orbits (ACACT S7 ④): UAV 1 on 21 m, UAV 2 on 15 m, 3 m/s, 8 m AGL.
+    Shared with fake_guard.py so the guard overlay matches the vehicles."""
+    r = 21.0 if sysid == 1 else 15.0
+    sense = 1.0 if sysid == 1 else -1.0
+    speed = 3.0
+    ang = sense * speed * t / r + (0.0 if sysid == 1 else math.pi)
+    north, east = r * math.sin(ang), 40.0 + r * math.cos(ang)
+    vn, ve = sense * speed * math.cos(ang), -sense * speed * math.sin(ang)
+    lat, lon = offset(north, east)
+    return lat, lon, 8.0 + 0.3 * math.sin(t / 5), vn, ve
+
+
 def mission_items():
     """Takeoff, a hexagon on the flown circle, then RTL (QGC numbers them 1..N)."""
     items = [(mav.MAV_CMD_NAV_TAKEOFF, HOME_LAT, HOME_LON, 80.0)]
@@ -76,6 +89,8 @@ def main():
     ap.add_argument("--sysid", type=int, default=1, help="MAVLink system id (use 2, 3 ... for extra vehicles)")
     ap.add_argument("--duration", type=float, default=0, help="seconds, 0 = run forever")
     ap.add_argument("--rate", type=float, default=10.0, help="telemetry Hz")
+    ap.add_argument("--orbit", choices=["wide", "duo"], default="wide",
+                    help="wide: 350 m circle; duo: two small counter-rotating orbits for the ACACT guard view")
     args = ap.parse_args()
 
     conn = mavutil.mavlink_connection(args.target, source_system=args.sysid, source_component=1)
@@ -139,6 +154,10 @@ def main():
         hdg = (math.degrees(ang) + 180) % 360  # tangent of the circle, counter-clockwise
         vn = speed * math.cos(ang)
         ve = -speed * math.sin(ang)
+        if args.orbit == "duo":
+            lat, lon, alt, vn, ve = duo_state(args.sysid, t)
+            hdg = math.degrees(math.atan2(ve, vn)) % 360
+            speed = 3.0
         roll = math.radians(-12 + 1.5 * math.sin(t * 1.7))
         pitch = math.radians(-5 + 0.8 * math.sin(t * 1.3))
 

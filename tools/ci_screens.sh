@@ -5,7 +5,7 @@
 set -uo pipefail
 
 BUILD_DIR="$1"
-OUT="$2"
+OUT="$(mkdir -p "$2" && cd "$2" && pwd)"
 mkdir -p "$OUT"
 
 BIN="$(find "$BUILD_DIR" -maxdepth 3 -type f -name MobilityLabGCS -perm -u+x | head -n1)"
@@ -39,7 +39,7 @@ seed_settings () {
 }
 
 run_case () {
-    local name="$1" size="$2" scenario="$3" airframe="${4:-tandem}" second="${5:-}"
+    local name="$1" size="$2" scenario="$3" airframe="${4:-tandem}" second="${5:-}" orbit="${6:-wide}"
     local disp=":$((90 + RANDOM % 9))"
     echo "=== $name ($size, $scenario) on $disp"
 
@@ -47,13 +47,17 @@ run_case () {
     local xvfb=$!
     sleep 2
 
-    python3 mlgcs/tools/fake_vehicle.py --scenario "$scenario" --airframe "$airframe" --duration 150 > "$OUT/$name-vehicle.log" 2>&1 &
+    python3 mlgcs/tools/fake_vehicle.py --scenario "$scenario" --airframe "$airframe" --orbit "$orbit" --duration 150 > "$OUT/$name-vehicle.log" 2>&1 &
     local veh=$!
+    if [ "$orbit" = "duo" ]; then
+        # ACACT Guard stand-in: guard status for the two orbiting vehicles
+        (cd mlgcs/tools && python3 fake_guard.py --delay2 25 --duration 150 > "$OUT/$name-guard.log" 2>&1) &
+    fi
     local veh2=""
     if [ -n "$second" ]; then
         # second vehicle (system id 2) to check the multi-vehicle view
         # started late so the first vehicle stays the active one
-        (sleep 25; python3 mlgcs/tools/fake_vehicle.py --sysid 2 --scenario normal --airframe "$second" --duration 120 > "$OUT/$name-vehicle2.log" 2>&1) &
+        (sleep 25; python3 mlgcs/tools/fake_vehicle.py --sysid 2 --scenario normal --airframe "$second" --orbit "$orbit" --duration 120 > "$OUT/$name-vehicle2.log" 2>&1) &
         veh2=$!
     fi
 
@@ -76,6 +80,7 @@ run_case () {
     kill "$veh" 2>/dev/null
     [ -n "$veh2" ] && kill "$veh2" 2>/dev/null
     pkill -f fake_vehicle.py 2>/dev/null
+    pkill -f fake_guard.py 2>/dev/null
     pkill -f "$BIN" 2>/dev/null
     sleep 2
     pkill -9 -f "$BIN" 2>/dev/null
@@ -83,7 +88,7 @@ run_case () {
     wait 2>/dev/null
 }
 
-run_case tandem1080 1920x1080 faults tandem quad
+run_case tandem1080 1920x1080 faults tandem quad duo
 run_case quad768    1366x768  normal quad
 
 echo "=== QML problems in our files"

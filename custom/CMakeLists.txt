@@ -40,6 +40,8 @@ set(ML_QML_FILES
     ${ML_QML_DIR}/MLEventLog.qml
     ${ML_QML_DIR}/MLAlertBanner.qml
     ${ML_QML_DIR}/MLMapHud.qml
+    ${ML_QML_DIR}/MLGuardMapLayer.qml
+    ${ML_QML_DIR}/MLFleetLanes.qml
     ${ML_QML_DIR}/MLSetpointPanel.qml
     ${ML_QML_DIR}/MLCommandBar.qml
     ${ML_QML_DIR}/MLCommandButton.qml
@@ -64,6 +66,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TandemTelemetry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TandemTelemetry.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLGuardLink.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLGuardLink.h
     CACHE INTERNAL "" FORCE
 )
 
@@ -86,5 +90,6 @@ set(CUSTOM_DEFINITIONS
 
 set(CUSTOM_QT_COMPONENTS
     Core
+    Network
     CACHE INTERNAL "" FORCE
 )

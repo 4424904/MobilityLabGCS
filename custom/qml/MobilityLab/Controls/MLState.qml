@@ -14,6 +14,7 @@ QtObject {
     property real targetHeading:    NaN
     property bool setpointsOpen:    false
     property bool fleetOpen:        false
+    property bool profileOpen:      false
 
     // ---- event log (left column) ----------------------------------------
     // level: 0 info · 1 ok · 2 caution · 3 warning · 4 operator command

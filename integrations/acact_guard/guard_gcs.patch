@@ -1,0 +1,268 @@
+diff -ruN -x sim_out -x __pycache__ a/config.py b/config.py
+--- a/config.py	2026-11-02 18:08:22.000000000 +0900
++++ b/config.py	2026-11-26 09:12:38.079347635 +0900
+@@ -113,6 +113,13 @@
+ 
+ # ── 시연 화면 / 로그 ──────────────────────────────────────────
+ MAP_UDP = ("127.0.0.1", 47000)
++
++# ── MobilityLab GCS 연결 (gcs_link.py) ─────────────────────────
++#   GCS 가 다른 PC 에 있으면 환경변수 ACACT_GCS=<GCS IP>:47001 (쉼표로 여러 곳)
++GCS_STATUS_TARGETS = [("127.0.0.1", 47001)]   # 가드 상태 → GCS (5 Hz)
++GCS_CMD_PORT = 47002                          # GCS → 가드 명령 수신 포트
++GCS_CMD_ALLOW = ["127.0.0.1"]                 # 명령을 받을 GCS 주소 (ACACT_GCS 주소는 자동 포함)
++GCS_ALLOW_LOAD_START = False                  # load/start 는 가드 터미널에서만 (현장 절차 유지)
+ LOG_DIR = "logs"
+ SITE_FILE = "plans/site.json"
+ 
+diff -ruN -x sim_out -x __pycache__ a/gcs_link.py b/gcs_link.py
+--- a/gcs_link.py	1970-01-01 09:00:00.000000000 +0900
++++ b/gcs_link.py	2026-11-26 09:12:50.817349456 +0900
+@@ -0,0 +1,138 @@
++"""
++gcs_link.py — ACACT Guard ↔ MobilityLab GCS 연결
++════════════════════════════════════════════════════════════════
++가드 상태를 GCS 로 보내고 (5 Hz, UDP JSON), GCS 에서 온 운용 명령을 받는다.
++가드의 판단·회피 로직(core.py)과는 무관하며, 이 연결이 끊겨도 가드는 그대로 동작한다.
++
++  상태  : guard → GCS   UDP  GCS_STATUS_TARGETS (기본 127.0.0.1:47001)
++  명령  : GCS → guard   UDP  0.0.0.0:GCS_CMD_PORT (기본 47002)
++          {"cmd": "h", "id": 17, "from": "MobilityLabGCS"}
++          허용 명령: h, r, g, g!, auto on|off, s  (load/start 는 GCS_ALLOW_LOAD_START=True 일 때만)
++          GCS_CMD_ALLOW 에 없는 주소에서 온 명령은 버린다.
++          받은 명령은 가드 화면·이벤트 로그에 "GCS 명령"으로 남는다.
++
++GCS 가 다른 PC(Windows)에 있으면 환경변수로 지정:
++  ACACT_GCS=192.168.1.20:47001  python3 guard.py --drones D1,D2
++"""
++import json
++import os
++import socket
++
++import config as C
++
++PROTO = 1
++
++
++def _targets():
++    v = os.environ.get("ACACT_GCS", "")
++    out = []
++    for part in [p.strip() for p in v.split(",") if p.strip()] or [f"{h}:{p}" for h, p in C.GCS_STATUS_TARGETS]:
++        host, _, port = part.rpartition(":")
++        try:
++            out.append((host or "127.0.0.1", int(port)))
++        except ValueError:
++            pass
++    return out
++
++
++def _clean(v):
++    """NaN/inf → None (GCS 쪽 JSON 파서가 NaN 을 받지 못함)"""
++    if isinstance(v, float):
++        return v if v == v and abs(v) != float("inf") else None
++    if isinstance(v, dict):
++        return {k: _clean(x) for k, x in v.items()}
++    if isinstance(v, (list, tuple)):
++        return [_clean(x) for x in v]
++    return v
++
++
++class GcsLink:
++    def __init__(self, guard):
++        self.g = guard
++        self.targets = _targets()
++        self.allow = set(C.GCS_CMD_ALLOW) | {h for h, _ in self.targets}
++        self.tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
++        self.rx = None
++        self.ev_seq = 0
++        self.ev = []            # [(seq, t, who, text)] 최근 40개
++        try:
++            self.rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
++            self.rx.bind(("0.0.0.0", C.GCS_CMD_PORT))
++            self.rx.setblocking(False)
++        except OSError as e:
++            print(f"※ GCS 명령 포트 {C.GCS_CMD_PORT} 를 열 수 없음 ({e}) — GCS 에서 명령은 못 보냄, 상태 표시는 됨")
++            self.rx = None
++
++    # ── 이벤트 (한국어 원문 그대로, 순번 포함) ──
++    def on_event(self, t, who, text):
++        self.ev_seq += 1
++        self.ev = (self.ev + [(self.ev_seq, round(t, 1), who, text)])[-40:]
++
++    # ── 상태 송신 ──
++    def send(self, t, ins):
++        g = self.g
++        core = g.core
++        site = None
++        if g.frame is not None:
++            site = {"lat": g.frame.lat0, "lon": g.frame.lon0, "bearing": g.site["bearing_deg"] if g.site else 0.0,
++                    "radius": C.SCENARIO_RADIUS}
++        by = {x.id: x for x in ins}
++        drones = []
++        for d in g.ds:
++            x = by.get(d.id)
++            o = core.own[d.id]
++            item = {"id": d.id, "sysid": d.cfg["sysid"], "connected": d.connected,
++                    "lat": d.lat, "lon": d.lon, "alt": round(d.rel_alt, 2),
++                    "vn": round(d.vn, 2), "ve": round(d.ve, 2),
++                    "mode": d.mode, "own": bool(o.owned), "yield": bool(o.yielding), "lock": bool(o.lock),
++                    "fresh": bool(x.fresh) if x else False, "batt": d.batt,
++                    "seq": d.cur, "total": d.total, "takeovers": o.takeovers}
++            if x is not None and x.goal and g.frame is not None:
++                glat, glon = g.frame.fr_to_ll(x.goal[0], x.goal[1])
++                item["goal"] = [glat, glon]
++            drones.append(item)
++        pairs = []
++        for (a, b), pe in core.pairs.items():
++            ms = core.min_sep.get((a, b))
++            pairs.append({"a": a, "b": b, "d": round(pe.d_now, 2), "dz": round(pe.dz, 2), "level": pe.level,
++                          "cpa": round(pe.d_cpa, 2), "tcpa": round(pe.t_cpa, 2),
++                          "min": round(ms, 2) if ms is not None and ms < 1e8 else None})
++        msg = {"proto": PROTO, "src": "acact_guard", "t": round(t, 2),
++               "auto": bool(g.auto), "loaded": list(g.loaded) if g.loaded else None,
++               "cfg": {"d_safe": C.D_SAFE, "d_emerg": C.D_EMERG, "v_sep": C.V_SEP, "t_look": C.T_LOOK,
++                       "rs": C.ACACT["rs"], "duo": C.DUO, "profile": C.PROFILE},
++               "site": site, "drones": drones, "pairs": pairs,
++               "events": [{"n": n, "t": tt, "who": w, "text": tx} for n, tt, w, tx in self.ev[-20:]]}
++        data = json.dumps(_clean(msg), allow_nan=False, default=lambda o: None).encode()
++        for tgt in self.targets:
++            try:
++                self.tx.sendto(data, tgt)
++            except OSError:
++                pass
++
++    # ── 명령 수신 ──
++    def poll(self):
++        """새 명령을 꺼내 가드 명령 문자열 목록으로 돌려준다 (메인 루프에서 호출)."""
++        out = []
++        if self.rx is None:
++            return out
++        while True:
++            try:
++                data, addr = self.rx.recvfrom(4096)
++            except (BlockingIOError, OSError):
++                break
++            if addr[0] not in self.allow and "*" not in self.allow:
++                continue
++            try:
++                m = json.loads(data.decode())
++                cmd = str(m.get("cmd", "")).strip()
++            except Exception:
++                continue
++            head = cmd.split()[0].lower() if cmd else ""
++            if head in ("h", "r", "g", "g!", "s") or (head == "auto" and cmd.lower() in ("auto on", "auto off")):
++                out.append(cmd)
++            elif head in ("load", "start") and C.GCS_ALLOW_LOAD_START:
++                out.append(cmd)
++            else:
++                self.g.event("GCS", f"허용되지 않은 명령 무시: {cmd!r}")
++        return out
+diff -ruN -x sim_out -x __pycache__ a/guard.py b/guard.py
+--- a/guard.py	2026-11-02 17:01:53.000000000 +0900
++++ b/guard.py	2026-11-26 09:12:38.079174914 +0900
+@@ -36,6 +36,7 @@
+ import config as C
+ from core import GuardCore, DroneIn
+ from geo import Frame, load_site
++from gcs_link import GcsLink
+ from servers import Servers
+ 
+ try:
+@@ -134,6 +135,7 @@
+         self.auto_bad_since = None
+         self.auto_told_at = None
+         self.last_sync_t = -1e9
++        self.gcs = GcsLink(self)       # MobilityLab GCS 연결 (상태 송신·명령 수신)
+ 
+     # ── 워치독: 메인 루프가 1초 이상 멈추면 mavsdk_server 를 죽여 setpoint 스트림을 끊는다 ──
+     def _watchdog(self):
+@@ -163,6 +165,8 @@
+         if "모드 →" in text:
+             en = "mode " + text.split("→")[-1].strip()
+         self.events_recent = (self.events_recent + [f"{t:6.1f}s {who} {en}"])[-6:]
++        if getattr(self, "gcs", None) is not None:
++            self.gcs.on_event(t, who, text)
+ 
+     def fr(self, lat, lon):
+         return self.frame.ll_to_fr(lat, lon)
+@@ -576,36 +580,39 @@
+         q = asyncio.Queue()
+         loop.add_reader(sys.stdin, lambda: q.put_nowait(sys.stdin.readline()))
+         while not self.quit:
+-            raw = (await q.get()).strip()
+-            parts = raw.split()
+-            if not parts:
+-                continue
+-            cmd = parts[0].lower()
+-            # 각 명령은 별도 작업으로 실행 → 'start'(20초) 진행 중에도 'h' 가 즉시 동작
+-            if cmd == "h":
+-                asyncio.ensure_future(self.cmd_hold_all())
+-            elif cmd == "load":
+-                if len(parts) < 2:
+-                    print("사용: load S3_cross4 demo   (모드 생략 시 demo)")
+-                else:
+-                    asyncio.ensure_future(self.cmd_load(parts[1], parts[2].lower() if len(parts) > 2 else "demo"))
+-            elif cmd == "start":
+-                asyncio.ensure_future(self.cmd_start())
+-            elif cmd == "auto":
+-                arg = parts[1].lower() if len(parts) > 1 else ""
+-                if arg in ("on", "off"):
+-                    self.auto = (arg == "on")
+-                self.event("CMD", f"자동 진행 {'켜짐' if self.auto else '꺼짐'} (대기 {C.AUTO_SYNC_DELAY:.0f}초, 착륙 {'자동' if C.AUTO_LAND else '수동 g'})")
+-            elif cmd in ("g", "g!"):
+-                asyncio.ensure_future(self.cmd_sync(force=(cmd == "g!")))
+-            elif cmd == "r":
+-                asyncio.ensure_future(self.cmd_resume())
+-            elif cmd == "s":
+-                self.status()
+-            elif cmd == "q":
+-                self.quit = True
++            self.dispatch((await q.get()).strip())
++
++    def dispatch(self, raw):
++        """운용 명령 1줄 처리 (터미널 입력과 GCS 명령 공용)"""
++        parts = raw.split()
++        if not parts:
++            return
++        cmd = parts[0].lower()
++        # 각 명령은 별도 작업으로 실행 → 'start'(20초) 진행 중에도 'h' 가 즉시 동작
++        if cmd == "h":
++            asyncio.ensure_future(self.cmd_hold_all())
++        elif cmd == "load":
++            if len(parts) < 2:
++                print("사용: load S3_cross4 demo   (모드 생략 시 demo)")
+             else:
+-                print("명령: load <시나리오> [demo|rehearsal] / start / g / g! / auto on|off / h / r / s / q")
++                asyncio.ensure_future(self.cmd_load(parts[1], parts[2].lower() if len(parts) > 2 else "demo"))
++        elif cmd == "start":
++            asyncio.ensure_future(self.cmd_start())
++        elif cmd == "auto":
++            arg = parts[1].lower() if len(parts) > 1 else ""
++            if arg in ("on", "off"):
++                self.auto = (arg == "on")
++            self.event("CMD", f"자동 진행 {'켜짐' if self.auto else '꺼짐'} (대기 {C.AUTO_SYNC_DELAY:.0f}초, 착륙 {'자동' if C.AUTO_LAND else '수동 g'})")
++        elif cmd in ("g", "g!"):
++            asyncio.ensure_future(self.cmd_sync(force=(cmd == "g!")))
++        elif cmd == "r":
++            asyncio.ensure_future(self.cmd_resume())
++        elif cmd == "s":
++            self.status()
++        elif cmd == "q":
++            self.quit = True
++        else:
++            print("명령: load <시나리오> [demo|rehearsal] / start / g / g! / auto on|off / h / r / s / q")
+ 
+     # ── 사전 점검 ────────────────────────────────────────
+     def preflight(self):
+@@ -764,6 +771,11 @@
+             self.write_log(t, ins)
+         if k % 4 == 0:
+             self.send_map(t, ins)
++            self.gcs.send(t, ins)
++        if k % 2 == 0:
++            for cmd in self.gcs.poll():
++                self.event("GCS", f"GCS 명령: {cmd}")
++                self.dispatch(cmd)
+ 
+     def write_log(self, t, ins):
+         row = [f"{t:.2f}"]
