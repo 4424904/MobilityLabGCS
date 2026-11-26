@@ -109,10 +109,10 @@ double Scenarios::layer(const std::string &id) const
 }
 
 std::map<std::string, std::string> Scenarios::_assign(const std::vector<std::string> &ids,
-                                                      const std::vector<std::pair<std::string, P>> &slots) const
+                                                      const std::vector<std::pair<std::string, P>> &slotList) const
 {
     // itertools.permutations(keys, len(ids)) order, first minimum kept
-    std::vector<int> idx(slots.size());
+    std::vector<int> idx(slotList.size());
     std::iota(idx.begin(), idx.end(), 0);
     std::map<std::string, std::string> best;
     double bestc = 1e18;
@@ -120,14 +120,14 @@ std::map<std::string, std::string> Scenarios::_assign(const std::vector<std::str
         double cost = 0.0;
         for (size_t i = 0; i < ids.size(); i++) {
             const P p = stepPos(ids[i]);
-            const P q = slots[idx[i]].second;
+            const P q = slotList[idx[i]].second;
             cost += (p[0] - q[0]) * (p[0] - q[0]) + (p[1] - q[1]) * (p[1] - q[1]);
         }
         if (cost < bestc) {
             bestc = cost;
             best.clear();
             for (size_t i = 0; i < ids.size(); i++) {
-                best[ids[i]] = slots[idx[i]].first;
+                best[ids[i]] = slotList[idx[i]].first;
             }
         }
     } while (std::next_permutation(idx.begin(), idx.end()));

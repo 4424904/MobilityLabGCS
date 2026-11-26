@@ -49,7 +49,7 @@ private:
     std::vector<Leg> _scenario(const std::string &name) const;
     bool _directOk(const std::map<std::string, std::array<double, 2>> &starts) const;
     std::map<std::string, std::string> _assign(const std::vector<std::string> &ids,
-                                               const std::vector<std::pair<std::string, std::array<double, 2>>> &slots) const;
+                                               const std::vector<std::pair<std::string, std::array<double, 2>>> &slotList) const;
 
     Config _c;
     std::vector<std::string> _ids;
