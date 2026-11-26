@@ -27,6 +27,7 @@
 #include "acact/AcactFrame.h"
 
 #include <QtCore/QElapsedTimer>
+#include <QtCore/QtNumeric>
 #include <QtCore/QFile>
 #include <QtCore/QObject>
 #include <QtCore/QPointer>
