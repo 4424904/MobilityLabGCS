@@ -19,6 +19,10 @@ Rectangle {
     id: root
 
     signal closeRequested()
+    signal detachRequested()
+    signal attachRequested()
+    property bool detachable: false     // show "새 창" (open in its own window, e.g. on a second monitor)
+    property bool attachable: false     // in its own window: show "주 화면으로"
 
     readonly property real u:       MLTheme.u
     readonly property bool _run:    typeof mlGuard !== "undefined" && mlGuard.running
@@ -68,6 +72,12 @@ Rectangle {
                 color: MLTheme.dim
                 elide: Text.ElideRight
                 text: !root._run ? qsTr("정지") : (mlGuard.guardEnabled ? qsTr("감시 중 · %1").arg(MLTheme.duration(mlGuard.guardTime)) : qsTr("일시정지 (전체 HOLD)"))
+            }
+            MLCommandButton {
+                visible: root.detachable || root.attachable
+                compact: true; twoStep: false; implicitHeight: 30 * MLTheme.u
+                text: root.attachable ? qsTr("주 화면으로") : qsTr("새 창")
+                onClicked: root.attachable ? root.attachRequested() : root.detachRequested()
             }
             Rectangle {
                 Layout.preferredWidth: 30 * u; Layout.preferredHeight: 30 * u
@@ -540,6 +550,35 @@ Rectangle {
                         Text { text: (modelData.minSep !== undefined && modelData.minSep !== null ? qsTr("최소 %1 m").arg(Number(modelData.minSep).toFixed(1)) : "") + qsTr(" · 개입 %1").arg(modelData.takeovers)
                                color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel }
                     }
+                }
+                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: MLTheme.line; Layout.topMargin: 4 * u }
+
+                Caption { text: qsTr("기체 프로필 (MAVLink ID 별 · 이름, 통신, 완충 비행 시간)") }
+                Repeater {
+                    model: mlGuard.vehicleProfiles
+                    RowLayout {
+                        id: vp
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 6 * u
+                        Rectangle { Layout.preferredWidth: 3 * u; Layout.preferredHeight: 22 * u; color: MLTheme.vehicleColor(vp.modelData.sysid); opacity: vp.modelData.connected ? 1 : 0.35 }
+                        Text { text: vp.modelData.id; color: MLTheme.vehicleColor(vp.modelData.sysid); font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall; Layout.preferredWidth: 28 * u }
+                        QGCTextField { Layout.preferredWidth: 96 * u; placeholderText: qsTr("이름"); text: vp.modelData.name; onEditingFinished: mlGuard.setVehicleProfile(vp.modelData.sysid, "name", text) }
+                        QGCTextField { Layout.fillWidth: true; placeholderText: qsTr("통신 (예: SiK 915 #1, COM5)"); text: vp.modelData.link; onEditingFinished: mlGuard.setVehicleProfile(vp.modelData.sysid, "link", text) }
+                        QGCTextField {
+                            Layout.preferredWidth: 60 * u
+                            placeholderText: qsTr("분")
+                            text: vp.modelData.endurance > 0 ? Number(vp.modelData.endurance / 60).toFixed(0) : ""
+                            validator: IntValidator { bottom: 1; top: 300 }
+                            onEditingFinished: mlGuard.setVehicleProfile(vp.modelData.sysid, "endurance", text === "" ? -1 : Number(text) * 60)
+                        }
+                        MLText { text: vp.modelData.autoType !== "" ? vp.modelData.autoType : qsTr("연결 안 됨"); color: MLTheme.faint; font.pixelSize: MLTheme.fsLabel; Layout.preferredWidth: 110 * u; elide: Text.ElideRight }
+                    }
+                }
+                MLText {
+                    Layout.fillWidth: true; wrapMode: Text.WordWrap
+                    font.pixelSize: MLTheme.fsLabel; color: MLTheme.faint
+                    text: qsTr("완충 비행 시간(분)을 넣으면 그 기체의 미션 배터리 검사에 씁니다. 비우면 '완충 비행 가능 시간' 설정값을 씁니다.")
                 }
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: MLTheme.line; Layout.topMargin: 4 * u }
 

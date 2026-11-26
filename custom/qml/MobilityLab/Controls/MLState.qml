@@ -17,6 +17,9 @@ QtObject {
     property bool profileOpen:      false
     property bool guardConsoleOpen: false
     property bool analysisOpen:     false
+    // second monitor: the ACACT console / analysis in their own windows
+    property bool consoleDetached:  false
+    property bool analysisDetached: false
 
     // ACACT Guard ids (D1…D4) of the connected vehicles: MAVLink system id n → Dn
     function guardDrones() {

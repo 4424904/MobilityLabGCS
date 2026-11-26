@@ -573,6 +573,13 @@ void MLAcactRuntime::loadScenario(const QString &name, const QString &mode)
         _event(QStringLiteral("CMD"), tr("제어 가능한 PX4 기체(D1~D4)가 없음"));
         return;
     }
+    for (const QString &id : ids) {
+        VS *x = _vs(id);
+        if (x && x->v && (!x->v->isInitialConnectComplete() || x->v->missionManager()->inProgress())) {
+            _event(id, tr("※ 기체 초기화(파라미터·미션 읽기) 중 — 잠시 후 다시"));
+            return;
+        }
+    }
     std::vector<std::string> sids;
     for (const QString &x : ids) {
         sids.push_back(x.toStdString());
@@ -852,6 +859,7 @@ void MLAcactRuntime::_attach(Vehicle *vehicle)
         d->sim = (has("SIM_BAT_DRAIN") || has("SIM_SPEEDUP") || has("SIM_GPS_USED") || hitl) ? 1 : 0;
         _event(d->id, d->sim ? tr("시뮬레이션 기체 (SITL/HITL)") : tr("실기체"));
         emit opModeChanged();
+        emit profilesChanged();
     });
     emit scenariosChanged();
     d->supported = vehicle->px4Firmware() && vehicle->multiRotor();
@@ -2169,6 +2177,7 @@ void MLAcactRuntime::_runMissionCheck()
         vm.batt = std::isnan(d->batt) ? -1.0 : d->batt;
         vm.cruise = v->px4Firmware() ? paramOr(v, "MPC_XY_CRUISE", 5.0) : paramOr(v, "WPNAV_SPEED", 5.0, 0.01);
         vm.rtlAlt = v->px4Firmware() ? paramOr(v, "RTL_RETURN_ALT", 30.0) : paramOr(v, "RTL_ALT", 15.0, 0.01);
+        vm.endurance = QSettings().value(QStringLiteral("MobilityLab/vehicles/%1/endurance").arg(d->sysid), -1).toDouble();
         for (const MissionItem *mi : v->missionManager()->missionItems()) {
             acact::MItem it;
             it.seq = mi->sequenceNumber();
@@ -2239,7 +2248,7 @@ void MLAcactRuntime::_runMissionCheck()
         for (const acact::Issue &i : r.issues) {
             nErr += i.level == acact::Level::Error;
             nWarn += i.level == acact::Level::Warn;
-            if (i.level == acact::Level::Error) {
+            if (i.level == acact::Level::Error && i.code != "EMPTY") {   // no mission yet is normal before loading
                 const QString key = d->id + QLatin1Char('|') + _issueText(i);
                 errorsNow.insert(key);
                 if (!_reportedErrors.contains(key)) {
@@ -2305,8 +2314,8 @@ QStringList MLAcactRuntime::_missionErrors(const QString &id) const
     for (const acact::VehicleReport &r : _report.vehicles) {
         if (r.id == sid) {
             for (const acact::Issue &i : r.issues) {
-                // EMPTY / TAKEOFF_FAR are already the guard.py preflight items
-                if (i.level == acact::Level::Error && i.code != "EMPTY" && i.code != "TAKEOFF_FAR") {
+                // EMPTY is already the guard.py preflight item "미션 없음" (TAKEOFF_FAR is not: guard.py checks it only with a site)
+                if (i.level == acact::Level::Error && i.code != "EMPTY") {
                     out << _issueText(i);
                 }
             }
@@ -2337,6 +2346,11 @@ bool MLAcactRuntime::uploadPlanFile(int sysid, const QString &pathIn)
     }
     if (_core && _core->own.count(d->id.toStdString()) && _core->own[d->id.toStdString()].owned) {
         _event(who, tr("※ 회피 중에는 미션을 바꿀 수 없음 — 회피가 끝난 뒤 다시"));
+        return false;
+    }
+    if (!d->v->isInitialConnectComplete() || d->v->missionManager()->inProgress()) {
+        // QGC is still reading parameters / the mission from the vehicle: a write now would race with that read
+        _event(who, tr("※ 기체 초기화(파라미터·미션 읽기) 중 — 잠시 후 다시"));
         return false;
     }
     QFile f(path);
@@ -2740,4 +2754,69 @@ QString MLAcactRuntime::_coreText(const QString &ko) const
         }
     }
     return ko;
+}
+
+
+// ---------------------------------------------------------------------------
+// Per-vehicle profiles (QSettings MobilityLab/vehicles/<sysid>/…)
+// ---------------------------------------------------------------------------
+QVariantList MLAcactRuntime::vehicleProfiles() const
+{
+    QSettings s;
+    s.beginGroup(QStringLiteral("MobilityLab/vehicles"));
+    QSet<int> ids;
+    for (const QString &g : s.childGroups()) {
+        ids.insert(g.toInt());
+    }
+    for (const VS *d : _vs_) {
+        ids.insert(d->sysid);
+    }
+    QList<int> sorted(ids.begin(), ids.end());
+    std::sort(sorted.begin(), sorted.end());
+    QVariantList out;
+    for (int id : sorted) {
+        if (id <= 0) {
+            continue;
+        }
+        const VS *d = nullptr;
+        for (const VS *x : _vs_) {
+            if (x->sysid == id) {
+                d = x;
+            }
+        }
+        QString autoType;
+        if (d && d->v) {
+            autoType = d->v->multiRotor() ? tr("멀티콥터") : (d->v->fixedWing() ? tr("고정익") : (d->v->vtol() ? QStringLiteral("VTOL") : tr("헬기·기타")));
+            autoType += d->v->px4Firmware() ? QStringLiteral(" · PX4") : (d->v->apmFirmware() ? QStringLiteral(" · ArduPilot") : QString());
+        }
+        s.beginGroup(QString::number(id));
+        out.append(QVariantMap{{QStringLiteral("sysid"), id}, {QStringLiteral("id"), QStringLiteral("D%1").arg(id)},
+                               {QStringLiteral("connected"), d && d->connected}, {QStringLiteral("autoType"), autoType},
+                               {QStringLiteral("sim"), d ? d->sim : -1}, {QStringLiteral("supported"), d && d->supported},
+                               {QStringLiteral("name"), s.value(QStringLiteral("name")).toString()},
+                               {QStringLiteral("link"), s.value(QStringLiteral("link")).toString()},
+                               {QStringLiteral("endurance"), s.value(QStringLiteral("endurance"), -1).toDouble()},
+                               {QStringLiteral("notes"), s.value(QStringLiteral("notes")).toString()}});
+        s.endGroup();
+    }
+    return out;
+}
+
+void MLAcactRuntime::setVehicleProfile(int sysid, const QString &key, const QVariant &value)
+{
+    static const QStringList keys = {QStringLiteral("name"), QStringLiteral("link"), QStringLiteral("endurance"), QStringLiteral("notes")};
+    if (sysid <= 0 || !keys.contains(key)) {
+        return;
+    }
+    QSettings().setValue(QStringLiteral("MobilityLab/vehicles/%1/%2").arg(sysid).arg(key), value);
+    emit profilesChanged();
+    if (key == QLatin1String("endurance")) {
+        _scheduleMissionCheck();
+    }
+}
+
+QString MLAcactRuntime::vehicleName(int sysid) const
+{
+    const QString n = QSettings().value(QStringLiteral("MobilityLab/vehicles/%1/name").arg(sysid)).toString();
+    return n.isEmpty() ? QStringLiteral("D%1").arg(sysid) : QStringLiteral("D%1 %2").arg(sysid).arg(n);
 }

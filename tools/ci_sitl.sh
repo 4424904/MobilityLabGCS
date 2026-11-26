@@ -139,7 +139,7 @@ run_acact () {
     # same vehicle parameters as the original set_params.py, except what SITL has no hardware for (RC)
     local common="PX4_SIM_MODEL=sihsim_quadx PX4_PARAM_COM_OF_LOSS_T=1.0 PX4_PARAM_COM_OBL_RC_ACT=5 PX4_PARAM_NAV_ACC_RAD=2.0 \
 PX4_PARAM_MPC_TKO_SPEED=1.0 PX4_PARAM_MPC_XY_CRUISE=3.0 PX4_PARAM_MIS_TAKEOFF_ALT=8.0 PX4_PARAM_RTL_CONE_ANG=0 \
-PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX4_PARAM_NAV_DLL_ACT=0"
+PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX4_PARAM_NAV_DLL_ACT=0 PX4_PARAM_SIM_BAT_DRAIN=1800"
     rm -rf "$PX4_BUILD/rootfs0" "$PX4_BUILD/rootfs1"; mkdir -p "$PX4_BUILD/rootfs0" "$PX4_BUILD/rootfs1"
     (cd "$PX4_BUILD/rootfs0" && eval "$common PX4_PARAM_SIH_LOC_LAT0=37.2100856 PX4_PARAM_SIH_LOC_LON0=126.8307462 PX4_PARAM_RTL_RETURN_ALT=20 ../bin/px4 -i 0 -d ../etc") > "$OUT/sitl-acact-$c-px4-0.log" 2>&1 &
     local p0=$!
@@ -190,8 +190,9 @@ PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX
     done
     wait "$chk"; local rc=$?
     shot "$disp" "$OUT/sitl-acact-$c-final.png"
-    echo "--- ACACT $c check"; tail -n 30 "$OUT/sitl-acact-$c-check.log"
-    echo "--- GCS ACACT events"; grep -h "MLACACT" "$OUT"/sitl-acact-$c-app*.log | tail -n 80
+    echo "--- ACACT $c check"; cat "$OUT/sitl-acact-$c-check.log"
+    echo "--- GCS ACACT events"; grep -h "MLACACT" "$OUT"/sitl-acact-$c-app*.log | sed 's/ - qml.*//' | grep -v "preflight D[0-9] 배터리"
+    echo "--- PX4 failsafe / warnings"; grep -hiE "failsafe|warn|error|lost|land|battery|estimat" "$OUT"/sitl-acact-$c-px4-*.log | head -n 80
     [[ "$c" == linkloss ]] && link restore 1 2>/dev/null
     kill "$p0" "$p1" 2>/dev/null; pkill -f "bin/px4" 2>/dev/null
     pkill -f "$KILLPAT" 2>/dev/null; sleep 3; pkill -9 -f "$KILLPAT" 2>/dev/null

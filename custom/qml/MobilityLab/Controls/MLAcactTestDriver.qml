@@ -79,7 +79,7 @@ QtObject {
         var ready = 0
         for (var i = 0; i < vs.count; i++) {
             var v = vs.get(i)
-            if (v.coordinate.isValid && v.homePosition.isValid) ready++
+            if (v.coordinate.isValid && v.homePosition.isValid && v.initialConnectComplete) ready++
         }
         return ready >= n && mlGuard.activeIds.split(",").length >= n
     }
@@ -170,22 +170,21 @@ QtObject {
         var bad = testCase === "user"
         if (stage === 1) {
             if (mlGuard.busyText !== "") return
-            mlGuard.uploadPlanFile(1, planDir + "/D1.plan")
-            stage = 2
+            if (mlGuard.uploadPlanFile(1, planDir + "/D1.plan")) stage = 2
         } else if (stage === 2) {
             if (mlGuard.busyText !== "") return
-            mlGuard.uploadPlanFile(2, planDir + (bad ? "/D2_bad.plan" : "/D2.plan"))
-            stage = bad ? 3 : 5
+            if (mlGuard.uploadPlanFile(2, planDir + (bad ? "/D2_bad.plan" : "/D2.plan"))) stage = bad ? 3 : 5
         } else if (stage === 3) {
             if (mlGuard.busyText !== "") return
             var mc = mlGuard.validateMissions()
             mlGuard.start()
             var ok = mlGuard.startFlight()
             log("bad mission errors=" + mc.errors + " [" + issuesText(mc) + "] start=" + ok)
+            if (ok) { mlGuard.abortStart(); mlGuard.holdAll(); log("※ bad mission was not blocked — test stopped"); stage = 9; return }
             stage = 4
         } else if (stage === 4) {
-            mlGuard.uploadPlanFile(2, planDir + "/D2.plan")
-            stage = 5
+            if (mlGuard.busyText !== "") return
+            if (mlGuard.uploadPlanFile(2, planDir + "/D2.plan")) stage = 5
         } else if (stage === 5) {
             if (mlGuard.busyText !== "") return
             mc = mlGuard.validateMissions()

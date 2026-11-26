@@ -401,7 +401,7 @@ MissionReport checkMissions(const std::vector<VehicleMission> &vms, const Config
             vr.maxAlt = std::max(vr.maxAlt, b.u);
         }
         vr.duration = w.t;
-        const double need = 100.0 * w.t / std::max(60.0, lim.endurance);
+        const double need = 100.0 * w.t / std::max(60.0, vm.endurance > 0 ? vm.endurance : lim.endurance);
         if (vr.navItems > 0) {
             if (need > 100.0 - lim.battReserve) {
                 vr.issues.push_back(mk(Level::Error, "ENDURANCE", -1, need, 100.0 - lim.battReserve));

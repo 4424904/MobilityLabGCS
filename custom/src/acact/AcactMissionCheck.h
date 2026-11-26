@@ -48,6 +48,7 @@ struct VehicleMission {
     double batt = -1;         // % (−1 unknown)
     double cruise = 5.0;      // [m/s] PX4 MPC_XY_CRUISE (or mission default)
     double rtlAlt = 20.0;     // [m]
+    double endurance = -1;    // [s] flight time on 100 % (vehicle profile); ≤ 0 → Limits::endurance
     std::vector<MItem> items; // as on the vehicle (seq 0 = first item, no home)
     std::vector<Fence> fences;
 };

@@ -5,6 +5,7 @@ name: Build MobilityLab GCS
 # sitl     (Ubuntu 24.04)  the AppImage against ArduPilot/PX4 SITL: 목표 조정 + every ACACT case (matrix)
 # report                   results of linux + sitl → ci-screens branch (screens, logs, sitl-*.json, summary)
 # windows  (Windows)       build, NSIS installer, then install / launch / portable / uninstall tests → ci-windows branch
+#                          (tags, manual runs, or [win] in the commit message — Windows minutes count double)
 
 on:
   push:
@@ -269,6 +270,8 @@ jobs:
 
   windows:
     name: Windows installer + portable
+    # Windows minutes count double: run on release tags, manual runs, or a commit message with [win]
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win]')
     runs-on: windows-2022
     timeout-minutes: 180
     permissions:

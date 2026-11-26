@@ -89,6 +89,8 @@ class MLAcactRuntime : public QObject
     Q_PROPERTY(QVariantList simRecords      READ simRecords     NOTIFY opModeChanged)
     Q_PROPERTY(QString      planTitle       READ planTitle      NOTIFY missionCheckChanged)
     Q_PROPERTY(bool         planSimVerified READ planSimVerified NOTIFY missionCheckChanged)
+    // per-vehicle profile (by MAVLink system id): name, type, link note, endurance
+    Q_PROPERTY(QVariantList vehicleProfiles READ vehicleProfiles NOTIFY profilesChanged)
 
 public:
     explicit MLAcactRuntime(QObject *parent = nullptr);
@@ -130,6 +132,7 @@ public:
     QString planTitle() const;
     QString planSignature() const;
     bool planSimVerified() const;
+    QVariantList vehicleProfiles() const;
 
     // ---- operation ----------------------------------------------------------
     /// Start guarding every connected vehicle (MAVLink system id n → "Dn").
@@ -173,6 +176,8 @@ public:
     Q_INVOKABLE void setOpMode(const QString &mode);
     /// field mode: let the next 일괄 시작 go ahead without a SITL record of this plan (logged)
     Q_INVOKABLE void allowUnverifiedOnce();
+    Q_INVOKABLE void setVehicleProfile(int sysid, const QString &key, const QVariant &value);
+    Q_INVOKABLE QString vehicleName(int sysid) const;
     /// QGC .plan file → vehicle (simple items + geofence), read back and verified
     Q_INVOKABLE bool uploadPlanFile(int sysid, const QString &path);
     /// vehicle mission + geofence → QGC .plan file
@@ -187,6 +192,7 @@ signals:
     void scenariosChanged();
     void missionCheckChanged();
     void opModeChanged();
+    void profilesChanged();
     void guardEvent(int seq, double time, const QString &who, const QString &text);
 
 private slots:

@@ -455,8 +455,32 @@ Item {
             anchors.margins:        _gap * 2
             width:                  Math.min(implicitWidth, parent.width - _gap * 4)
             z:                      QGroundControl.zOrderTopMost
-            visible:                _consoleVisible && MLState.guardConsoleOpen
+            visible:                _consoleVisible && MLState.guardConsoleOpen && !MLState.consoleDetached
+            detachable:             true
             onCloseRequested:       MLState.guardConsoleOpen = false
+            onDetachRequested:      MLState.consoleDetached = true
+        }
+        // the same console in its own window (second monitor)
+        Loader {
+            active: MLState.guardConsoleOpen && MLState.consoleDetached
+            sourceComponent: Component {
+                Window {
+                    visible:    true
+                    width:      640 * _u
+                    height:     900 * _u
+                    title:      "MobilityLab GCS — ACACT"
+                    color:      MLTheme.bg
+                    onClosing:  MLState.consoleDetached = false
+                    MLGuardConsole {
+                        anchors.fill:       parent
+                        anchors.margins:    6 * _u
+                        detachable:         false
+                        attachable:         true
+                        onCloseRequested:   { MLState.consoleDetached = false; MLState.guardConsoleOpen = false }
+                        onAttachRequested:  MLState.consoleDetached = false
+                    }
+                }
+            }
         }
 
         // 비행 분석 · 리플레이 (guard logs, PDF report)
@@ -464,10 +488,34 @@ Item {
             anchors.fill:       parent
             anchors.margins:    _gap * 2
             z:                  QGroundControl.zOrderTopMost + 1
-            active:             MLState.analysisOpen && typeof mlAnalysis !== "undefined"
+            active:             MLState.analysisOpen && !MLState.analysisDetached && typeof mlAnalysis !== "undefined"
             visible:            active
             sourceComponent: Component {
-                MLAnalysisView { onCloseRequested: MLState.analysisOpen = false }
+                MLAnalysisView {
+                    detachable:         true
+                    onCloseRequested:   MLState.analysisOpen = false
+                    onDetachRequested:  MLState.analysisDetached = true
+                }
+            }
+        }
+        Loader {
+            active: MLState.analysisOpen && MLState.analysisDetached && typeof mlAnalysis !== "undefined"
+            sourceComponent: Component {
+                Window {
+                    visible:    true
+                    width:      1500 * _u
+                    height:     900 * _u
+                    title:      "MobilityLab GCS — " + qsTr("비행 분석")
+                    color:      MLTheme.bg
+                    onClosing:  { MLState.analysisDetached = false; MLState.analysisOpen = false }
+                    MLAnalysisView {
+                        anchors.fill:       parent
+                        anchors.margins:    6 * _u
+                        attachable:         true
+                        onCloseRequested:   { MLState.analysisDetached = false; MLState.analysisOpen = false }
+                        onAttachRequested:  MLState.analysisDetached = false
+                    }
+                }
             }
         }
 

@@ -102,6 +102,8 @@ if ($un) {
     Start-Sleep -Seconds 3
     $results.uninstall_removes_files = -not (Test-Path "$InstDir\bin\MobilityLabGCS.exe")
     $results.uninstall_removes_shortcuts = -not (Get-ChildItem -Path "$env:PUBLIC\Desktop" -Filter 'MobilityLab*.lnk' -ErrorAction SilentlyContinue)
+    $results.uninstall_removes_start_menu = -not (Get-ChildItem -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs" -Recurse -Filter 'MobilityLab*.lnk' -ErrorAction SilentlyContinue)
+    $results.start_menu_intact = (Get-ChildItem -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs" -Recurse -Filter '*.lnk' -ErrorAction SilentlyContinue).Count -gt 0   # nothing else removed
     $results.uninstall_removes_registry = -not (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'MobilityLab*' })
 } else {
     $results.uninstall_removes_files = $false

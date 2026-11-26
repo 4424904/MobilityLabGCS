@@ -17,6 +17,10 @@ Rectangle {
     id: root
 
     signal closeRequested()
+    signal detachRequested()
+    signal attachRequested()
+    property bool detachable: false     // show "새 창" (open in its own window, e.g. on a second monitor)
+    property bool attachable: false     // in its own window: show "주 화면으로"
 
     readonly property real u: MLTheme.u
     readonly property bool _ok: typeof mlAnalysis !== "undefined"
@@ -81,6 +85,12 @@ Rectangle {
             MLText { id: reportMsg; color: MLTheme.label; font.pixelSize: MLTheme.fsLabel; Layout.maximumWidth: 420 * u; elide: Text.ElideMiddle }
             Btn { text: qsTr("PDF 보고서"); tone: "active"; available: root._loaded; disabledReason: qsTr("기록을 먼저 여세요")
                   onClicked: { pdfDialog.selectedFile = "file:///" + mlAnalysis.defaultReportPath().replace(/^\//, ""); pdfDialog.open() } }
+            MLCommandButton {
+                visible: root.detachable || root.attachable
+                compact: true; twoStep: false; implicitHeight: 30 * MLTheme.u
+                text: root.attachable ? qsTr("주 화면으로") : qsTr("새 창")
+                onClicked: root.attachable ? root.attachRequested() : root.detachRequested()
+            }
             Rectangle {
                 Layout.preferredWidth: 30 * u; Layout.preferredHeight: 30 * u
                 radius: 4 * u

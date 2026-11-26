@@ -15,6 +15,12 @@ def rep(a, b):
     s = s.replace(a, b, 1)
 
 
+# start-menu folder also in silent installs (the page does not run there) and never empty on uninstall
+rep('!insertmacro MUI_PAGE_STARTMENU Application $StartMenuFolder',
+    '!define MUI_STARTMENUPAGE_DEFAULTFOLDER "${APPNAME}"\n!insertmacro MUI_PAGE_STARTMENU Application $StartMenuFolder')
+rep('    !insertmacro MUI_STARTMENU_GETFOLDER Application $StartMenuFolder\n',
+    '    !insertmacro MUI_STARTMENU_GETFOLDER Application $StartMenuFolder\n'
+    '    ${If} $StartMenuFolder == ""\n        StrCpy $StartMenuFolder "${APPNAME}"\n    ${EndIf}\n')
 rep('!insertmacro MUI_PAGE_INSTFILES\n',
     '!insertmacro MUI_PAGE_INSTFILES\n'
     '!define MUI_FINISHPAGE_RUN "$INSTDIR\\bin\\${EXENAME}.exe"\n'
@@ -24,7 +30,11 @@ rep('        !insertmacro DemoteShortCut "$SMPROGRAMS\\$StartMenuFolder\\${APPNA
     '    !insertmacro MUI_STARTMENU_WRITE_END\n',
     '        !insertmacro DemoteShortCut "$SMPROGRAMS\\$StartMenuFolder\\${APPNAME} (GPU Safe Mode).lnk"\n'
     '    !insertmacro MUI_STARTMENU_WRITE_END\n'
-    '    CreateShortCut "$DESKTOP\\${APPNAME}.lnk" "$INSTDIR\\bin\\${EXENAME}.exe" "" "$INSTDIR\\bin\\${EXENAME}.exe" 0\n')
+    '    CreateShortCut "$DESKTOP\\${APPNAME}.lnk" "$INSTDIR\\bin\\${EXENAME}.exe" "" "$INSTDIR\\bin\\${EXENAME}.exe" 0\n'
+    '    ${If} ${Silent}\n'
+    '        CreateDirectory "$SMPROGRAMS\\${APPNAME}"\n'
+    '        CreateShortCut "$SMPROGRAMS\\${APPNAME}\\${APPNAME}.lnk" "$INSTDIR\\bin\\${EXENAME}.exe" "" "$INSTDIR\\bin\\${EXENAME}.exe" 0\n'
+    '    ${EndIf}\n')
 rep('    RMDir /r /REBOOTOK "$SMPROGRAMS\\$StartMenuFolder\\"\n',
     '    RMDir /r /REBOOTOK "$SMPROGRAMS\\$StartMenuFolder\\"\n'
     '    Delete "$DESKTOP\\${APPNAME}.lnk"\n')
