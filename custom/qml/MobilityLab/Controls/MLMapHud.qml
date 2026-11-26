@@ -49,9 +49,9 @@ Rectangle {
         component Val: Text { color: MLTheme.text; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall }
 
         Key { text: "LAT" }
-        Val { text: root._has ? root._dms(root._c.latitude, "N", "S") : "—" }
+        Val { text: root._has && root._c ? root._dms(root._c.latitude, "N", "S") : "—" }
         Key { text: "LON" }
-        Val { text: root._has ? root._dms(root._c.longitude, "E", "W") : "—" }
+        Val { text: root._has && root._c ? root._dms(root._c.longitude, "E", "W") : "—" }
         Key { text: "MGRS"; visible: root._mgrs !== "" }
         Val { text: root._mgrs; visible: root._mgrs !== "" }
         Key { text: "HOME" }

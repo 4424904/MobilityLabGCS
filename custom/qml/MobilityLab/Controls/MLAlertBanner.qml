@@ -80,7 +80,7 @@ Item {
             id:                     msgText
             anchors.left:           parent.left
             anchors.leftMargin:     tag.x + 98 * u
-            anchors.right:          moreText.left
+            anchors.right:          moreText.visible ? moreText.left : ack.left
             anchors.rightMargin:    12 * u
             anchors.verticalCenter: parent.verticalCenter
             text:                   root.message
@@ -95,7 +95,6 @@ Item {
             anchors.rightMargin:    12 * u
             anchors.verticalCenter: parent.verticalCenter
             visible:                root.more > 0
-            width:                  visible ? implicitWidth : 0
             text:                   "+" + root.more
             color:                  MLTheme.caution
             font.family:            MLTheme.mono

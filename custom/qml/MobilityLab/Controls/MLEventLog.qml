@@ -92,15 +92,14 @@ Item {
                 anchors.leftMargin: 8 * u
                 y:          4 * u
                 visible:    root._multi && parent.vid > 0
-                width:      visible ? implicitWidth : 0
                 text:       ("0" + parent.vid).slice(-2)
-                color:      MLTheme.accent
+                color:      MLTheme.vehicleColor(parent.vid)
                 font.family:    MLTheme.mono
                 font.pixelSize: MLTheme.fsLabel
             }
             MLText {
                 id:                 msg
-                anchors.left:       uav.right
+                anchors.left:       uav.visible ? uav.right : timeText.right
                 anchors.leftMargin: 8 * u
                 anchors.right:      parent.right
                 anchors.rightMargin: 16 * u

@@ -205,11 +205,25 @@ Item {
         anchors.left:   leftRow.right
         anchors.right:  rightRow.left
         height:         parent.height
+    }
+    // In the bar when there is room; otherwise it drops just below it
+    Rectangle {
+        id:         confirmHost
+        readonly property bool _fits:   centerPanel.width >= guidedActionConfirm.width + 24 * u
+        readonly property bool _shown:  guidedActionConfirm.visible
+        width:      guidedActionConfirm.width + (_fits ? 0 : 28 * u)
+        height:     _fits ? control.height : 56 * u
+        x:          _fits ? centerPanel.x + (centerPanel.width - width) / 2 : (control.width - width) / 2
+        y:          _fits ? 0 : control.height + 8 * u
+        z:          QGroundControl.zOrderTopMost
+        radius:     _fits ? 0 : MLTheme.panelRadius
+        color:      _shown && !_fits ? MLTheme.glassStrong : "transparent"
+        border.color: _shown && !_fits ? "#5A4416" : "transparent"
 
         GuidedActionConfirm {
             id:                         guidedActionConfirm
-            height:                     parent.height
-            anchors.horizontalCenter:   parent.horizontalCenter
+            height:                     confirmHost._fits ? control.height : 44 * u
+            anchors.centerIn:           parent
             guidedController:           control._guidedController
             guidedValueSlider:          control.guidedValueSlider
             messageDisplay:             guidedActionMessageDisplay
@@ -319,9 +333,8 @@ Item {
     // The guided action message display is outside the confirm control so it is not clipped
     Rectangle {
         id:                         guidedActionMessageDisplay
-        anchors.top:                control.bottom
-        anchors.topMargin:          _margins
-        x:                          control.mapFromItem(guidedActionConfirm.parent, guidedActionConfirm.x, 0).x + (guidedActionConfirm.width - guidedActionMessageDisplay.width) / 2
+        y:                          confirmHost._fits ? control.height + _margins : confirmHost.y + confirmHost.height + _margins
+        x:                          confirmHost.x + (confirmHost.width - guidedActionMessageDisplay.width) / 2
         width:                      messageLabel.contentWidth + (_margins * 2)
         height:                     messageLabel.contentHeight + (_margins * 2)
         color:                      MLTheme.panel

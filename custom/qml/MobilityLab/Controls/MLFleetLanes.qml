@@ -32,7 +32,13 @@ Rectangle {
     clip:           true
 
     function fv(fact) { if (!fact) return NaN; var v = fact.rawValue; return (v === undefined || v === null) ? NaN : Number(v) }
-    function guardDrone(sysid) { return _g ? mlGuard.droneForSysid(sysid) : ({}) }
+    // reads mlGuard.drones directly so lanes re-bind on every guard update
+    function guardDrone(sysid) {
+        if (!_g) return ({})
+        var ds = mlGuard.drones
+        for (var i = 0; i < ds.length; i++) if (Number(ds[i].sysid) === Number(sysid)) return ds[i]
+        return ({})
+    }
     function closestFor(id) {
         if (!_g || !id) return null
         var best = null

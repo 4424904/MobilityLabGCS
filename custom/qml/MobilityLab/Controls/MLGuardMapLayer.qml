@@ -76,8 +76,9 @@ Item {
             property var tag: MapQuickItem {
                 visible:        dslot.ok
                 coordinate:     dslot.c
-                anchorPoint.x:  -14 * root.u
-                anchorPoint.y:  tagBox.height + 10 * root.u
+                // alternate sides so two close drones do not cover each other's tag
+                anchorPoint.x:  dslot.slot % 2 === 0 ? tagBox.width + 14 * root.u : -14 * root.u
+                anchorPoint.y:  dslot.slot % 2 === 0 ? -10 * root.u : tagBox.height + 10 * root.u
                 sourceItem: Rectangle {
                     id:     tagBox
                     width:  tagCol.implicitWidth + 16 * root.u
