@@ -204,8 +204,8 @@ QtObject {
             stage = 2
             t0 = Date.now()
         } else if (stage === 2) {
-            // give the guard 12 s to (not) take the hovering vehicles, then the operator resumes them
-            if (Date.now() - t0 > 12000) resumeHolding(0)
+            // give the guard 25 s to (not) take the hovering vehicles, then the operator resumes them
+            if (Date.now() - t0 > 25000) resumeHolding(0)
         }
     }
 

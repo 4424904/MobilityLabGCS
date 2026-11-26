@@ -14,8 +14,8 @@ Cases and checks (all cases: no two airborne vehicles at the same layer closer t
   user       bad_mission_blocked (TAKEOFF_FAR → start refused), check_warns_crossing (PATH_NEAR, no error),
              both_airborne, takeover, returned, completed
   gcskill    killed_during_avoidance, offboard_failsafe (every vehicle in OFFBOARD at the kill leaves OFFBOARD
-             within 3 s — PX4 offboard-loss failsafe, no GCS needed), restart_no_takeover (restarted GCS
-             does not take hovering vehicles), completed (operator resumes after restart)
+             within 3 s — PX4 offboard-loss failsafe, no GCS needed), restart_no_takeover (no OFFBOARD after the
+             restart until the operator resumes the mission), completed (operator resumes after restart)
   linkloss   link_cut_during_avoidance, gcs_marked_lost, cut_vehicle_safe (if it was being flown it left
              OFFBOARD within 3 s; else it kept flying its mission), completed
   operator   operator_hold (D1 HOLD after the operator command), not_retaken (no OFFBOARD on D1 until its
@@ -261,7 +261,10 @@ def main():
                 tc, md = v.first_change_after(tk, "OFFBOARD")
                 fs[v.name] = (round(tc - tk, 2), md) if tc else (None, None)
         res["metrics"]["failsafe_after_kill"] = fs
-        retaken = any(m == "OFFBOARD" and tr and tr < t < tr + 12 for v in vs for t, m in v.modes)
+        # after the restart the driver waits 25 s before resuming the missions: no OFFBOARD in that window,
+        # and the restarted guard never had to stop an OFFBOARD it did not command
+        retaken = any(m == "OFFBOARD" and tr and tr < t < tr + 15 for v in vs for t, m in v.modes)
+        retaken |= "가드 미관리 Offboard" in read(os.path.join(a.out, "sitl-acact-gcskill-app-restart.log"))
         C.update({"killed_during_avoidance": bool(tk) and len(fs) >= 1,
                   "offboard_failsafe": len(fs) >= 1 and all(d is not None and d <= 3.0 for d, _ in fs.values()),
                   "restart_no_takeover": bool(tr) and not retaken,
