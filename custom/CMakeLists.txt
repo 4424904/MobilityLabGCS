@@ -50,6 +50,7 @@ set(ML_QML_FILES
     ${ML_QML_DIR}/MLCommandButton.qml
     ${ML_QML_DIR}/MLHoldButton.qml
     ${ML_QML_DIR}/MLAcactTestDriver.qml
+    ${ML_QML_DIR}/MLAnalysisView.qml
 )
 set_source_files_properties(${ML_QML_DIR}/MLTheme.qml ${ML_QML_DIR}/MLState.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qgc_set_qt_resource_alias(${ML_QML_FILES})
@@ -70,6 +71,10 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TandemTelemetry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TandemTelemetry.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLUi.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLUi.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightAnalysis.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightAnalysis.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLAcactRuntime.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLAcactRuntime.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactConfig.h
@@ -92,7 +97,11 @@ set(CUSTOM_INCLUDE_DIRECTORIES
     CACHE INTERNAL "" FORCE
 )
 
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION ML_GCS_VERSION)
+string(STRIP "${ML_GCS_VERSION}" ML_GCS_VERSION)
+message(STATUS "MobilityLab GCS ${ML_GCS_VERSION}")
 set(CUSTOM_DEFINITIONS
+    ML_GCS_VERSION="${ML_GCS_VERSION}"
     QGC_CUSTOM_BUILD
     CUSTOMHEADER="MLPlugin.h"
     CUSTOMCLASS=MLPlugin

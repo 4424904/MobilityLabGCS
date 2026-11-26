@@ -223,7 +223,8 @@ Item {
         target: typeof mlGuard !== "undefined" ? mlGuard : null
         function onGuardEvent(seq, time, who, text) {
             var m = /^D(\d+)$/.exec(who)
-            var level = /긴급|두절|끊김|오류|실패|※/.test(text) ? 3 : (/회피|위험|개입|HOLD|우선/.test(text) ? 2 : (/완료|시작|복귀/.test(text) ? 1 : 0))
+            var level = /긴급|두절|끊김|오류|실패|※|emergency|lost|error|fail|danger/i.test(text) ? 3
+                      : (/회피|위험|개입|HOLD|우선|avoid|interven|operator/i.test(text) ? 2 : (/완료|시작|복귀|done|start|back to/i.test(text) ? 1 : 0))
             MLState.log("ACACT · " + (m ? "" : who + " · ") + text, level, m ? Number(m[1]) : 0, "ACACT")
             if (typeof mlTestAcact !== "undefined" && mlTestAcact) console.log("MLACACT " + who + " | " + text)
         }
@@ -456,6 +457,18 @@ Item {
             z:                      QGroundControl.zOrderTopMost
             visible:                _consoleVisible && MLState.guardConsoleOpen
             onCloseRequested:       MLState.guardConsoleOpen = false
+        }
+
+        // 비행 분석 · 리플레이 (guard logs, PDF report)
+        Loader {
+            anchors.fill:       parent
+            anchors.margins:    _gap * 2
+            z:                  QGroundControl.zOrderTopMost + 1
+            active:             MLState.analysisOpen && typeof mlAnalysis !== "undefined"
+            visible:            active
+            sourceComponent: Component {
+                MLAnalysisView { onCloseRequested: MLState.analysisOpen = false }
+            }
         }
 
         // Critical vehicle messages (replaces QGC's yellow popup)

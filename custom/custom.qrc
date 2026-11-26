@@ -18,6 +18,7 @@
     <!-- MobilityLab resources -->
     <qresource prefix="/MobilityLab">
         <file alias="tandem.json">res/tandem.json</file>
+        <file alias="i18n/en.json">i18n/en.json</file>
         <file alias="fonts/IBMPlexSansKR-Regular.ttf">res/fonts/IBMPlexSansKR-Regular.ttf</file>
         <file alias="fonts/IBMPlexSansKR-SemiBold.ttf">res/fonts/IBMPlexSansKR-SemiBold.ttf</file>
         <file alias="fonts/IBMPlexMono-Regular.ttf">res/fonts/IBMPlexMono-Regular.ttf</file>

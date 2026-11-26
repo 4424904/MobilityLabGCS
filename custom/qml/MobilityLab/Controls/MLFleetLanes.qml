@@ -160,6 +160,15 @@ Rectangle {
                 text:           qsTr("ACACT")
                 onClicked:      MLState.guardConsoleOpen = !MLState.guardConsoleOpen
             }
+            MLCommandButton {
+                compact:        true
+                implicitHeight: 30 * MLTheme.u
+                twoStep:        false
+                selected:       MLState.analysisOpen
+                tone:           "active"
+                text:           qsTr("분석")
+                onClicked:      MLState.analysisOpen = !MLState.analysisOpen
+            }
         }
     }
 

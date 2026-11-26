@@ -16,6 +16,7 @@ QtObject {
     property bool fleetOpen:        false
     property bool profileOpen:      false
     property bool guardConsoleOpen: false
+    property bool analysisOpen:     false
 
     // ACACT Guard ids (D1…D4) of the connected vehicles: MAVLink system id n → Dn
     function guardDrones() {

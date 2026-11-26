@@ -27,6 +27,7 @@
 #include "acact/AcactScenarios.h"
 #include "acact/AcactMissionCheck.h"
 
+#include <QtCore/QDateTime>
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QtNumeric>
 #include <QtCore/QFile>
@@ -81,6 +82,13 @@ class MLAcactRuntime : public QObject
     Q_PROPERTY(QString      activeIds       READ activeIds      NOTIFY runningChanged)
     // user-defined missions: pre-flight check (AcactMissionCheck), re-run on every mission/fence change
     Q_PROPERTY(QVariantMap  missionCheck    READ missionCheck   NOTIFY missionCheckChanged)
+    // real flight vs simulation: "sim" | "field". SITL first: in field mode a plan must have been flown in SITL.
+    Q_PROPERTY(QString      opMode          READ opMode         NOTIFY opModeChanged)
+    Q_PROPERTY(QVariantList fleetKinds      READ fleetKinds     NOTIFY opModeChanged)
+    Q_PROPERTY(QString      opModeProblem   READ opModeProblem  NOTIFY opModeChanged)
+    Q_PROPERTY(QVariantList simRecords      READ simRecords     NOTIFY opModeChanged)
+    Q_PROPERTY(QString      planTitle       READ planTitle      NOTIFY missionCheckChanged)
+    Q_PROPERTY(bool         planSimVerified READ planSimVerified NOTIFY missionCheckChanged)
 
 public:
     explicit MLAcactRuntime(QObject *parent = nullptr);
@@ -115,6 +123,13 @@ public:
     QString busyText() const { return _busy; }
     QString activeIds() const;
     QVariantMap missionCheck() const { return _missionCheckV; }
+    QString opMode() const { return _opMode; }
+    QVariantList fleetKinds() const;
+    QString opModeProblem() const;
+    QVariantList simRecords() const;
+    QString planTitle() const;
+    QString planSignature() const;
+    bool planSimVerified() const;
 
     // ---- operation ----------------------------------------------------------
     /// Start guarding every connected vehicle (MAVLink system id n → "Dn").
@@ -155,6 +170,9 @@ public:
     Q_INVOKABLE void loadScenario(const QString &name, const QString &mode);
     /// check every vehicle's mission and every pair (runs by itself when a mission or fence changes)
     Q_INVOKABLE QVariantMap validateMissions();
+    Q_INVOKABLE void setOpMode(const QString &mode);
+    /// field mode: let the next 일괄 시작 go ahead without a SITL record of this plan (logged)
+    Q_INVOKABLE void allowUnverifiedOnce();
     /// QGC .plan file → vehicle (simple items + geofence), read back and verified
     Q_INVOKABLE bool uploadPlanFile(int sysid, const QString &path);
     /// vehicle mission + geofence → QGC .plan file
@@ -168,6 +186,7 @@ signals:
     void siteChanged();
     void scenariosChanged();
     void missionCheckChanged();
+    void opModeChanged();
     void guardEvent(int seq, double time, const QString &who, const QString &text);
 
 private slots:
@@ -203,6 +222,7 @@ private:
     void _scheduleMissionCheck() { _checkTimer.start(); }
     void _runMissionCheck();
     QString _issueText(const acact::Issue &i) const;
+    QString _coreText(const QString &ko) const;
     QStringList _missionErrors(const QString &id) const;
     acact::Limits _limitsEff() const;
     QStringList _activeIdList() const;               // controllable PX4 vehicles D1..D4 (scenario fleet)
@@ -260,6 +280,15 @@ private:
     QVariantMap _missionCheckV;
     acact::MissionReport _report;
     QSet<QString> _reportedErrors;
+    QString     _opMode = QStringLiteral("sim");
+    bool        _allowUnverified = false;
+    bool        _flightAirborne = false;     // a controlled vehicle flew during this guard run
+    QString     _flightSig;                  // plan signature when the flight started
+    QString     _flightTitle;
+    void _flightEndCheck();
+    void _writeMeta(bool final);
+    QString     _metaPath;
+    QDateTime   _startedAt;
 
     QFile       _logFile;
     QFile       _evFile;

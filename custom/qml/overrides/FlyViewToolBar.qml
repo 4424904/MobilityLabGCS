@@ -92,14 +92,39 @@ Item {
                     font.letterSpacing: 2.3 * u
                 }
             }
-            MLText {
+            // operating mode chip: SIM (cyan) / FIELD (red); amber and blinking when the fleet does not match
+            Rectangle {
+                id: modeChip
+                readonly property bool   _g:       typeof mlGuard !== "undefined"
+                readonly property bool   field:    _g && mlGuard.opMode === "field"
+                readonly property bool   problem:  _g && mlGuard.opModeProblem !== ""
+                readonly property color  tone:     problem ? MLTheme.caution : (field ? MLTheme.warning : "#5BC0EB")
                 anchors.right:          parent.right
-                anchors.rightMargin:    20 * u
+                anchors.rightMargin:    16 * u
                 anchors.verticalCenter: parent.verticalCenter
-                text:                   qsTr("메뉴")
-                color:                  MLTheme.dim
-                font.pixelSize:         MLTheme.fsLabel
-                font.letterSpacing:     0.7 * u
+                width:  modeText.implicitWidth + 16 * u
+                height: 20 * u
+                radius: 3 * u
+                color:  Qt.rgba(tone.r, tone.g, tone.b, 0.14)
+                border.color: tone
+                visible: _g
+                MLText {
+                    id: modeText
+                    anchors.centerIn: parent
+                    text: modeChip.field ? "FIELD" : "SIM"
+                    color: modeChip.tone
+                    font.family: MLTheme.mono
+                    font.pixelSize: MLTheme.fsLabel
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 1.2 * u
+                }
+                SequentialAnimation on opacity {
+                    running: modeChip.problem
+                    loops: Animation.Infinite
+                    onStopped: modeChip.opacity = 1
+                    NumberAnimation { to: 0.35; duration: 450 }
+                    NumberAnimation { to: 1.0; duration: 450 }
+                }
             }
             MouseArea {
                 id:             brandMouse

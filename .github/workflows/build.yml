@@ -60,6 +60,7 @@ jobs:
         run: |
           mkdir -p "${RUNNER_TEMP}/screens"
           bash mlgcs/tools/acact_verify/run.sh "${RUNNER_TEMP}/acact_verify" 2>&1 | tee "${RUNNER_TEMP}/screens/acact-verify.log"
+          python3 mlgcs/tools/i18n_extract.py   # every Korean UI string has its English
 
       - name: Setup build environment
         uses: ./.github/actions/build-setup
@@ -98,6 +99,9 @@ jobs:
         with:
           build-dir: ${{ runner.temp }}/build
           build-type: Release
+
+      - name: Post-flight analysis regression (MLFlightAnalysis + PDF report)
+        run: bash mlgcs/tools/acact_verify/analysis_test.sh "${QT_ROOT_DIR}" "${RUNNER_TEMP}/screens/analysis-test" 2>&1 | tee "${RUNNER_TEMP}/screens/analysis-test.log"
 
       - name: Create AppImage
         env:

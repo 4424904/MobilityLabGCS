@@ -135,7 +135,7 @@ QtObject {
             if (tries++ > 0) log("load retry " + tries)
             mlGuard.loadScenario("S7_duo", "demo")
         } else if (stage === 3) {
-            if (startGuardAndFly()) { MLState_open(); stage = 9 }
+            if (startGuardAndFly()) { openConsole(); stage = 9 }
         }
     }
 
@@ -191,7 +191,7 @@ QtObject {
             mc = mlGuard.validateMissions()
             log("mission check errors=" + mc.errors + " warnings=" + mc.warnings + " [" + issuesText(mc) + "]")
             if (mc.errors > 0) { stage = 9; return }
-            if (startGuardAndFly()) { MLState_open(); stage = 6 }
+            if (startGuardAndFly()) { openConsole(); stage = 6 }
         } else if (stage === 6) {
             if (testCase === "linkloss") resumeHolding(8)
             if (testCase === "operator") resumeHolding(20)
@@ -211,5 +211,5 @@ QtObject {
     }
 
     property var _openConsole: null
-    function MLState_open() { if (_openConsole) _openConsole() }
+    function openConsole() { if (_openConsole) _openConsole() }
 }

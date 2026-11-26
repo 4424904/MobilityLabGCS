@@ -143,6 +143,37 @@ Rectangle {
                 }
             }
 
+            // ---- operating mode warnings ----
+            Rectangle {
+                visible: mlGuard.opModeProblem !== "" || (mlGuard.opMode === "field" && !mlGuard.planSimVerified)
+                Layout.fillWidth: true
+                Layout.preferredHeight: omRow.implicitHeight + 16 * u
+                radius: 6 * u
+                color: "#22180A"
+                border.color: MLTheme.caution
+                RowLayout {
+                    id: omRow
+                    anchors.fill: parent
+                    anchors.margins: 8 * u
+                    anchors.leftMargin: 12 * u
+                    spacing: 10 * u
+                    MLText {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: MLTheme.fsSmall
+                        color: MLTheme.caution
+                        text: mlGuard.opModeProblem !== "" ? mlGuard.opModeProblem
+                              : qsTr("실비행 · '%1' 은(는) SITL 비행 기록이 없습니다. 시뮬레이션으로 먼저 끝까지 비행하세요.").arg(mlGuard.planTitle)
+                    }
+                    Btn {
+                        visible: mlGuard.opModeProblem === "" && mlGuard.opMode === "field" && !mlGuard.planSimVerified
+                        text: qsTr("검증 없이 진행")
+                        tone: "danger"
+                        onClicked: mlGuard.allowUnverifiedOnce()
+                    }
+                }
+            }
+
             // ---- scenario (scenarios.py → build, upload, verify; guard.py `load`) ----
             Rectangle {
                 Layout.fillWidth: true
@@ -463,6 +494,54 @@ Rectangle {
                 id: setCol
                 width: parent.width - 8 * u
                 spacing: 8 * u
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8 * u
+                    Caption { text: qsTr("화면 언어"); Layout.fillWidth: true }
+                    Btn { text: "한국어"; tone: "active"; twoStep: false; selected: typeof mlUi !== "undefined" && mlUi.language === "ko"; onClicked: mlUi.language = "ko" }
+                    Btn { text: "English"; tone: "active"; twoStep: false; selected: typeof mlUi !== "undefined" && mlUi.language === "en"; onClicked: mlUi.language = "en" }
+                }
+                Caption { text: qsTr("운용 모드") }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8 * u
+                    Btn { text: qsTr("시뮬레이션 (SITL)"); tone: "active"; twoStep: false; selected: mlGuard.opMode === "sim"; available: !root._run; disabledReason: qsTr("가드 정지 상태에서"); onClicked: mlGuard.setOpMode("sim") }
+                    Btn { text: qsTr("실비행"); tone: "danger"; selected: mlGuard.opMode === "field"; available: !root._run; disabledReason: qsTr("가드 정지 상태에서"); onClicked: mlGuard.setOpMode("field") }
+                    Item { Layout.fillWidth: true }
+                    Repeater {
+                        model: mlGuard.fleetKinds
+                        Text {
+                            required property var modelData
+                            text: modelData.id + (modelData.sim === 1 ? " SIM" : (modelData.sim === 0 ? " REAL" : " ?"))
+                            color: modelData.sim === 0 ? MLTheme.warning : (modelData.sim === 1 ? "#5BC0EB" : MLTheme.faint)
+                            font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel
+                        }
+                    }
+                }
+                MLText {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: MLTheme.fsLabel
+                    color: mlGuard.opModeProblem !== "" ? MLTheme.caution : MLTheme.faint
+                    text: mlGuard.opModeProblem !== "" ? mlGuard.opModeProblem
+                          : (mlGuard.opMode === "field" ? qsTr("실비행: 시뮬레이션으로 같은 계획을 끝까지 비행한 기록이 있어야 일괄 시작됩니다. 시뮬레이션 기체가 섞이면 가드를 시작하지 않습니다.")
+                                                         : qsTr("시뮬레이션: 실기체가 연결되면 가드를 시작하지 않습니다. 비행을 끝까지 마치면(최소 이격 이상, 내부 오류 없음) SITL 검증 기록으로 남습니다."))
+                }
+                Caption { text: qsTr("SITL 검증 기록 (최근)"); visible: mlGuard.simRecords.length > 0 }
+                Repeater {
+                    model: mlGuard.simRecords.slice(0, 6)
+                    RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 10 * u
+                        Text { text: modelData.date; color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel }
+                        MLText { text: modelData.title; color: MLTheme.label; font.pixelSize: MLTheme.fsSmall; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Text { text: (modelData.minSep !== undefined && modelData.minSep !== null ? qsTr("최소 %1 m").arg(Number(modelData.minSep).toFixed(1)) : "") + qsTr(" · 개입 %1").arg(modelData.takeovers)
+                               color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel }
+                    }
+                }
+                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: MLTheme.line; Layout.topMargin: 4 * u }
 
                 Caption { text: qsTr("시연 구역 (판단 좌표계 원점 · 전방 방위)") }
                 MLText {

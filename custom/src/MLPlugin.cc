@@ -1,6 +1,12 @@
 #include "MLPlugin.h"
 #include "TandemTelemetry.h"
 #include "MLAcactRuntime.h"
+#include "MLFlightAnalysis.h"
+#include "MLUi.h"
+
+#ifndef ML_GCS_VERSION
+#define ML_GCS_VERSION "dev"
+#endif
 
 #include "AppSettings.h"
 #include "MissionManager.h"
@@ -233,6 +239,12 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     }
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlGuard"), _acact);
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlAcact"), _acact);
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlAnalysis"), new MLFlightAnalysis(this));
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlVersion"), QStringLiteral(ML_GCS_VERSION));
+    // Korean / English for the MobilityLab UI (custom/i18n/en.json)
+    auto *ui = new MLUi(this);
+    ui->attach(_qmlEngine);
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlUi"), ui);
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestAcact"),
                                                   qEnvironmentVariable("ML_TEST_ACACT") == QStringLiteral("1"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestAcactCase"),
