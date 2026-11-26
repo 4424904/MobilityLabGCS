@@ -62,7 +62,9 @@ run_case () {
     fi
 
     seed_settings
-    sg dialout -c "DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$OUT/$name-app.log' 2>&1" &
+    local extra_env=""
+    [ "$orbit" = "duo" ] && extra_env="ML_TEST_GUARD_CONSOLE=1"
+    sg dialout -c "$extra_env DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$OUT/$name-app.log' 2>&1" &
     local app=$!
 
     # No window manager under Xvfb: maximise by hand

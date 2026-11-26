@@ -4,11 +4,13 @@
 #include <QtCore/QtNumeric>
 #include <QtCore/QObject>
 #include <QtCore/QTimer>
+#include <QtCore/QStringList>
 #include <QtCore/QVariantList>
 #include <QtCore/QVariantMap>
 #include <QtNetwork/QHostAddress>
 
 class QUdpSocket;
+class QJsonObject;
 
 /// Link to the ACACT Guard (acact_guard/guard.py + gcs_link.py).
 ///
@@ -38,6 +40,22 @@ class MLGuardLink : public QObject
     Q_PROPERTY(int          worstLevel      READ worstLevel     NOTIFY updated)
     Q_PROPERTY(double       guardTime       READ guardTime      NOTIFY updated)
 
+    // ---- guard agent (guard_agent.py): start/stop the guard and type into it
+    Q_PROPERTY(bool         agentFound      READ agentFound     NOTIFY agentChanged)
+    Q_PROPERTY(QString      agentHost       READ agentHost      NOTIFY agentChanged)
+    Q_PROPERTY(QString      agentState      READ agentState     NOTIFY agentChanged)
+    Q_PROPERTY(QString      agentDir        READ agentDir       NOTIFY agentChanged)
+    Q_PROPERTY(QStringList  agentArgs       READ agentArgs      NOTIFY agentChanged)
+    Q_PROPERTY(double       agentUptime     READ agentUptime    NOTIFY agentChanged)
+    Q_PROPERTY(QVariantList scenarios       READ scenarios      NOTIFY agentChanged)
+    Q_PROPERTY(QStringList  profiles        READ profiles       NOTIFY agentChanged)
+    Q_PROPERTY(QStringList  console         READ console        NOTIFY consoleChanged)
+    Q_PROPERTY(bool         autoStart       READ autoStart      WRITE setAutoStart  NOTIFY settingsChanged)
+    Q_PROPERTY(QString      profile         READ profile        WRITE setProfile    NOTIFY settingsChanged)
+    Q_PROPERTY(double       bearing         READ bearing        WRITE setBearing    NOTIFY settingsChanged)
+    Q_PROPERTY(QString      agentAddress    READ agentAddress   WRITE setAgentAddress NOTIFY settingsChanged)
+    Q_PROPERTY(bool         canLaunchLocal  READ canLaunchLocal CONSTANT)
+
 public:
     explicit MLGuardLink(QObject *parent = nullptr);
 
@@ -58,6 +76,39 @@ public:
     int worstLevel() const { return _worstLevel; }
     double guardTime() const { return _guardTime; }
 
+    bool agentFound() const { return _agentFound; }
+    QString agentHost() const { return _agentHost.isNull() ? QString() : _agentHost.toString(); }
+    QString agentState() const { return _agentState; }
+    QString agentDir() const { return _agentDir; }
+    QStringList agentArgs() const { return _agentArgs; }
+    double agentUptime() const { return _agentUptime; }
+    QVariantList scenarios() const { return _scenarios; }
+    QStringList profiles() const { return _profiles; }
+    QStringList console() const { return _console; }
+    bool autoStart() const { return _autoStart; }
+    void setAutoStart(bool v);
+    QString profile() const { return _profile; }
+    void setProfile(const QString &v);
+    double bearing() const { return _bearing; }
+    void setBearing(double v);
+    QString agentAddress() const { return _agentAddress; }
+    void setAgentAddress(const QString &v);
+    bool canLaunchLocal() const;
+
+    /// Start the guard through the agent, e.g. drones "D1,D2" (profile from settings)
+    Q_INVOKABLE bool startGuard(const QString &drones);
+    /// Stop the guard ("q": it holds any drone it is flying, then exits); force = SIGINT
+    Q_INVOKABLE bool stopGuard(bool force = false);
+    /// Type one line into the guard terminal (load, start, g, g!, h, r, auto on|off, s)
+    Q_INVOKABLE bool sendLine(const QString &line);
+    /// plan_gen.py --from-vehicles with the profile and bearing from settings
+    Q_INVOKABLE bool runPlan(const QString &drones);
+    /// set_params.py (check only, or apply)
+    Q_INVOKABLE bool runParams(const QString &drones, bool apply);
+    /// Linux: start guard_agent.py from ~/acact_guard when no agent answers
+    Q_INVOKABLE bool launchLocalAgent();
+    Q_INVOKABLE void clearConsole();
+
     /// Guard drone entry ("D1"…) for a MAVLink system id, or an empty map.
     Q_INVOKABLE QVariantMap droneForSysid(int sysid) const;
 
@@ -70,6 +121,9 @@ signals:
     void updated();
     /// New guard event (Korean text as the guard logs it)
     void guardEvent(int seq, double time, const QString &who, const QString &text);
+    void agentChanged();
+    void consoleChanged();
+    void settingsChanged();
 
 private slots:
     void _readPending();
@@ -77,6 +131,10 @@ private slots:
 
 private:
     void _handle(const QByteArray &datagram, const QHostAddress &sender);
+    void _handleAgent(const QJsonObject &o, const QHostAddress &sender);
+    void _agentTick();
+    bool _toAgent(const QJsonObject &o);
+    QString _guardDir() const;
     void _setActive(bool active);
 
     QUdpSocket   *_socket = nullptr;
@@ -91,6 +149,25 @@ private:
     int           _lastEventSeq = 0;
     double        _guardTime = 0;
     int           _commandId = 0;
+
+    // agent
+    QTimer        _agentTimer;
+    QElapsedTimer _agentSince;
+    bool          _agentFound = false;
+    QHostAddress  _agentHost;
+    QString       _agentState;
+    QString       _agentDir;
+    QStringList   _agentArgs;
+    double        _agentUptime = 0;
+    QVariantList  _scenarios;
+    QStringList   _profiles;
+    QStringList   _console;
+    int           _consoleSeq = 0;
+    int           _agentPort = 47003;
+    bool          _autoStart = true;
+    QString       _profile;
+    double        _bearing = 0;
+    QString       _agentAddress;
 
     QVariantList  _drones;
     QVariantList  _pairs;

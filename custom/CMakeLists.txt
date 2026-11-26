@@ -42,6 +42,7 @@ set(ML_QML_FILES
     ${ML_QML_DIR}/MLMapHud.qml
     ${ML_QML_DIR}/MLGuardMapLayer.qml
     ${ML_QML_DIR}/MLFleetLanes.qml
+    ${ML_QML_DIR}/MLGuardConsole.qml
     ${ML_QML_DIR}/MLSetpointPanel.qml
     ${ML_QML_DIR}/MLCommandBar.qml
     ${ML_QML_DIR}/MLCommandButton.qml

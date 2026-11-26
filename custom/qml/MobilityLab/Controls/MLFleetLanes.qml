@@ -103,7 +103,11 @@ Rectangle {
                     font.pixelSize: MLTheme.fsSmall
                     color: root._g ? MLTheme.label : (root._gSeen ? MLTheme.warning : MLTheme.dim)
                     text: {
-                        if (!root._g) return root._gSeen ? qsTr("가드 신호 끊김 · guard.py 확인") : qsTr("미연결 · guard.py 를 실행하면 자동으로 연결됩니다")
+                        if (!root._g) {
+                            if (mlGuard.agentFound && mlGuard.agentState === "guard") return qsTr("가드 시작 중…")
+                            if (mlGuard.agentFound) return qsTr("가드 꺼짐 · 에이전트 %1 · [가드 콘솔]에서 시작").arg(mlGuard.agentHost)
+                            return root._gSeen ? qsTr("가드 신호 끊김 · guard.py 확인") : qsTr("가드 에이전트 없음 · [가드 콘솔] 참고")
+                        }
                         var s = mlGuard.scenario !== "" ? mlGuard.scenario + (mlGuard.scenarioMode !== "" ? " " + mlGuard.scenarioMode : "") : qsTr("시나리오 없음")
                         return s + " · " + (mlGuard.autoMode ? qsTr("자동 진행") : qsTr("수동 진행"))
                     }
@@ -131,26 +135,35 @@ Rectangle {
             anchors.rightMargin:    8 * u
             anchors.verticalCenter: parent.verticalCenter
             spacing:                6 * u
-            visible:                root._g
 
             component GuardButton: MLCommandButton {
                 compact:        true
                 implicitHeight: 30 * MLTheme.u
                 property string guardCmd
                 onClicked: {
-                    if (mlGuard.sendCommand(guardCmd)) MLState.command(qsTr("가드 명령: %1").arg(text))
+                    if (mlGuard.sendLine(guardCmd)) MLState.command(qsTr("가드: %1").arg(text))
                     else MLState.log(qsTr("가드 명령 전송 실패: %1").arg(text), 3, 0, "GCS")
                 }
             }
-            GuardButton { text: qsTr("다음 단계"); guardCmd: "g"; tone: "go" }
-            GuardButton { text: qsTr("재개"); guardCmd: "r" }
+            GuardButton { visible: root._g; text: qsTr("다음 단계"); guardCmd: "g"; tone: "go" }
+            GuardButton { visible: root._g; text: qsTr("재개"); guardCmd: "r" }
             GuardButton {
+                visible:    root._g
                 text:       mlGuard.autoMode ? qsTr("자동 진행 끄기") : qsTr("자동 진행 켜기")
                 guardCmd:   mlGuard.autoMode ? "auto off" : "auto on"
                 selected:   mlGuard.autoMode
                 tone:       "active"
             }
-            GuardButton { text: qsTr("전체 HOLD"); guardCmd: "h"; tone: "caution"; twoStep: false }
+            GuardButton { visible: root._g; text: qsTr("전체 HOLD"); guardCmd: "h"; tone: "caution"; twoStep: false }
+            MLCommandButton {
+                compact:        true
+                implicitHeight: 30 * MLTheme.u
+                twoStep:        false
+                selected:       MLState.guardConsoleOpen
+                tone:           "active"
+                text:           qsTr("가드 콘솔")
+                onClicked:      MLState.guardConsoleOpen = !MLState.guardConsoleOpen
+            }
         }
     }
 

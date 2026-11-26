@@ -35,6 +35,17 @@ def main():
     rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rx.bind(("127.0.0.1", 47002))
     rx.setblocking(False)
+    # guard_agent.py stand-in (UDP 47003): answers hello, echoes typed lines into the console
+    ag = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    ag.bind(("0.0.0.0", 47003))
+    ag.setblocking(False)
+    gcs_addrs = set()
+    console = [(1, "[agent] ACACT Guard 에이전트 — UDP 47003 (CI 대역)"), (2, "[agent] 실행: -u guard.py --drones D1,D2"),
+               (3, "ACACT Guard — 기체 2대, 로그: logs/guard_ci.csv"), (4, "================ 사전 점검 ================"),
+               (5, "  D1: OK"), (6, "  D2: OK"), (7, "==========================================="),
+               (8, "> load S7_duo demo"), (9, "[   12.0]    D1 | 미션 업로드·검증 완료 (S7_duo demo)")]
+    scen = [{"name": "S7_duo", "title": "2대 역동 시나리오"}, {"name": "S0_integrated", "title": "통합 1회 비행"},
+            {"name": "S2_headon", "title": "정면 교차"}]
     t0 = time.time()
     events, seq, own_since, min_sep, auto = [], 0, None, None, True
 
@@ -93,6 +104,23 @@ def main():
                     auto = c == "auto on"
         except (BlockingIOError, OSError, ValueError):
             pass
+        try:
+            while True:
+                data, addr = ag.recvfrom(4096)
+                m = json.loads(data.decode())
+                gcs_addrs.add(addr)
+                if m.get("op") == "line":
+                    console.append((console[-1][0] + 1, "> " + m.get("line", "")))
+        except (BlockingIOError, OSError, ValueError):
+            pass
+        for e in events[-3:]:
+            if not any(t.endswith(e["text"]) for _, t in console[-12:]):
+                console.append((console[-1][0] + 1, f"[{e['t']:7.1f}] {e['who']:>5} | {e['text']}"))
+        st = {"src": "acact_agent", "proto": 1, "host": "ci", "dir": "/home/ci/acact_guard", "state": "guard",
+              "args": ["--drones", "D1,D2"], "uptime": round(t, 1), "exit": None, "scenarios": scen,
+              "profiles": ["oregon", "oregon2", "hwaseong"], "lines": [{"n": n, "text": x} for n, x in console[-60:]]}
+        for addr in gcs_addrs:
+            ag.sendto(json.dumps(st, ensure_ascii=False).encode(), addr)
         time.sleep(0.2)
 
 

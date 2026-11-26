@@ -15,6 +15,19 @@ QtObject {
     property bool setpointsOpen:    false
     property bool fleetOpen:        false
     property bool profileOpen:      false
+    property bool guardConsoleOpen: false
+
+    // ACACT Guard ids (D1…D4) of the connected vehicles: MAVLink system id n → Dn
+    function guardDrones() {
+        var vs = QGroundControl.multiVehicleManager.vehicles
+        var ids = []
+        for (var i = 0; i < vs.count; i++) {
+            var id = vs.get(i).id
+            if (id >= 1 && id <= 4) ids.push("D" + id)
+        }
+        ids.sort()
+        return ids.join(",")
+    }
 
     // ---- event log (left column) ----------------------------------------
     // level: 0 info · 1 ok · 2 caution · 3 warning · 4 operator command

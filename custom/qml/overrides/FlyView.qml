@@ -222,7 +222,46 @@ Item {
         }
     }
 
-    Component.onCompleted: mainWindow.criticalVehicleMessageHandler = function(message) { alertBanner.push(message) }
+    // Guard auto-start: once per session, when the agent is there, the guard is
+    // off and vehicles are connected (D-ids from their system ids). On Linux the
+    // agent itself is started from ~/acact_guard if nobody answers.
+    property bool _guardAutoDone:   false
+    property int  _guardAgentWait:  0
+    property string _guardLastDs:   ""
+    property int  _guardSteady:     0
+    Timer {
+        interval: 2000
+        repeat:   true
+        running:  typeof mlGuard !== "undefined"
+        onTriggered: {
+            if (!mlGuard.agentFound) {
+                if (++_guardAgentWait === 3 && mlGuard.autoStart && mlGuard.canLaunchLocal) {
+                    if (mlGuard.launchLocalAgent()) MLState.log(qsTr("가드 에이전트 실행 (이 PC)"), 0, 0, "GCS")
+                }
+                return
+            }
+            if (_guardAutoDone || !mlGuard.autoStart) return
+            if (mlGuard.agentState === "guard" || mlGuard.active) { _guardAutoDone = true; return }
+            // wait until the set of connected vehicles has been steady for ~6 s
+            var ds = MLState.guardDrones()
+            if (ds !== _guardLastDs) { _guardLastDs = ds; _guardSteady = 0; return }
+            if (++_guardSteady < 3) return
+            if (mlGuard.agentState === "idle" && ds !== "") {
+                _guardAutoDone = true
+                if (mlGuard.startGuard(ds)) MLState.command(qsTr("가드 자동 시작 %1 (%2)").arg(ds).arg(mlGuard.profile))
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        mainWindow.criticalVehicleMessageHandler = function(message) { alertBanner.push(message) }
+    }
+    // CI screen check: open the guard console for the second screenshot
+    Timer {
+        interval: 58000
+        running:  typeof mlTestGuardConsole !== "undefined" && mlTestGuardConsole
+        onTriggered: MLState.guardConsoleOpen = true
+    }
     Component.onDestruction: mainWindow.criticalVehicleMessageHandler = null
 
     // Map (and video) fill the window under the floating panels
@@ -422,6 +461,18 @@ Item {
             z:                  QGroundControl.zOrderTopMost
             visible:            MLState.setpointsOpen || (typeof mlTestSetpoints !== "undefined" && mlTestSetpoints)
             onCloseRequested:   MLState.setpointsOpen = false
+        }
+
+        // ACACT 가드 콘솔 (start / stop / scenario / commands / terminal)
+        MLGuardConsole {
+            anchors.top:            parent.top
+            anchors.right:          parent.right
+            anchors.bottom:         parent.bottom
+            anchors.margins:        _gap * 2
+            width:                  Math.min(implicitWidth, parent.width - _gap * 4)
+            z:                      QGroundControl.zOrderTopMost
+            visible:                _consoleVisible && MLState.guardConsoleOpen
+            onCloseRequested:       MLState.guardConsoleOpen = false
         }
 
         // Critical vehicle messages (replaces QGC's yellow popup)
