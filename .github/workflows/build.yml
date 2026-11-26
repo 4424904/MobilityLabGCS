@@ -367,6 +367,15 @@ jobs:
           path: ${{ runner.temp }}/dist/MobilityLabGCS-portable-win64.zip
           retention-days: 30
 
+      - name: Upload Windows test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test
+          path: ${{ runner.temp }}/wintest
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Publish Windows test results (ci-windows branch)
         if: always()
         env:
@@ -380,3 +389,66 @@ jobs:
           git add -A
           git commit -q -m "Windows results for ${GITHUB_SHA}"
           git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-windows
+
+  # Final deliverables (tag v* or manual run): packages + source + changes vs QGC + documents + test results → GitHub Release
+  deliverables:
+    name: Deliverables + release
+    needs: [linux, sitl, windows]
+    if: always() && needs.linux.result == 'success' && needs.windows.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout QGroundControl ${{ env.QGC_REF }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.QGC_REPO }}
+          ref: ${{ env.QGC_REF }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout MobilityLab GCS
+        uses: actions/checkout@v4
+        with:
+          path: mlgcs
+          persist-credentials: false
+
+      - name: Apply MobilityLab customisation
+        run: bash mlgcs/tools/ci_prepare.sh
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: MobilityLabGCS-*
+          path: ${{ runner.temp }}/dist
+          merge-multiple: true
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '{screens-*,windows-test}'
+          path: ${{ runner.temp }}/res
+
+      - name: Make deliverables
+        run: bash mlgcs/tools/make_deliverables.sh "${RUNNER_TEMP}/dist" "${RUNNER_TEMP}/res" "${RUNNER_TEMP}/out"
+
+      - name: Upload deliverables
+        uses: actions/upload-artifact@v4
+        with:
+          name: deliverables
+          path: ${{ runner.temp }}/out
+          retention-days: 90
+
+      - name: GitHub Release (pre-release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="$(tr -d '[:space:]' < mlgcs/custom/ML_VERSION.txt)"
+          TAG="${GITHUB_REF_NAME}"
+          [[ "$GITHUB_REF" == refs/tags/* ]] || TAG="v${VER}-build.${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" "${RUNNER_TEMP}"/out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "MobilityLab GCS ${VER} (${TAG})" --notes-file "${RUNNER_TEMP}/out/MobilityLabGCS-${VER}-TEST_RESULTS.md"

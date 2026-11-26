@@ -25,6 +25,8 @@ else
 fi
 [[ -z "$BIN" || ! -x "$BIN" ]] && { echo "::error::MobilityLabGCS not found in $APP_IN"; exit 1; }
 
+# the GCS asks for serial-port permission otherwise (run through "sg dialout")
+sudo usermod -a -G dialout "$USER" || true
 python3 -m pip install --quiet pymavlink pillow || python3 -m pip install --quiet --break-system-packages pymavlink pillow
 
 shot () { python3 -c "from PIL import ImageGrab; ImageGrab.grab(xdisplay='$1').save('$2')" || echo "screenshot failed: $2"; }
