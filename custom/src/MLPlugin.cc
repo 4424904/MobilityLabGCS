@@ -110,8 +110,11 @@ void MLPlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData 
 
     if (settingsGroup == AppSettings::settingsGroup) {
         if (metaData.name() == AppSettings::vworldTokenName) {
-            // MobilityLab VWorld key (carried over from the previous GCS build).
-            metaData.setRawDefaultValue(QStringLiteral("FB59EEB2-7C61-3661-BEC9-630307354042"));
+            // VWorld key: not in the source (public repository). Built in only when the build passes
+            // -DML_VWORLD_KEY=...; otherwise the operator enters it once in Settings › General › VWorld.
+#ifdef ML_VWORLD_KEY
+            metaData.setRawDefaultValue(QStringLiteral(ML_VWORLD_KEY));
+#endif
         } else if (metaData.name() == AppSettings::savePathName && qEnvironmentVariableIsSet("MLGCS_PORTABLE_DIR")) {
             // portable build: logs, missions, maps cache next to the program (see patches/0004)
             metaData.setRawDefaultValue(qEnvironmentVariable("MLGCS_PORTABLE_DIR") + QStringLiteral("/data/MobilityLabGCS"));
