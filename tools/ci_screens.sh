@@ -8,15 +8,23 @@ BUILD_DIR="$1"
 OUT="$(mkdir -p "$2" && cd "$2" && pwd)"
 mkdir -p "$OUT"
 
-BIN="$(find "$BUILD_DIR" -maxdepth 3 -type f -name MobilityLabGCS -perm -u+x | head -n1)"
-if [[ -z "$BIN" ]]; then
-    echo "::error::MobilityLabGCS binary not found in $BUILD_DIR"
-    find "$BUILD_DIR" -maxdepth 2 -type f -perm -u+x | head -n 20
+if [[ -f "$BUILD_DIR" && "$BUILD_DIR" == *.AppImage ]]; then
+    # the Ubuntu package itself: extracted (no FUSE needed on CI)
+    XDIR="$(mktemp -d)"
+    chmod +x "$BUILD_DIR"
+    (cd "$XDIR" && "$BUILD_DIR" --appimage-extract > /dev/null)
+    BIN="$XDIR/squashfs-root/AppRun"
+else
+    BIN="$(find "$BUILD_DIR" -maxdepth 3 -type f -name MobilityLabGCS -perm -u+x | head -n1)"
+fi
+if [[ -z "$BIN" || ! -x "$BIN" ]]; then
+    echo "::error::MobilityLabGCS not found in $BUILD_DIR"
     exit 1
 fi
 echo "Binary: $BIN"
 echo "=== Missing shared libraries (should be empty)"
-ldd "$BIN" | grep "not found" || true
+ldd "$BIN" 2>/dev/null | grep "not found" || true
+[[ -x "$(dirname "$BIN")/usr/bin/MobilityLabGCS" ]] && { ldd "$(dirname "$BIN")/usr/bin/MobilityLabGCS" | grep "not found" || echo "(AppImage: all libraries resolved)"; }
 
 python3 -m pip install --quiet pymavlink pillow || python3 -m pip install --quiet --break-system-packages pymavlink pillow
 python3 -c "import pymavlink, PIL; print('pymavlink/pillow ok')"
@@ -79,9 +87,9 @@ run_case () {
     kill "$veh" 2>/dev/null
     [ -n "$veh2" ] && kill "$veh2" 2>/dev/null
     pkill -f fake_vehicle.py 2>/dev/null
-    pkill -f "$BIN" 2>/dev/null
+    pkill -f "$(dirname "$BIN")/" 2>/dev/null
     sleep 2
-    pkill -9 -f "$BIN" 2>/dev/null
+    pkill -9 -f "$(dirname "$BIN")/" 2>/dev/null
     kill "$xvfb" 2>/dev/null
     wait 2>/dev/null
 }

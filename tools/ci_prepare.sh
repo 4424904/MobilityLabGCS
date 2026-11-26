@@ -16,5 +16,8 @@ done
 PY=$(command -v python3 || command -v python)
 "$PY" mlgcs/tools/apply_ko.py mlgcs/custom/i18n/ko_overrides.json
 
+# Windows installer: desktop shortcut, launch after install, Korean pages
+"$PY" mlgcs/tools/patch_installer.py
+
 echo "MobilityLab customisation applied:"
 find custom -maxdepth 2 | sort

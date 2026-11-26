@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 import QGroundControl
 import QGroundControl.Controls
@@ -83,7 +84,7 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 2 * u
             Repeater {
-                model: [qsTr("운용"), qsTr("사전 점검"), qsTr("설정"), qsTr("지원 범위")]
+                model: [qsTr("운용"), qsTr("미션 검사"), qsTr("사전 점검"), qsTr("설정"), qsTr("지원 범위")]
                 Rectangle {
                     required property int index
                     required property string modelData
@@ -271,9 +272,146 @@ Rectangle {
             }
         }
 
+        // ================= 미션 검사 =================
+        // user-defined missions (QGC 계획 화면 or .plan files) checked per vehicle and per pair,
+        // re-run on every mission / fence change. Errors block 일괄 시작; warnings do not.
+        FileDialog {
+            id: planDialog
+            property int  sysid: 0
+            property bool saving: false
+            nameFilters: [qsTr("QGC 계획 파일 (*.plan)")]
+            fileMode: saving ? FileDialog.SaveFile : FileDialog.OpenFile
+            onAccepted: saving ? mlGuard.savePlanFile(sysid, selectedFile) : mlGuard.uploadPlanFile(sysid, selectedFile)
+        }
+        Flickable {
+            visible: root.tab === 1
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            contentHeight: mcCol.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { width: 4 * u }
+            readonly property var mc: mlGuard.missionCheck
+            ColumnLayout {
+                id: mcCol
+                width: parent.width - 8 * u
+                spacing: 8 * u
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8 * u
+                    Rectangle {
+                        Layout.preferredHeight: 26 * u
+                        Layout.preferredWidth: mcBadge.implicitWidth + 18 * u
+                        radius: 13 * u
+                        readonly property var mc: mlGuard.missionCheck
+                        color: mc.errors > 0 ? "#2E1414" : (mc.warnings > 0 ? "#2A2210" : "#102A1E")
+                        border.color: mc.errors > 0 ? MLTheme.warning : (mc.warnings > 0 ? MLTheme.caution : MLTheme.active)
+                        MLText {
+                            id: mcBadge
+                            anchors.centerIn: parent
+                            font.pixelSize: MLTheme.fsSmall; font.weight: Font.DemiBold
+                            color: parent.border.color
+                            text: parent.mc.vehicles === undefined ? qsTr("검사 전")
+                                  : parent.mc.errors > 0 ? qsTr("오류 %1 · 주의 %2").arg(parent.mc.errors).arg(parent.mc.warnings)
+                                  : parent.mc.warnings > 0 ? qsTr("비행 가능 · 주의 %1").arg(parent.mc.warnings) : qsTr("이상 없음")
+                        }
+                    }
+                    MLText {
+                        Layout.fillWidth: true
+                        font.pixelSize: MLTheme.fsLabel; color: MLTheme.faint
+                        text: mlGuard.missionCheck.time ? qsTr("마지막 검사 %1 · 미션·지오펜스가 바뀌면 자동으로 다시 검사").arg(mlGuard.missionCheck.time) : ""
+                        elide: Text.ElideRight
+                    }
+                    Btn { text: qsTr("다시 검사"); twoStep: false; onClicked: mlGuard.validateMissions() }
+                }
+                Repeater {
+                    model: mlGuard.missionCheck.vehicles || []
+                    Rectangle {
+                        id: mv
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: mvCol.implicitHeight + 18 * u
+                        radius: 6 * u
+                        color: "#0D1115"
+                        border.color: modelData.worst >= 2 ? "#6B2A28" : (modelData.worst === 1 ? "#5A4416" : MLTheme.line)
+                        Rectangle { width: 3 * u; height: parent.height - 16 * u; x: 0; y: 8 * u; color: MLTheme.vehicleColor(mv.modelData.sysid) }
+                        ColumnLayout {
+                            id: mvCol
+                            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                            anchors.margins: 9 * u; anchors.leftMargin: 14 * u
+                            spacing: 5 * u
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 10 * u
+                                Text { text: mv.modelData.id; color: MLTheme.vehicleColor(mv.modelData.sysid); font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody; font.weight: Font.DemiBold }
+                                MLText { text: mv.modelData.controlled ? qsTr("가드 제어") : qsTr("장애물로만"); color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel }
+                                Text {
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                    color: MLTheme.label; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall
+                                    text: mv.modelData.navItems > 0
+                                          ? qsTr("%1 지점 · %2 m · %3 · 최고 %4 m").arg(mv.modelData.navItems).arg(Number(mv.modelData.length).toFixed(0)).arg(MLTheme.duration(mv.modelData.duration)).arg(Number(mv.modelData.maxAlt).toFixed(0))
+                                          : qsTr("미션 없음")
+                                }
+                                Btn { text: qsTr("불러오기"); twoStep: false; available: mlGuard.busyText === ""; disabledReason: mlGuard.busyText; onClicked: { planDialog.sysid = mv.modelData.sysid; planDialog.saving = false; planDialog.open() } }
+                                Btn { text: qsTr("저장"); twoStep: false; available: mv.modelData.navItems > 0; disabledReason: qsTr("저장할 미션 없음"); onClicked: { planDialog.sysid = mv.modelData.sysid; planDialog.saving = true; planDialog.open() } }
+                            }
+                            Repeater {
+                                model: mv.modelData.issues
+                                RowLayout {
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    spacing: 8 * u
+                                    Rectangle { Layout.preferredWidth: 6 * u; Layout.preferredHeight: 6 * u; radius: 3 * u; Layout.alignment: Qt.AlignTop; Layout.topMargin: 5 * u
+                                                color: modelData.level >= 2 ? MLTheme.warning : (modelData.level === 1 ? MLTheme.caution : MLTheme.faint) }
+                                    MLText { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: modelData.text; font.pixelSize: MLTheme.fsSmall
+                                             color: modelData.level >= 2 ? MLTheme.text : MLTheme.label }
+                                }
+                            }
+                        }
+                    }
+                }
+                Caption { text: qsTr("기체 사이 (경로 최소 거리 / 동시 출발 예측 / 이착륙 간격)"); visible: (mlGuard.missionCheck.pairs || []).length > 0; Layout.topMargin: 4 * u }
+                Repeater {
+                    model: mlGuard.missionCheck.pairs || []
+                    ColumnLayout {
+                        id: mp
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 3 * u
+                        readonly property color c: modelData.worst >= 2 ? MLTheme.warning : (modelData.worst === 1 ? MLTheme.caution : MLTheme.text)
+                        function m(x) { return x === undefined || x === null ? "—" : Number(x).toFixed(1) + " m" }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10 * u
+                            Text { text: mp.modelData.a + " – " + mp.modelData.b; color: MLTheme.label; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall; Layout.preferredWidth: 80 * u }
+                            Text { text: mp.m(mp.modelData.pathMin); color: mp.c; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody; Layout.preferredWidth: 76 * u }
+                            Text { text: mp.modelData.timedMin === undefined || mp.modelData.timedMin === null ? "—" : mp.m(mp.modelData.timedMin) + " @" + Number(mp.modelData.timedAt).toFixed(0) + "s"
+                                   color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall; Layout.preferredWidth: 110 * u }
+                            Text { text: mp.m(mp.modelData.padMin); color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall }
+                            Item { Layout.fillWidth: true }
+                        }
+                        Repeater {
+                            model: mp.modelData.issues
+                            MLText { required property var modelData; Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "· " + modelData.text; font.pixelSize: MLTheme.fsSmall
+                                     color: modelData.level >= 2 ? MLTheme.warning : MLTheme.caution }
+                        }
+                    }
+                }
+                MLText {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 6 * u
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: MLTheme.fsLabel
+                    color: MLTheme.faint
+                    text: qsTr("경로 근접·동시 출발 근접은 ACACT 가 회피하므로 '주의'입니다. 고도·거리·지오펜스·이륙점·이착륙 간격 오류는 일괄 시작을 막습니다. 미션은 QGC 계획 화면에서 편집하거나 .plan 파일로 불러옵니다.")
+                }
+            }
+        }
+
         // ================= 사전 점검 =================
         ColumnLayout {
-            visible: root.tab === 1
+            visible: root.tab === 2
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 8 * u
@@ -314,7 +452,7 @@ Rectangle {
 
         // ================= 설정 =================
         Flickable {
-            visible: root.tab === 2
+            visible: root.tab === 3
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -392,7 +530,7 @@ Rectangle {
 
         // ================= 지원 범위 =================
         ColumnLayout {
-            visible: root.tab === 3
+            visible: root.tab === 4
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 8 * u

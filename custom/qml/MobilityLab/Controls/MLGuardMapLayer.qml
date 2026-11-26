@@ -149,5 +149,47 @@ Item {
         onObjectRemoved: function(index, object) { if (root.map) { root.map.removeMapItem(object.line); root.map.removeMapItem(object.label) } }
     }
 
+    // pre-flight mission check: where two planned tracks come close (shown while the guard is not flying)
+    readonly property var _mc: typeof mlGuard !== "undefined" && !mlGuard.running && mlGuard.missionCheck.pairs ? mlGuard.missionCheck.pairs : []
+    Instantiator {
+        model: 6
+        delegate: QtObject {
+            id: cslot
+            readonly property var p: index < root._mc.length ? root._mc[index] : null
+            readonly property bool ok: !!p && p.worst >= 1 && p.pathMin !== undefined && p.pathMin !== null
+            readonly property color col: p && p.worst >= 2 ? MLTheme.warning : MLTheme.caution
+            property var ring: MapCircle {
+                visible:        cslot.ok
+                center:         cslot.ok ? QtPositioning.coordinate(cslot.p.lat, cslot.p.lon) : QtPositioning.coordinate()
+                radius:         root._dSafe / 2
+                color:          Qt.rgba(cslot.col.r, cslot.col.g, cslot.col.b, 0.10)
+                border.color:   cslot.col
+                border.width:   1.5
+            }
+            property var tag: MapQuickItem {
+                visible:        cslot.ok
+                coordinate:     cslot.ok ? QtPositioning.coordinate(cslot.p.lat, cslot.p.lon) : QtPositioning.coordinate()
+                anchorPoint.x:  ctag.width / 2
+                anchorPoint.y:  -10 * root.u
+                sourceItem: Rectangle {
+                    id: ctag
+                    width: ctagText.implicitWidth + 14 * root.u
+                    height: ctagText.implicitHeight + 8 * root.u
+                    radius: 3 * root.u
+                    color: "#E6090C0F"
+                    border.color: cslot.col
+                    Text {
+                        id: ctagText
+                        anchors.centerIn: parent
+                        text: !cslot.ok ? "" : qsTr("예상 근접 %1·%2  %3 m").arg(cslot.p.a).arg(cslot.p.b).arg(Number(cslot.p.pathMin).toFixed(1))
+                        color: cslot.col; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel
+                    }
+                }
+            }
+        }
+        onObjectAdded: function(index, object) { if (root.map) { root.map.addMapItem(object.ring); root.map.addMapItem(object.tag) } }
+        onObjectRemoved: function(index, object) { if (root.map) { root.map.removeMapItem(object.ring); root.map.removeMapItem(object.tag) } }
+    }
+
     Component.onCompleted: if (map) map.addMapItem(_area)
 }

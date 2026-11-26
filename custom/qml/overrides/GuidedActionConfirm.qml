@@ -82,6 +82,12 @@ Item {
         }
         hideTrigger = false
         MLState.command(control.title)
+        // pilot / operator authority first: a command to a vehicle the ACACT guard is flying hands it back
+        // to the operator at once (the guard then leaves it alone until its mission is resumed)
+        var av = QGroundControl.multiVehicleManager.activeVehicle
+        if (av && typeof mlGuard !== "undefined" && mlGuard.running && mlGuard.owns(av.id)) {
+            mlGuard.operatorCommand(av.id, control.title)
+        }
         let success = guidedController.executeAction(control.action, control.actionData, sliderOutputValue, control.optionChecked)
         if (mapIndicator) {
             if (success) {

@@ -1,20 +1,17 @@
 name: Build MobilityLab GCS
 
-# Linux: build + start the app against a simulated tandem helicopter and save
-#        screenshots/logs (fast check of every push).
-# Windows: build the installer (.exe) on main, tags, or manual run.
+# linux    (Ubuntu 22.04)  ACACT equivalence + regression tests, build, Ubuntu AppImage, screen check of the AppImage
+# px4      (Ubuntu 24.04)  PX4 SITL binary (cached)
+# sitl     (Ubuntu 24.04)  the AppImage against ArduPilot/PX4 SITL: 목표 조정 + every ACACT case (matrix)
+# report                   results of linux + sitl → ci-screens branch (screens, logs, sitl-*.json, summary)
+# windows  (Windows)       build, NSIS installer, then install / launch / portable / uninstall tests → ci-windows branch
 
 on:
   push:
-    branches: ['**', '!ci-screens']
+    branches: ['**', '!ci-screens', '!ci-windows']
     tags: ['v*']
     paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
-    inputs:
-      windows:
-        description: 'Build the Windows installer'
-        type: boolean
-        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,11 +29,9 @@ env:
 
 jobs:
   linux:
-    name: Linux build + screen check
-    runs-on: ubuntu-24.04
+    name: Linux build + AppImage
+    runs-on: ubuntu-22.04
     timeout-minutes: 150
-    permissions:
-      contents: write   # publish screenshots to the ci-screens branch
     defaults:
       run:
         shell: bash
@@ -59,9 +54,12 @@ jobs:
       - name: Apply MobilityLab customisation
         run: bash mlgcs/tools/ci_prepare.sh
 
-      # The C++ ACACT engine must make the same decisions as the original Python guard
-      - name: ACACT equivalence (rev1 Python vs C++ engine)
-        run: bash mlgcs/tools/acact_verify/run.sh "${RUNNER_TEMP}/acact_verify"
+      # The C++ ACACT engine must make the same decisions as the original Python guard (rev1),
+      # and the user-mission check must pass its regression cases
+      - name: ACACT equivalence + mission-check regression
+        run: |
+          mkdir -p "${RUNNER_TEMP}/screens"
+          bash mlgcs/tools/acact_verify/run.sh "${RUNNER_TEMP}/acact_verify" 2>&1 | tee "${RUNNER_TEMP}/screens/acact-verify.log"
 
       - name: Setup build environment
         uses: ./.github/actions/build-setup
@@ -71,22 +69,21 @@ jobs:
           build-type: Release
           save-cache: 'true'
 
-      # QGC's own dependency step pulls ~1 GB of GStreamer/codec packages, which
-      # is very slow on the hosted runners. Video is not needed for this check,
-      # so install only what the Qt/QGC build and an X11 test run need.
+      # QGC's own dependency step pulls ~1 GB of GStreamer/codec packages. Video is not
+      # part of this build, so install only what the Qt/QGC build, the AppImage and an X11 run need.
       - name: Install build packages
         timeout-minutes: 25
         run: |
           sudo apt-get -o Acquire::Retries=3 update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends \
-            build-essential ninja-build ccache pkgconf patchelf file \
+            build-essential ninja-build ccache pkgconf patchelf file desktop-file-utils libfuse2 \
             libfontconfig1-dev libfreetype-dev libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev libxi-dev libxrender-dev \
             libxcb1-dev libxcb-cursor-dev libxcb-glx0-dev libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev \
             libxcb-present-dev libxcb-randr0-dev libxcb-render-util0-dev libxcb-render0-dev libxcb-shape0-dev \
             libxcb-shm0-dev libxcb-sync-dev libxcb-util-dev libxcb-xfixes0-dev libxcb-xinerama0-dev libxcb-xkb-dev \
             libxkbcommon-dev libxkbcommon-x11-dev libegl-dev libgl-dev libgl1-mesa-dri libglx-mesa0 \
             libusb-1.0-0-dev xvfb xauth xdotool \
-            libpulse0 libpulse-mainloop-glib0 libspeechd2 libasound2t64 libunwind8 libdbus-1-3 libatspi2.0-0
+            libpulse0 libpulse-mainloop-glib0 libspeechd2 libasound2 libunwind8 libdbus-1-3 libatspi2.0-0
 
       - name: Configure
         uses: ./.github/actions/cmake-configure
@@ -94,7 +91,7 @@ jobs:
           build-dir: ${{ runner.temp }}/build
           build-type: Release
           stable: 'true'
-          extra-args: -DQGC_ENABLE_WERROR=OFF -DQGC_CREATE_APPIMAGE=OFF -DQGC_BUILD_INSTALLER=OFF -DQGC_ENABLE_GST_VIDEOSTREAMING=OFF
+          extra-args: -DQGC_ENABLE_WERROR=OFF -DQGC_CREATE_APPIMAGE=ON -DQGC_BUILD_INSTALLER=ON -DQGC_ENABLE_GST_VIDEOSTREAMING=OFF
 
       - name: Build
         uses: ./.github/actions/cmake-build
@@ -102,61 +99,40 @@ jobs:
           build-dir: ${{ runner.temp }}/build
           build-type: Release
 
-      - name: Screen check with simulated aircraft
-        if: success()
-        run: bash mlgcs/tools/ci_screens.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens"
-
-      # ---- SITL: ArduPilot (downloaded ArduCopter SITL) and PX4 (SIH, built here) ----
-      - name: Restore PX4 SITL binary
-        if: success()
-        id: px4bin
-        uses: actions/cache@v4
+      - name: Create AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        uses: ./.github/actions/cmake-install
         with:
-          path: ${{ runner.temp }}/px4sitl
-          key: px4-sitl-bin-${{ env.PX4_REF }}-v1
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
 
-      - name: Build PX4 SITL ${{ env.PX4_REF }}
-        if: success() && steps.px4bin.outputs.cache-hit != 'true'
-        continue-on-error: true
-        timeout-minutes: 50
-        env:
-          CMAKE_POLICY_VERSION_MINIMUM: '3.5'   # runner has CMake 4; PX4 submodules declare older minimums
+      - name: Collect AppImage
         run: |
-          git clone -q --depth 1 --branch "$PX4_REF" --recursive --shallow-submodules -j8 https://github.com/PX4/PX4-Autopilot.git "${RUNNER_TEMP}/px4"
-          # newer pip rejects ">=3.0.*" specifiers in PX4's list; strip the ".*"
-          sed 's/\.\*//g' "${RUNNER_TEMP}/px4/Tools/setup/requirements.txt" > "${RUNNER_TEMP}/px4-req.txt"
-          python3 -m pip install --quiet -r "${RUNNER_TEMP}/px4-req.txt" || \
-            python3 -m pip install --quiet --break-system-packages -r "${RUNNER_TEMP}/px4-req.txt"
-          # shallow clone has no NuttX release tags; PX4's version header script expects one
-          git -C "${RUNNER_TEMP}/px4/platforms/nuttx/NuttX/nuttx" tag nuttx-0.0.0 2>/dev/null || true
-          cd "${RUNNER_TEMP}/px4" && make px4_sitl_default CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
-          # keep only what running SITL needs (binary + startup scripts), cached for later runs
-          mkdir -p "${RUNNER_TEMP}/px4sitl"
-          cp -a build/px4_sitl_default/bin build/px4_sitl_default/etc "${RUNNER_TEMP}/px4sitl/"
-          du -sh "${RUNNER_TEMP}/px4sitl"
+          mkdir -p "${RUNNER_TEMP}/dist"
+          f="$(find "${RUNNER_TEMP}/build" -maxdepth 1 -name '*.AppImage' | head -n1)"
+          test -n "$f"
+          cp "$f" "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage"
+          ls -la "${RUNNER_TEMP}/dist"
 
-      - name: SITL check (목표 조정 commands + ACACT 2-vehicle avoidance)
-        if: success()
-        continue-on-error: true
-        timeout-minutes: 45
-        run: bash mlgcs/tools/ci_sitl.sh "${RUNNER_TEMP}/build" "${RUNNER_TEMP}/screens" "${RUNNER_TEMP}/px4sitl"
-
-      - name: Publish screenshots to the ci-screens branch
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Boot test (AppImage, --simple-boot-test)
         run: |
-          [ -d "${RUNNER_TEMP}/screens" ] || exit 0
-          cd "${RUNNER_TEMP}/screens"
-          printf '# Screen check\n\nrun %s, commit %s\n' "${GITHUB_RUN_ID}" "${GITHUB_SHA}" > README.md
-          git init -q -b ci-screens
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "Screens for ${GITHUB_SHA}"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-screens
+          cd "$(mktemp -d)"
+          "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage" --appimage-extract > /dev/null
+          xvfb-run -a timeout 120 ./squashfs-root/AppRun --simple-boot-test 2>&1 | tail -n 20
+          echo "exit ${PIPESTATUS[0]}"
 
-      - name: Upload screenshots and logs
+      - name: Screen check of the AppImage (Ubuntu 22.04) with simulated aircraft
+        run: bash mlgcs/tools/ci_screens.sh "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage" "${RUNNER_TEMP}/screens"
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: MobilityLabGCS-Ubuntu-AppImage
+          path: ${{ runner.temp }}/dist/MobilityLabGCS-x86_64.AppImage
+          retention-days: 30
+
+      - name: Upload screens
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -165,11 +141,134 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  px4:
+    name: PX4 SITL binary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Restore PX4 SITL binary
+        id: px4bin
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/px4sitl
+          key: px4-sitl-bin-${{ env.PX4_REF }}-v1
+
+      - name: Build PX4 SITL ${{ env.PX4_REF }}
+        if: steps.px4bin.outputs.cache-hit != 'true'
+        timeout-minutes: 60
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: '3.5'   # runner has CMake 4; PX4 submodules declare older minimums
+        run: |
+          git clone -q --depth 1 --branch "$PX4_REF" --recursive --shallow-submodules -j8 https://github.com/PX4/PX4-Autopilot.git "${RUNNER_TEMP}/px4"
+          sed 's/\.\*//g' "${RUNNER_TEMP}/px4/Tools/setup/requirements.txt" > "${RUNNER_TEMP}/px4-req.txt"
+          python3 -m pip install --quiet -r "${RUNNER_TEMP}/px4-req.txt" || \
+            python3 -m pip install --quiet --break-system-packages -r "${RUNNER_TEMP}/px4-req.txt"
+          git -C "${RUNNER_TEMP}/px4/platforms/nuttx/NuttX/nuttx" tag nuttx-0.0.0 2>/dev/null || true
+          cd "${RUNNER_TEMP}/px4" && make px4_sitl_default CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+          mkdir -p "${RUNNER_TEMP}/px4sitl"
+          cp -a build/px4_sitl_default/bin build/px4_sitl_default/etc "${RUNNER_TEMP}/px4sitl/"
+          du -sh "${RUNNER_TEMP}/px4sitl"
+
+  sitl:
+    name: SITL ${{ matrix.case }}
+    needs: [linux, px4]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [targets, s7duo, preflight, user, gcskill, linkloss, operator]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout MobilityLab GCS
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: MobilityLabGCS-Ubuntu-AppImage
+          path: ${{ runner.temp }}/dist
+
+      - name: Restore PX4 SITL binary
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/px4sitl
+          key: px4-sitl-bin-${{ env.PX4_REF }}-v1
+          fail-on-cache-miss: true
+
+      - name: Runtime packages (Ubuntu 24.04)
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends \
+            xvfb xauth xdotool libegl1 libgl1 libgl1-mesa-dri libglx-mesa0 libxkbcommon-x11-0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libfontconfig1 \
+            libpulse0 libspeechd2 libasound2t64 iptables
+
+      - name: Run ${{ matrix.case }}
+        timeout-minutes: 35
+        run: bash tools/ci_sitl.sh "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage" "${RUNNER_TEMP}/screens" "${RUNNER_TEMP}/px4sitl" "${{ matrix.case }}"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screens-sitl-${{ matrix.case }}
+          path: ${{ runner.temp }}/screens
+          if-no-files-found: ignore
+          retention-days: 14
+
+  report:
+    name: Publish results
+    needs: [linux, sitl]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: screens-*
+          path: ${{ runner.temp }}/res
+
+      - name: Summary + ci-screens branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "${RUNNER_TEMP}/res"
+          python3 - <<'EOF' > README.md
+          import glob, json, os
+          print(f"# CI results\n\nrun {os.environ['GITHUB_RUN_ID']}, commit {os.environ['GITHUB_SHA']}\n")
+          print("| case | result | checks | metrics |\n|---|---|---|---|")
+          for f in sorted(glob.glob("*/sitl-*.json")):
+              try:
+                  r = json.load(open(f))
+              except Exception as e:
+                  print(f"| {f} | unreadable | {e} | |"); continue
+              ch = r.get("checks", {})
+              ok = bool(ch) and all(ch.values())
+              m = {k: v for k, v in r.get("metrics", {}).items() if k in ("min_horizontal_same_layer_m", "takeovers", "failsafe_after_kill", "d2_failsafe", "killed_at_s", "cut_at_s")}
+              print(f"| {r.get('case') or r.get('fw') or f} | {'PASS' if ok else 'FAIL'} | {', '.join(k + ('' if v else ' ✗') for k, v in ch.items())} | {json.dumps(m, ensure_ascii=False)} |")
+          EOF
+          cat README.md >> "$GITHUB_STEP_SUMMARY"
+          git init -q -b ci-screens
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Results for ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-screens
+
   windows:
-    name: Windows installer
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.windows)
+    name: Windows installer + portable
     runs-on: windows-2022
     timeout-minutes: 180
+    permissions:
+      contents: write   # results → ci-windows branch
     defaults:
       run:
         shell: bash
@@ -239,13 +338,41 @@ jobs:
       - name: Collect installer
         run: |
           mkdir -p "${RUNNER_TEMP}/dist"
-          find "${RUNNER_TEMP}/build" -maxdepth 1 -iname "*installer*.exe" -exec cp {} "${RUNNER_TEMP}/dist/" \;
+          f="$(find "${RUNNER_TEMP}/build" -maxdepth 1 -iname "*installer*.exe" | head -n1)"
+          test -n "$f"
+          cp "$f" "${RUNNER_TEMP}/dist/MobilityLabGCS-installer-win64.exe"
           ls -la "${RUNNER_TEMP}/dist"
-          test -n "$(ls -A "${RUNNER_TEMP}/dist")"
+
+      # install silently, launch, build the portable zip from the installed files, run it from
+      # elsewhere, then uninstall — all on a machine with no Qt / Python / QGC installed
+      - name: Install / launch / portable / uninstall test
+        shell: pwsh
+        run: pwsh -File mlgcs/tools/win_package_test.ps1 -Installer "$env:RUNNER_TEMP\dist\MobilityLabGCS-installer-win64.exe" -Out "$env:RUNNER_TEMP\wintest" -Dist "$env:RUNNER_TEMP\dist"
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: MobilityLabGCS-Windows-installer
-          path: ${{ runner.temp }}/dist/*.exe
+          path: ${{ runner.temp }}/dist/MobilityLabGCS-installer-win64.exe
           retention-days: 30
+
+      - name: Upload portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: MobilityLabGCS-Windows-portable
+          path: ${{ runner.temp }}/dist/MobilityLabGCS-portable-win64.zip
+          retention-days: 30
+
+      - name: Publish Windows test results (ci-windows branch)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d "${RUNNER_TEMP}/wintest" ] || exit 0
+          cd "${RUNNER_TEMP}/wintest"
+          git init -q -b ci-windows
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Windows results for ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-windows

@@ -49,6 +49,7 @@ set(ML_QML_FILES
     ${ML_QML_DIR}/MLCommandBar.qml
     ${ML_QML_DIR}/MLCommandButton.qml
     ${ML_QML_DIR}/MLHoldButton.qml
+    ${ML_QML_DIR}/MLAcactTestDriver.qml
 )
 set_source_files_properties(${ML_QML_DIR}/MLTheme.qml ${ML_QML_DIR}/MLState.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qgc_set_qt_resource_alias(${ML_QML_FILES})
@@ -74,6 +75,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactConfig.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactCore.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactCore.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactMissionCheck.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactMissionCheck.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactScenarios.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/acact/AcactScenarios.h
     CACHE INTERNAL "" FORCE

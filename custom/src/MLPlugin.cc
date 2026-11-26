@@ -106,6 +106,9 @@ void MLPlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData 
         if (metaData.name() == AppSettings::vworldTokenName) {
             // MobilityLab VWorld key (carried over from the previous GCS build).
             metaData.setRawDefaultValue(QStringLiteral("FB59EEB2-7C61-3661-BEC9-630307354042"));
+        } else if (metaData.name() == AppSettings::savePathName && qEnvironmentVariableIsSet("MLGCS_PORTABLE_DIR")) {
+            // portable build: logs, missions, maps cache next to the program (see patches/0004)
+            metaData.setRawDefaultValue(qEnvironmentVariable("MLGCS_PORTABLE_DIR") + QStringLiteral("/data/MobilityLabGCS"));
         }
     } else if (settingsGroup == FlightMapSettings::settingsGroup) {
         if (metaData.name() == FlightMapSettings::mapProviderName) {
@@ -232,6 +235,9 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlAcact"), _acact);
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestAcact"),
                                                   qEnvironmentVariable("ML_TEST_ACACT") == QStringLiteral("1"));
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestAcactCase"),
+                                                  qEnvironmentVariableIsSet("ML_TEST_ACACT_CASE") ? qEnvironmentVariable("ML_TEST_ACACT_CASE") : QStringLiteral("s7duo"));
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestPlanDir"), qEnvironmentVariable("ML_TEST_PLAN_DIR"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestAcactN"),
                                                   qEnvironmentVariableIsSet("ML_TEST_ACACT_N") ? qEnvironmentVariableIntValue("ML_TEST_ACACT_N") : 2);
     // CI only: ML_TEST_SETPOINTS=1 makes the 목표 조정 panel run its scripted SITL check

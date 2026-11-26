@@ -25,6 +25,7 @@
 //
 #include "acact/AcactCore.h"
 #include "acact/AcactScenarios.h"
+#include "acact/AcactMissionCheck.h"
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QtNumeric>
@@ -32,6 +33,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QPointer>
 #include <QtCore/QTextStream>
+#include <QtCore/QSet>
 #include <QtCore/QTimer>
 #include <QtCore/QVariantList>
 #include <QtCore/QVariantMap>
@@ -43,6 +45,7 @@
 #include "MAVLinkLib.h"
 
 class Vehicle;
+class MissionItem;
 
 class MLAcactRuntime : public QObject
 {
@@ -76,6 +79,8 @@ class MLAcactRuntime : public QObject
     Q_PROPERTY(QStringList  profiles        READ profiles       CONSTANT)
     Q_PROPERTY(QString      busyText        READ busyText       NOTIFY updated)
     Q_PROPERTY(QString      activeIds       READ activeIds      NOTIFY runningChanged)
+    // user-defined missions: pre-flight check (AcactMissionCheck), re-run on every mission/fence change
+    Q_PROPERTY(QVariantMap  missionCheck    READ missionCheck   NOTIFY missionCheckChanged)
 
 public:
     explicit MLAcactRuntime(QObject *parent = nullptr);
@@ -109,6 +114,7 @@ public:
     QStringList profiles() const { return {QStringLiteral("hwaseong"), QStringLiteral("oregon"), QStringLiteral("oregon2")}; }
     QString busyText() const { return _busy; }
     QString activeIds() const;
+    QVariantMap missionCheck() const { return _missionCheckV; }
 
     // ---- operation ----------------------------------------------------------
     /// Start guarding every connected vehicle (MAVLink system id n → "Dn").
@@ -147,6 +153,12 @@ public:
     Q_INVOKABLE void setSiteFromVehicles(double bearingDeg);
     /// load <name> <demo|rehearsal>: build the scenario missions (scenarios.py), upload and verify them
     Q_INVOKABLE void loadScenario(const QString &name, const QString &mode);
+    /// check every vehicle's mission and every pair (runs by itself when a mission or fence changes)
+    Q_INVOKABLE QVariantMap validateMissions();
+    /// QGC .plan file → vehicle (simple items + geofence), read back and verified
+    Q_INVOKABLE bool uploadPlanFile(int sysid, const QString &path);
+    /// vehicle mission + geofence → QGC .plan file
+    Q_INVOKABLE bool savePlanFile(int sysid, const QString &path);
     Q_INVOKABLE void clearSite();
 
 signals:
@@ -155,6 +167,7 @@ signals:
     void paramsChanged();
     void siteChanged();
     void scenariosChanged();
+    void missionCheckChanged();
     void guardEvent(int seq, double time, const QString &who, const QString &text);
 
 private slots:
@@ -186,6 +199,12 @@ private:
     /// rev1 goto_next_item: skip DO items (apply a skipped speed change directly), then set current
     void _gotoNextItem(VS *d, std::function<void(bool, QString)> done);
     void _uploadNext(QStringList ids, QString name, QString mode, bool ok);
+    void _writeMission(VS *d, QList<MissionItem *> items, const std::vector<acact::Fence> &fences, std::function<void(bool)> done);
+    void _scheduleMissionCheck() { _checkTimer.start(); }
+    void _runMissionCheck();
+    QString _issueText(const acact::Issue &i) const;
+    QStringList _missionErrors(const QString &id) const;
+    acact::Limits _limitsEff() const;
     QStringList _activeIdList() const;               // controllable PX4 vehicles D1..D4 (scenario fleet)
     std::array<double, 2> _homeLl(const QString &id) const;   // site.json homes, else planned home
     acact::Config _cfg() const { return _core ? _core->config() : _effectiveParams(std::max(2, static_cast<int>(_vs_.size()))); }
@@ -236,6 +255,11 @@ private:
     QString     _profile = QStringLiteral("oregon");   // config.py PROFILE default
     QString     _busy;
     QMap<QString, QPair<double, double>> _siteHomes;   // site.json "homes"
+    QSet<QString> _missionWriting;
+    QTimer      _checkTimer;
+    QVariantMap _missionCheckV;
+    acact::MissionReport _report;
+    QSet<QString> _reportedErrors;
 
     QFile       _logFile;
     QFile       _evFile;

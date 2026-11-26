@@ -12,10 +12,16 @@
 #include "GeoFenceManager.h"
 #include "ParameterManager.h"
 #include "QGCFenceCircle.h"
+#include "QGCFencePolygon.h"
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDateTime>
 #include <QtCore/QDir>
+#include <QtCore/QFileInfo>
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QJsonObject>
+#include <QtCore/QUrl>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QSettings>
 #include <QtCore/QStandardPaths>
@@ -107,6 +113,21 @@ const ParamDef kParams[] = {
 };
 #undef CF
 
+// user-mission check limits (AcactMissionCheck Limits)
+using LimRef = double &(*)(acact::Limits &);
+struct LimDef { const char *key; const char *label; const char *unit; LimRef ref; double lo, hi; };
+#define LF(f) [](acact::Limits &l) -> double & { return l.f; }
+const LimDef kLimits[] = {
+    {"limMaxAlt",    "미션 최고 고도",              "m",   LF(maxAlt), 10, 500},
+    {"limMinAlt",    "미션 최저 순항 고도",          "m",   LF(minAlt), 1, 30},
+    {"limMaxRange",  "홈에서 최대 거리",            "m",   LF(maxRange), 50, 20000},
+    {"limTakeoffTol","이륙점 허용 오차",            "m",   LF(takeoffTol), 1, 30},
+    {"limPadMin",    "이착륙 지점 최소 간격",        "m",   LF(padMin), 2, 50},
+    {"limEndurance", "완충 비행 가능 시간",          "s",   LF(endurance), 120, 7200},
+    {"limReserve",   "착륙 시 남길 배터리",          "%",   LF(battReserve), 5, 60},
+};
+#undef LF
+
 Config baseConfig(int n, const std::string &profile)
 {
     Config c;
@@ -156,6 +177,8 @@ struct MLAcactRuntime::VS {
     int rcOk = -1;                // RC receiver health from SYS_STATUS (-1 unknown)
     bool attSeen = false;
     double layer = 20.0;          // RTL / transit layer (config DRONES[].layer)
+    bool staleTold = false;       // link-loss announcements
+    bool dlTold = false;
 };
 
 MLAcactRuntime::MLAcactRuntime(QObject *parent)
@@ -168,6 +191,9 @@ MLAcactRuntime::MLAcactRuntime(QObject *parent)
     connect(&_startTimer, &QTimer::timeout, this, &MLAcactRuntime::_startNext);
 
     _loadSettings();
+    _checkTimer.setSingleShot(true);
+    _checkTimer.setInterval(400);
+    connect(&_checkTimer, &QTimer::timeout, this, &MLAcactRuntime::_runMissionCheck);
 
     MultiVehicleManager *mvm = MultiVehicleManager::instance();
     connect(mvm, &MultiVehicleManager::vehicleAdded, this, &MLAcactRuntime::_vehicleAdded);
@@ -238,8 +264,8 @@ QVariantList MLAcactRuntime::params() const
     for (const ParamDef &d : kParams) {
         QVariantMap m;
         m[QStringLiteral("key")] = QString::fromLatin1(d.key);
-        m[QStringLiteral("label")] = QString::fromUtf8(d.label);
-        m[QStringLiteral("group")] = QString::fromUtf8(d.group);
+        m[QStringLiteral("label")] = tr(d.label);
+        m[QStringLiteral("group")] = tr(d.group);
         m[QStringLiteral("unit")] = QString::fromUtf8(d.unit);
         m[QStringLiteral("value")] = d.ref(cur);
         m[QStringLiteral("default")] = d.ref(def);
@@ -248,7 +274,33 @@ QVariantList MLAcactRuntime::params() const
         m[QStringLiteral("changed")] = _paramOverrides.contains(QString::fromLatin1(d.key));
         out.append(m);
     }
+    acact::Limits ldef, lcur = _limitsEff();
+    for (const LimDef &d : kLimits) {
+        QVariantMap m;
+        m[QStringLiteral("key")] = QString::fromLatin1(d.key);
+        m[QStringLiteral("label")] = tr(d.label);
+        m[QStringLiteral("group")] = tr("미션");
+        m[QStringLiteral("unit")] = QString::fromUtf8(d.unit);
+        m[QStringLiteral("value")] = d.ref(lcur);
+        m[QStringLiteral("default")] = d.ref(ldef);
+        m[QStringLiteral("min")] = d.lo;
+        m[QStringLiteral("max")] = d.hi;
+        m[QStringLiteral("changed")] = _paramOverrides.contains(QString::fromLatin1(d.key));
+        out.append(m);
+    }
     return out;
+}
+
+acact::Limits MLAcactRuntime::_limitsEff() const
+{
+    acact::Limits l;
+    for (const LimDef &d : kLimits) {
+        auto it = _paramOverrides.find(QString::fromLatin1(d.key));
+        if (it != _paramOverrides.end()) {
+            d.ref(l) = std::clamp(it.value(), d.lo, d.hi);
+        }
+    }
+    return l;
 }
 
 void MLAcactRuntime::setParam(const QString &key, double value)
@@ -266,6 +318,17 @@ void MLAcactRuntime::setParam(const QString &key, double value)
             return;
         }
     }
+    for (const LimDef &d : kLimits) {
+        if (key == QLatin1String(d.key)) {
+            value = std::clamp(value, d.lo, d.hi);
+            _paramOverrides[key] = value;
+            QSettings().setValue(QStringLiteral("MobilityLab/ACACT/params/") + key, value);
+            _event(QStringLiteral("CFG"), QStringLiteral("설정 변경: %1 = %2").arg(tr(d.label)).arg(value));
+            emit paramsChanged();
+            _scheduleMissionCheck();
+            return;
+        }
+    }
 }
 
 void MLAcactRuntime::resetParams()
@@ -277,6 +340,7 @@ void MLAcactRuntime::resetParams()
     }
     _event(QStringLiteral("CFG"), QStringLiteral("설정 기본값 복원"));
     emit paramsChanged();
+    _scheduleMissionCheck();
 }
 
 QVariantMap MLAcactRuntime::config() const
@@ -595,42 +659,69 @@ void MLAcactRuntime::_uploadNext(QStringList ids, QString name, QString mode, bo
         }
         seq++;
     }
-    const int expect = items.size() - 1;
+    std::vector<acact::Fence> fences;
+    acact::Fence f;   // plan_gen.py: inclusion circle FENCE_RADIUS around the centre
+    f.lat = _frame->lat0();
+    f.lon = _frame->lon0();
+    f.radius = FENCE_RADIUS;
+    fences.push_back(f);
+    _writeMission(d, items, fences, [this, ids, name, mode, ok](bool good) {
+        QTimer::singleShot(0, this, [this, ids, name, mode, ok, good]() { _uploadNext(ids, name, mode, ok && good); });
+    });
+}
 
+void MLAcactRuntime::_writeMission(VS *d, QList<MissionItem *> items, const std::vector<acact::Fence> &fences, std::function<void(bool)> done)
+{
+    // items[0] = planned home. Write, send the fence, read back and compare the count (guard.py download_mission).
+    const QString id = d->id;
+    const int expect = items.size() - 1;
     QPointer<Vehicle> v = d->v;
     MissionManager *mm = v->missionManager();
     if (mm->inProgress()) {
         qDeleteAll(items);
         _event(id, QStringLiteral("※ 업로드 실패: 미션 송수신이 진행 중 (잠시 후 다시)"));
-        _uploadNext(ids, name, mode, false);
+        done(false);
         return;
     }
     auto conn = std::make_shared<QMetaObject::Connection>();
     auto timer = std::make_shared<QTimer>();
     timer->setSingleShot(true);
-    auto finish = [this, ids, name, mode, ok, conn, timer, id](bool good) {
+    auto finish = [this, conn, timer, done, id](bool good) {
         QObject::disconnect(*conn);
         timer->stop();
-        QTimer::singleShot(0, this, [this, ids, name, mode, ok, good]() { _uploadNext(ids, name, mode, ok && good); });
+        _missionWriting.remove(id);
+        done(good);
+        _scheduleMissionCheck();
     };
     connect(timer.get(), &QTimer::timeout, this, [this, id, finish]() {
         _event(id, QStringLiteral("※ 업로드 실패: 30초 안에 끝나지 않음"));
         finish(false);
     });
-    *conn = connect(mm, &PlanManager::sendComplete, this, [this, v, id, expect, finish, conn, timer](bool error) {
+    *conn = connect(mm, &PlanManager::sendComplete, this, [this, v, id, expect, finish, conn, fences](bool error) {
         QObject::disconnect(*conn);
         if (error || !v) {
             _event(id, QStringLiteral("※ 업로드 실패 (기체 거부/통신)"));
             finish(false);
             return;
         }
-        // geofence (plan_gen.py: inclusion circle FENCE_RADIUS around the centre); failure does not fail the mission
-        if (v->geoFenceManager()->supported() && _frame) {
+        // geofence (empty list clears an old one); failure does not fail the mission
+        if (v->geoFenceManager()->supported()) {
             QmlObjectListModel polygons, circles;
-            circles.append(new QGCFenceCircle(QGeoCoordinate(_frame->lat0(), _frame->lon0()), FENCE_RADIUS, true, &circles));
+            for (const acact::Fence &f : fences) {
+                if (f.circle) {
+                    circles.append(new QGCFenceCircle(QGeoCoordinate(f.lat, f.lon), f.radius, f.inclusion, &circles));
+                } else {
+                    auto *pg = new QGCFencePolygon(f.inclusion, &polygons);
+                    QList<QGeoCoordinate> path;
+                    for (const auto &q : f.poly) {
+                        path << QGeoCoordinate(q.first, q.second);
+                    }
+                    pg->appendVertices(path);
+                    polygons.append(pg);
+                }
+            }
             v->geoFenceManager()->sendToVehicle(QGeoCoordinate(), polygons, circles);
         }
-        // read back and verify the item count (guard.py download_mission)
         *conn = connect(v->missionManager(), &PlanManager::newMissionItemsAvailable, this, [this, v, id, expect, finish](bool) {
             const int got = v ? v->missionManager()->missionItems().size() : -1;
             if (got != expect) {
@@ -647,6 +738,7 @@ void MLAcactRuntime::_uploadNext(QStringList ids, QString name, QString mode, bo
             }
         });
     });
+    _missionWriting.insert(id);
     timer->start(30000);
     mm->writeMissionItems(items);
 }
@@ -670,6 +762,9 @@ QString MLAcactRuntime::supportScope() const
 
 QString MLAcactRuntime::logDir() const
 {
+    if (qEnvironmentVariableIsSet("MLGCS_PORTABLE_DIR")) {
+        return QDir(qEnvironmentVariable("MLGCS_PORTABLE_DIR")).filePath(QStringLiteral("data/ACACT"));
+    }
     return QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).filePath(QStringLiteral("MobilityLab/ACACT"));
 }
 
@@ -744,6 +839,17 @@ void MLAcactRuntime::_attach(Vehicle *vehicle)
     emit scenariosChanged();
     d->supported = vehicle->px4Firmware() && vehicle->multiRotor();
     connect(vehicle, &Vehicle::mavlinkMessageReceived, this, [this, d](const mavlink_message_t &m) { _onMessage(d, m); });
+    // user missions: re-check whenever a mission or fence is read from / written to the vehicle
+    connect(vehicle->missionManager(), &PlanManager::newMissionItemsAvailable, this, [this, d](bool) {
+        if (_running && d->inAir && !_missionWriting.contains(d->id)) {
+            _event(d->id, QStringLiteral("※ 비행 중 미션 변경 감지 → 다시 검사"));
+        }
+        _scheduleMissionCheck();
+    });
+    connect(vehicle->missionManager(), &PlanManager::sendComplete, this, [this](bool) { _scheduleMissionCheck(); });
+    connect(vehicle->geoFenceManager(), &GeoFenceManager::loadComplete, this, [this]() { _scheduleMissionCheck(); });
+    connect(vehicle->geoFenceManager(), &GeoFenceManager::sendComplete, this, [this](bool) { _scheduleMissionCheck(); });
+    _scheduleMissionCheck();
     connect(vehicle, &Vehicle::firmwareTypeChanged, this, [d, vehicle]() { d->supported = vehicle->px4Firmware() && vehicle->multiRotor(); });
     connect(vehicle, &Vehicle::vehicleTypeChanged, this, [d, vehicle]() { d->supported = vehicle->px4Firmware() && vehicle->multiRotor(); });
     if (_running) {
@@ -1361,6 +1467,7 @@ void MLAcactRuntime::_autoTick(double t)
 
 QVariantList MLAcactRuntime::runPreflight()
 {
+    validateMissions();
     _preflightV.clear();
     for (VS *d : _vs_) {
         QStringList msg;
@@ -1390,6 +1497,9 @@ QVariantList MLAcactRuntime::runPreflight()
             if (dist > 3.0) {
                 msg << QStringLiteral("이륙 위치가 계획과 %1 m 다름").arg(dist, 0, 'f', 1);
             }
+        }
+        if (d->supported) {
+            msg << _missionErrors(d->id);   // user-mission check (errors only; warnings are shown in the mission tab)
         }
         const QList<MissionItem *> items = d->v ? d->v->missionManager()->missionItems() : QList<MissionItem *>();
         if (items.isEmpty()) {
@@ -1633,6 +1743,20 @@ void MLAcactRuntime::_tick()
             const auto fr = _frame->llToFr(d->lat, d->lon);
             const auto vfr = _frame->neToFr(d->vn, d->ve);
             const double age = t - d->tPos;
+            // link loss / recovery (announced once each)
+            if (d->inAir && age >= _core->config().staleT && !d->staleTold) {
+                d->staleTold = true;
+                _event(d->id, QStringLiteral("※ 텔레메트리 두절 — 마지막 위치·속도로 예측해 계속 고려 (추가 여유 %1 m)").arg(_core->config().degradedMargin, 0, 'f', 1));
+            }
+            if (d->inAir && age >= _core->config().dlLossT && !d->dlTold) {
+                d->dlTold = true;
+                _event(d->id, QStringLiteral("※ 데이터링크 상실 %1 s — 회피 중이었다면 PX4 offboard 상실 페일세이프").arg(age, 0, 'f', 1));
+            }
+            if (age < _core->config().staleT && d->staleTold) {
+                _event(d->id, QStringLiteral("텔레메트리 복구 (최대 공백 %1 s) — 모드 %2").arg(d->maxGap, 0, 'f', 1).arg(d->mode));
+                d->staleTold = false;
+                d->dlTold = false;
+            }
             if (d->inAir) {
                 d->maxGap = std::max(d->maxGap, age);
                 if (!std::isnan(d->batt) && d->batt < _core->config().battWarn && !d->battWarned) {
@@ -1923,4 +2047,394 @@ void MLAcactRuntime::_writeSummary()
         f.write("\n");
     }
     qCInfo(MLAcactLog).noquote() << lines.join(QLatin1Char('\n'));
+}
+
+
+// ---------------------------------------------------------------------------
+// User-defined missions: pre-flight check, .plan files
+// ---------------------------------------------------------------------------
+namespace {
+double paramOr(Vehicle *v, const char *name, double def, double scale = 1.0)
+{
+    ParameterManager *pm = v->parameterManager();
+    if (pm->parametersReady() && pm->parameterExists(ParameterManager::defaultComponentId, QString::fromLatin1(name))) {
+        return pm->getParameter(ParameterManager::defaultComponentId, QString::fromLatin1(name))->rawValue().toDouble() * scale;
+    }
+    return def;
+}
+} // namespace
+
+QString MLAcactRuntime::_issueText(const acact::Issue &i) const
+{
+    const QString c = QString::fromStdString(i.code);
+    const QString item = i.seq >= 0 ? tr("항목 %1: ").arg(i.seq + 1) : QString();
+    const QString o = QString::fromStdString(i.other);
+    auto n1 = [](double x) { return QString::number(x, 'f', 1); };
+    auto n0 = [](double x) { return QString::number(x, 'f', 0); };
+    if (c == QLatin1String("EMPTY")) return tr("미션 없음");
+    if (c == QLatin1String("NO_NAV")) return tr("위치 항목이 없는 미션");
+    if (c == QLatin1String("NO_TAKEOFF")) return item + tr("첫 위치 항목이 이륙이 아님 (지상에서 시작)");
+    if (c == QLatin1String("TAKEOFF_FAR")) return item + tr("이륙점이 기체 위치와 %1 m 다름 (허용 %2 m) — 다른 기체 미션일 수 있음").arg(n1(i.a), n0(i.b));
+    if (c == QLatin1String("ALT_HIGH")) return item + tr("고도 %1 m — 최고 %2 m 초과").arg(n1(i.a), n0(i.b));
+    if (c == QLatin1String("ALT_LOW")) return item + tr("고도 %1 m — 최저 순항 %2 m 미만").arg(n1(i.a), n0(i.b));
+    if (c == QLatin1String("RANGE")) return item + tr("홈에서 %1 m — 최대 %2 m 초과").arg(n0(i.a), n0(i.b));
+    if (c == QLatin1String("FENCE_OUT")) return item + tr("지오펜스(허용 구역) 밖으로 나감");
+    if (c == QLatin1String("FENCE_IN")) return item + tr("지오펜스(금지 구역) 안으로 들어감");
+    if (c == QLatin1String("ALT_AMSL")) return item + tr("해발 고도 기준 항목 — 홈 해발 %1 m 로 환산해 검사").arg(n1(i.a));
+    if (c == QLatin1String("ALT_TERRAIN")) return item + tr("지형 기준 고도 — 고도 검사 생략");
+    if (c == QLatin1String("NO_END")) return tr("마지막에 착륙/RTL 없음 — 마지막 지점에서 대기");
+    if (c == QLatin1String("JUMP")) return item + tr("DO_JUMP 반복 — 시간 예측은 1회 기준");
+    if (c == QLatin1String("SYNC")) return tr("대기점(LOITER_UNLIM) %1개 — 가드 동기 진행 대상").arg(n0(i.a));
+    if (c == QLatin1String("ENDURANCE")) return tr("예상 비행 시간이 배터리 %1% 필요 — 사용 가능 %2% 초과").arg(n0(i.a), n0(i.b));
+    if (c == QLatin1String("BATT")) return tr("배터리 %1% 필요, 현재 %2% — 착륙 시 %3% 미만").arg(n0(i.a), n0(i.b), n0(i.c));
+    if (c == QLatin1String("NOT_CONNECTED")) return tr("연결 끊김 — 마지막으로 받은 미션으로 검사");
+    if (c == QLatin1String("PATH_NEAR")) return tr("%1 경로와 %2 m 까지 접근 (고도차 %3 m) — ACACT 회피 예상").arg(o, n1(i.a), n1(i.b));
+    if (c == QLatin1String("PATH_NEAR_UNGUARDED")) return tr("%1 경로와 %2 m 까지 접근 — 두 기체 모두 가드가 제어할 수 없음").arg(o, n1(i.a));
+    if (c == QLatin1String("TIMED_NEAR")) return tr("동시 출발 시 %1 초 뒤 %2 와 %3 m — 회피 개입 확실").arg(n0(i.b), o, n1(i.a));
+    if (c == QLatin1String("PAD_NEAR")) return tr("%1 와 이착륙 지점 간격 %2 m (최소 %3 m) — 저고도에서는 가드가 개입하지 않음").arg(o, n1(i.a), n0(i.b));
+    if (c == QLatin1String("SAME_MISSION")) return tr("%1 와 같은 미션 — 기체별 미션을 확인").arg(o);
+    return c;
+}
+
+void MLAcactRuntime::_runMissionCheck()
+{
+    std::vector<acact::VehicleMission> vms;
+    QList<VS *> order;
+    for (VS *d : _vs_) {
+        if (!d->v) {
+            continue;
+        }
+        Vehicle *v = d->v;
+        acact::VehicleMission vm;
+        vm.id = d->id.toStdString();
+        vm.controlled = d->supported;
+        vm.connected = d->connected;
+        vm.lat = d->lat;
+        vm.lon = d->lon;
+        vm.relAlt = d->relAlt;
+        vm.inAir = d->inAir;
+        const QGeoCoordinate h = v->homePosition();
+        vm.homeValid = h.isValid();
+        if (vm.homeValid) {
+            vm.homeLat = h.latitude();
+            vm.homeLon = h.longitude();
+            vm.homeAmsl = std::isnan(h.altitude()) ? 0.0 : h.altitude();
+        }
+        vm.batt = std::isnan(d->batt) ? -1.0 : d->batt;
+        vm.cruise = v->px4Firmware() ? paramOr(v, "MPC_XY_CRUISE", 5.0) : paramOr(v, "WPNAV_SPEED", 5.0, 0.01);
+        vm.rtlAlt = v->px4Firmware() ? paramOr(v, "RTL_RETURN_ALT", 30.0) : paramOr(v, "RTL_ALT", 15.0, 0.01);
+        for (const MissionItem *mi : v->missionManager()->missionItems()) {
+            acact::MItem it;
+            it.seq = mi->sequenceNumber();
+            it.cmd = static_cast<int>(mi->command());
+            it.frame = static_cast<int>(mi->frame());
+            it.p1 = mi->param1();
+            it.p2 = mi->param2();
+            it.p3 = mi->param3();
+            it.p4 = mi->param4();
+            it.lat = mi->param5();
+            it.lon = mi->param6();
+            it.alt = mi->param7();
+            vm.items.push_back(it);
+        }
+        if (vm.items.empty() && !d->supported) {
+            continue;   // traffic without a mission: nothing to check
+        }
+        for (const QGCFenceCircle &fc : v->geoFenceManager()->circles()) {
+            acact::Fence f;
+            f.circle = true;
+            f.inclusion = fc.inclusion();
+            f.lat = fc.center().latitude();
+            f.lon = fc.center().longitude();
+            f.radius = const_cast<QGCFenceCircle &>(fc).radius()->rawValue().toDouble();
+            vm.fences.push_back(f);
+        }
+        for (const QGCFencePolygon &fp : v->geoFenceManager()->polygons()) {
+            acact::Fence f;
+            f.circle = false;
+            f.inclusion = fp.inclusion();
+            for (const QGeoCoordinate &q : fp.coordinateList()) {
+                f.poly.push_back({q.latitude(), q.longitude()});
+            }
+            vm.fences.push_back(f);
+        }
+        vms.push_back(vm);
+        order << d;
+    }
+    const acact::Config cfg = _cfg();
+    const acact::Limits lim = _limitsEff();
+    _report = acact::checkMissions(vms, cfg, lim);
+
+    const double la0 = _report.originLat, lo0 = _report.originLon, c0 = std::cos(la0 * kDegToRad);
+    auto toLl = [&](double n, double e) { return QVariantMap{{QStringLiteral("lat"), la0 + n / 111320.0}, {QStringLiteral("lon"), lo0 + e / (111320.0 * c0)}}; };
+    auto issues = [this](const std::vector<acact::Issue> &is) {
+        QVariantList out;
+        for (const acact::Issue &i : is) {
+            out.append(QVariantMap{{QStringLiteral("level"), static_cast<int>(i.level)}, {QStringLiteral("code"), QString::fromStdString(i.code)},
+                                   {QStringLiteral("seq"), i.seq}, {QStringLiteral("other"), QString::fromStdString(i.other)},
+                                   {QStringLiteral("text"), _issueText(i)}});
+        }
+        return out;
+    };
+    int nErr = 0, nWarn = 0;
+    QVariantList vl;
+    QStringList newErrors;
+    QSet<QString> errorsNow;
+    for (size_t k = 0; k < _report.vehicles.size(); k++) {
+        const acact::VehicleReport &r = _report.vehicles[k];
+        VS *d = order[static_cast<int>(k)];
+        QVariantList path;
+        for (size_t p = 0; p < r.path.size(); p += 4) {
+            QVariantMap m = toLl(r.path[p].n, r.path[p].e);
+            m[QStringLiteral("alt")] = r.path[p].u;
+            m[QStringLiteral("t")] = r.path[p].t;
+            path.append(m);
+        }
+        for (const acact::Issue &i : r.issues) {
+            nErr += i.level == acact::Level::Error;
+            nWarn += i.level == acact::Level::Warn;
+            if (i.level == acact::Level::Error) {
+                const QString key = d->id + QLatin1Char('|') + _issueText(i);
+                errorsNow.insert(key);
+                if (!_reportedErrors.contains(key)) {
+                    newErrors << key;
+                }
+            }
+        }
+        vl.append(QVariantMap{
+            {QStringLiteral("id"), d->id}, {QStringLiteral("sysid"), d->sysid}, {QStringLiteral("controlled"), d->supported},
+            {QStringLiteral("navItems"), r.navItems}, {QStringLiteral("syncPoints"), r.syncPoints}, {QStringLiteral("length"), r.length},
+            {QStringLiteral("duration"), r.duration}, {QStringLiteral("maxAlt"), r.maxAlt}, {QStringLiteral("worst"), static_cast<int>(r.worst())},
+            {QStringLiteral("issues"), issues(r.issues)}, {QStringLiteral("path"), path}});
+    }
+    QVariantList pl;
+    for (const acact::PairReport &p : _report.pairs) {
+        int worst = 0;
+        for (const acact::Issue &i : p.issues) {
+            worst = std::max(worst, static_cast<int>(i.level));
+            nErr += i.level == acact::Level::Error;
+            nWarn += i.level == acact::Level::Warn;
+            if (i.level == acact::Level::Error) {
+                const QString key = QString::fromStdString(p.a) + QLatin1Char('|') + _issueText(i);
+                errorsNow.insert(key);
+                if (!_reportedErrors.contains(key)) {
+                    newErrors << key;
+                }
+            }
+        }
+        QVariantMap m = toLl(p.pathN, p.pathE);
+        m[QStringLiteral("a")] = QString::fromStdString(p.a);
+        m[QStringLiteral("b")] = QString::fromStdString(p.b);
+        m[QStringLiteral("pathMin")] = p.pathMin < 1e8 ? QVariant(p.pathMin) : QVariant();
+        m[QStringLiteral("pathDz")] = p.pathDz;
+        m[QStringLiteral("timedMin")] = p.timedMin < 1e8 ? QVariant(p.timedMin) : QVariant();
+        m[QStringLiteral("timedAt")] = p.timedAt;
+        m[QStringLiteral("padMin")] = p.padMin < 1e8 ? QVariant(p.padMin) : QVariant();
+        m[QStringLiteral("worst")] = worst;
+        m[QStringLiteral("issues")] = issues(p.issues);
+        pl.append(m);
+    }
+    _missionCheckV = {{QStringLiteral("time"), QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss"))},
+                      {QStringLiteral("ok"), _report.ok()}, {QStringLiteral("errors"), nErr}, {QStringLiteral("warnings"), nWarn},
+                      {QStringLiteral("vehicles"), vl}, {QStringLiteral("pairs"), pl}};
+    for (const QString &k : newErrors) {
+        const int bar = k.indexOf(QLatin1Char('|'));
+        _event(k.left(bar), QStringLiteral("※ 미션 검사: %1").arg(k.mid(bar + 1)));
+    }
+    _reportedErrors = errorsNow;
+    emit missionCheckChanged();
+}
+
+QVariantMap MLAcactRuntime::validateMissions()
+{
+    _checkTimer.stop();
+    _runMissionCheck();
+    return _missionCheckV;
+}
+
+QStringList MLAcactRuntime::_missionErrors(const QString &id) const
+{
+    QStringList out;
+    const std::string sid = id.toStdString();
+    for (const acact::VehicleReport &r : _report.vehicles) {
+        if (r.id == sid) {
+            for (const acact::Issue &i : r.issues) {
+                // EMPTY / TAKEOFF_FAR are already the guard.py preflight items
+                if (i.level == acact::Level::Error && i.code != "EMPTY" && i.code != "TAKEOFF_FAR") {
+                    out << _issueText(i);
+                }
+            }
+        }
+    }
+    for (const acact::PairReport &p : _report.pairs) {
+        if (p.a != sid && p.b != sid) {
+            continue;
+        }
+        for (acact::Issue i : p.issues) {
+            if (i.level == acact::Level::Error) {
+                i.other = p.a == sid ? p.b : p.a;
+                out << _issueText(i);
+            }
+        }
+    }
+    return out;
+}
+
+bool MLAcactRuntime::uploadPlanFile(int sysid, const QString &pathIn)
+{
+    VS *d = _vsBySysid(sysid);
+    const QString path = pathIn.startsWith(QLatin1String("file:")) ? QUrl(pathIn).toLocalFile() : pathIn;
+    const QString who = d ? d->id : QStringLiteral("D%1").arg(sysid);
+    if (!d || !d->v || !d->connected) {
+        _event(who, QStringLiteral("※ 미션 파일 업로드 불가: 기체 연결 안 됨"));
+        return false;
+    }
+    if (_core && _core->own.count(d->id.toStdString()) && _core->own[d->id.toStdString()].owned) {
+        _event(who, QStringLiteral("※ 회피 중에는 미션을 바꿀 수 없음 — 회피가 끝난 뒤 다시"));
+        return false;
+    }
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        _event(who, QStringLiteral("※ 미션 파일을 열 수 없음: %1").arg(path));
+        return false;
+    }
+    QJsonParseError pe;
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll(), &pe).object();
+    if (pe.error != QJsonParseError::NoError || root.value(QStringLiteral("fileType")).toString() != QLatin1String("Plan")) {
+        _event(who, QStringLiteral("※ QGC .plan 파일이 아님: %1").arg(QFileInfo(path).fileName()));
+        return false;
+    }
+    const QJsonObject mission = root.value(QStringLiteral("mission")).toObject();
+    const QJsonArray home = mission.value(QStringLiteral("plannedHomePosition")).toArray();
+    QList<MissionItem *> items;
+    items << new MissionItem(0, MAV_CMD_NAV_WAYPOINT, MAV_FRAME_GLOBAL, 0, 0, 0, 0, home.size() > 1 ? home[0].toDouble() : 0.0,
+                             home.size() > 1 ? home[1].toDouble() : 0.0, home.size() > 2 ? home[2].toDouble() : 0.0, true, false);
+    int seq = 1;
+    for (const QJsonValue &jv : mission.value(QStringLiteral("items")).toArray()) {
+        const QJsonObject o = jv.toObject();
+        if (o.value(QStringLiteral("type")).toString() != QLatin1String("SimpleItem")) {
+            qDeleteAll(items);
+            _event(who, QStringLiteral("※ 복합 항목(%1)이 있는 계획은 QGC 계획 화면에서 업로드하세요").arg(o.value(QStringLiteral("complexItemType")).toString()));
+            return false;
+        }
+        const QJsonArray p = o.value(QStringLiteral("params")).toArray();
+        auto prm = [&p](int k) { return k < p.size() && !p[k].isNull() ? p[k].toDouble() : qQNaN(); };
+        items << new MissionItem(seq++, static_cast<MAV_CMD>(o.value(QStringLiteral("command")).toInt()),
+                                 static_cast<MAV_FRAME>(o.value(QStringLiteral("frame")).toInt()), prm(0), prm(1), prm(2), prm(3), prm(4),
+                                 prm(5), prm(6), o.value(QStringLiteral("autoContinue")).toBool(true), false);
+    }
+    if (items.size() < 2) {
+        qDeleteAll(items);
+        _event(who, QStringLiteral("※ 미션 항목이 없는 계획 파일"));
+        return false;
+    }
+    std::vector<acact::Fence> fences;
+    const QJsonObject gf = root.value(QStringLiteral("geoFence")).toObject();
+    for (const QJsonValue &cv : gf.value(QStringLiteral("circles")).toArray()) {
+        const QJsonObject co = cv.toObject();
+        const QJsonObject circ = co.value(QStringLiteral("circle")).toObject();
+        const QJsonArray ctr = circ.value(QStringLiteral("center")).toArray();
+        acact::Fence fe;
+        fe.circle = true;
+        fe.inclusion = co.value(QStringLiteral("inclusion")).toBool(true);
+        fe.lat = ctr.size() > 1 ? ctr[0].toDouble() : 0;
+        fe.lon = ctr.size() > 1 ? ctr[1].toDouble() : 0;
+        fe.radius = circ.value(QStringLiteral("radius")).toDouble();
+        fences.push_back(fe);
+    }
+    for (const QJsonValue &pv : gf.value(QStringLiteral("polygons")).toArray()) {
+        const QJsonObject po = pv.toObject();
+        acact::Fence fe;
+        fe.circle = false;
+        fe.inclusion = po.value(QStringLiteral("inclusion")).toBool(true);
+        for (const QJsonValue &q : po.value(QStringLiteral("polygon")).toArray()) {
+            const QJsonArray ll = q.toArray();
+            if (ll.size() > 1) {
+                fe.poly.push_back({ll[0].toDouble(), ll[1].toDouble()});
+            }
+        }
+        fences.push_back(fe);
+    }
+    if (d->inAir) {
+        _event(who, QStringLiteral("※ 비행 중 미션 교체: %1").arg(QFileInfo(path).fileName()));
+    }
+    _event(who, QStringLiteral("미션 파일 업로드: %1 (%2개, 지오펜스 %3)").arg(QFileInfo(path).fileName()).arg(items.size() - 1).arg(fences.size()));
+    _scenario.clear();
+    _scenarioMode.clear();
+    _busy = QStringLiteral("%1 미션 업로드 중").arg(who);
+    emit updated();
+    _writeMission(d, items, fences, [this, who](bool ok) {
+        _busy.clear();
+        if (ok) {
+            const QVariantMap r = validateMissions();
+            _event(who, QStringLiteral("미션 검사: 오류 %1 · 주의 %2").arg(r.value(QStringLiteral("errors")).toInt()).arg(r.value(QStringLiteral("warnings")).toInt()));
+        }
+        emit updated();
+    });
+    return true;
+}
+
+bool MLAcactRuntime::savePlanFile(int sysid, const QString &pathIn)
+{
+    VS *d = _vsBySysid(sysid);
+    QString path = pathIn.startsWith(QLatin1String("file:")) ? QUrl(pathIn).toLocalFile() : pathIn;
+    if (!path.endsWith(QLatin1String(".plan"))) {
+        path += QStringLiteral(".plan");
+    }
+    if (!d || !d->v) {
+        return false;
+    }
+    Vehicle *v = d->v;
+    QJsonArray items;
+    for (const MissionItem *mi : v->missionManager()->missionItems()) {
+        QJsonArray p;
+        for (double x : {mi->param1(), mi->param2(), mi->param3(), mi->param4(), mi->param5(), mi->param6(), mi->param7()}) {
+            p.append(std::isnan(x) ? QJsonValue() : QJsonValue(x));
+        }
+        QJsonObject o{{QStringLiteral("type"), QStringLiteral("SimpleItem")}, {QStringLiteral("command"), static_cast<int>(mi->command())},
+                      {QStringLiteral("frame"), static_cast<int>(mi->frame())}, {QStringLiteral("params"), p},
+                      {QStringLiteral("autoContinue"), mi->autoContinue()}, {QStringLiteral("doJumpId"), mi->sequenceNumber() + 1}};
+        if (mi->frame() == MAV_FRAME_GLOBAL_RELATIVE_ALT || mi->frame() == MAV_FRAME_GLOBAL) {
+            o[QStringLiteral("Altitude")] = mi->param7();
+            o[QStringLiteral("AltitudeMode")] = mi->frame() == MAV_FRAME_GLOBAL ? 2 : 1;
+            o[QStringLiteral("AMSLAltAboveTerrain")] = QJsonValue();
+        }
+        items.append(o);
+    }
+    const QGeoCoordinate h = v->homePosition();
+    QJsonArray circles, polygons;
+    for (const QGCFenceCircle &fc : v->geoFenceManager()->circles()) {
+        circles.append(QJsonObject{{QStringLiteral("circle"), QJsonObject{{QStringLiteral("center"), QJsonArray{fc.center().latitude(), fc.center().longitude()}},
+                                                                          {QStringLiteral("radius"), const_cast<QGCFenceCircle &>(fc).radius()->rawValue().toDouble()}}},
+                                   {QStringLiteral("inclusion"), fc.inclusion()}, {QStringLiteral("version"), 1}});
+    }
+    for (const QGCFencePolygon &fp : v->geoFenceManager()->polygons()) {
+        QJsonArray pts;
+        for (const QGeoCoordinate &q : fp.coordinateList()) {
+            pts.append(QJsonArray{q.latitude(), q.longitude()});
+        }
+        polygons.append(QJsonObject{{QStringLiteral("polygon"), pts}, {QStringLiteral("inclusion"), fp.inclusion()}, {QStringLiteral("version"), 1}});
+    }
+    const QJsonObject root{
+        {QStringLiteral("fileType"), QStringLiteral("Plan")},
+        {QStringLiteral("groundStation"), QStringLiteral("MobilityLabGCS")},
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("mission"), QJsonObject{{QStringLiteral("version"), 2}, {QStringLiteral("firmwareType"), v->px4Firmware() ? 12 : 3},
+                                                {QStringLiteral("vehicleType"), static_cast<int>(v->vehicleType())},
+                                                {QStringLiteral("cruiseSpeed"), 15}, {QStringLiteral("hoverSpeed"), 5},
+                                                {QStringLiteral("globalPlanAltitudeMode"), 1},
+                                                {QStringLiteral("plannedHomePosition"), QJsonArray{h.isValid() ? h.latitude() : d->lat, h.isValid() ? h.longitude() : d->lon,
+                                                                                                   h.isValid() && !std::isnan(h.altitude()) ? h.altitude() : 0.0}},
+                                                {QStringLiteral("items"), items}}},
+        {QStringLiteral("geoFence"), QJsonObject{{QStringLiteral("version"), 2}, {QStringLiteral("circles"), circles}, {QStringLiteral("polygons"), polygons}}},
+        {QStringLiteral("rallyPoints"), QJsonObject{{QStringLiteral("version"), 2}, {QStringLiteral("points"), QJsonArray()}}},
+    };
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        _event(d->id, QStringLiteral("※ 미션 파일 저장 실패: %1").arg(path));
+        return false;
+    }
+    f.write(QJsonDocument(root).toJson());
+    _event(d->id, QStringLiteral("미션 저장: %1").arg(path));
+    return true;
 }

@@ -1,0 +1,19 @@
+diff --git a/src/QGCApplication.cc b/src/QGCApplication.cc
+index bf7ef5b..e7a6afa 100644
+--- a/src/QGCApplication.cc
++++ b/src/QGCApplication.cc
+@@ -100,6 +100,14 @@ QGCApplication::QGCApplication(int& argc, char* argv[], const QGCCommandLinePars
+ 
+     // Set settings format
+     QSettings::setDefaultFormat(QSettings::IniFormat);
++    // MobilityLab portable build: a portable.txt next to the bin folder keeps all settings in <root>/data
++    {
++        const QDir portableRoot(QCoreApplication::applicationDirPath() + QStringLiteral("/.."));
++        if (QFile::exists(portableRoot.filePath(QStringLiteral("portable.txt")))) {
++            QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, portableRoot.absoluteFilePath(QStringLiteral("data")));
++            qputenv("MLGCS_PORTABLE_DIR", portableRoot.absolutePath().toLocal8Bit());
++        }
++    }
+     QSettings settings;
+     qCDebug(QGCApplicationLog) << "Settings location" << settings.fileName()
+                                << "Is writable?:" << settings.isWritable();
