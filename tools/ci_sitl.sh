@@ -105,7 +105,7 @@ status=0
 
 # ---- ACACT cases: two PX4 SIH quadcopters (oregon layout, D2 15 m east of D1, facing north) ------
 start_app () {   # start_app <case> <log>
-    sg dialout -c "ML_TEST_ACACT=1 ML_TEST_ACACT_N=2 ML_TEST_ACACT_CASE='$1' ML_TEST_PLAN_DIR='$OUT/plans' DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 LP_NUM_THREADS=1 nice -n 15 taskset -c $GCS_CPUS '$BIN' > '$2' 2>&1" &
+    sg dialout -c "ML_TEST_ACACT=1 ML_TEST_ACACT_N=2 ML_TEST_ACACT_CASE='$1' ML_TEST_PLAN_DIR='$OUT/plans' DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 LP_NUM_THREADS=1 nice -n 19 taskset -c $GCS_CPUS '$BIN' > '$2' 2>&1" &
     sleep 10
     DISPLAY="$disp" xdotool search --onlyvisible --name ".*" 2>/dev/null | while read -r w; do
         DISPLAY="$disp" xdotool windowmove "$w" 0 0 windowsize "$w" 100% 100% || true
@@ -124,13 +124,13 @@ link () {        # link cut|restore <instance>: PX4 instance i talks to the GCS 
     sudo iptables $op INPUT -i lo -p udp --dport "$port" -j DROP
 }
 
-# CPU split: each PX4 SIH on its own core, the GCS (software-rendered map, llvmpipe limited to one thread)
-# on the rest. On a loaded runner SIH otherwise misses sensor updates ("No valid data from Baro 0") and
-# PX4 lands at once ("Failsafe: blind land") — a test-bench artefact, not a GCS behaviour.
+# CPU split: the GCS (software-rendered map, llvmpipe limited to one thread) on the last core at low priority,
+# the two PX4 SIH instances on all cores at high priority. A starved SIH misses sensor updates
+# ("BARO #0 failed: TIMEOUT") and PX4 lands at once ("Failsafe: blind land") — a test-bench artefact.
+# (Pinning each PX4 instance to one core made it worse: each instance runs many threads.)
 NCPU=$(nproc)
-if (( NCPU >= 4 )); then PX4_CPU0=0; PX4_CPU1=1; GCS_CPUS="2-$((NCPU - 1))"
-else PX4_CPU0=0; PX4_CPU1=0; GCS_CPUS="0-$((NCPU - 1))"; fi
-echo "CPUs: $NCPU (PX4 $PX4_CPU0/$PX4_CPU1, GCS $GCS_CPUS)"
+GCS_CPUS="$((NCPU - 1))"
+echo "CPUs: $NCPU (GCS on $GCS_CPUS, PX4 on all)"
 
 run_acact () {
     local c="$1"
@@ -149,14 +149,16 @@ run_acact () {
 PX4_PARAM_MPC_TKO_SPEED=1.0 PX4_PARAM_MPC_XY_CRUISE=3.0 PX4_PARAM_MIS_TAKEOFF_ALT=8.0 PX4_PARAM_RTL_CONE_ANG=0 \
 PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX4_PARAM_NAV_DLL_ACT=0 PX4_PARAM_SIM_BAT_DRAIN=1800"
     rm -rf "$PX4_BUILD/rootfs0" "$PX4_BUILD/rootfs1"; mkdir -p "$PX4_BUILD/rootfs0" "$PX4_BUILD/rootfs1"
-    (cd "$PX4_BUILD/rootfs0" && eval "$common PX4_PARAM_SIH_LOC_LAT0=37.2100856 PX4_PARAM_SIH_LOC_LON0=126.8307462 PX4_PARAM_RTL_RETURN_ALT=20 taskset -c $PX4_CPU0 ../bin/px4 -i 0 -d ../etc") > "$OUT/sitl-acact-$c-px4-0.log" 2>&1 &
+    (cd "$PX4_BUILD/rootfs0" && eval "$common PX4_PARAM_SIH_LOC_LAT0=37.2100856 PX4_PARAM_SIH_LOC_LON0=126.8307462 PX4_PARAM_RTL_RETURN_ALT=20 ../bin/px4 -i 0 -d ../etc") > "$OUT/sitl-acact-$c-px4-0.log" 2>&1 &
     local p0=$!
-    (cd "$PX4_BUILD/rootfs1" && eval "$common PX4_PARAM_SIH_LOC_LAT0=37.2100856 PX4_PARAM_SIH_LOC_LON0=126.8309154 PX4_PARAM_RTL_RETURN_ALT=26 taskset -c $PX4_CPU1 ../bin/px4 -i 1 -d ../etc") > "$OUT/sitl-acact-$c-px4-1.log" 2>&1 &
+    (cd "$PX4_BUILD/rootfs1" && eval "$common PX4_PARAM_SIH_LOC_LAT0=37.2100856 PX4_PARAM_SIH_LOC_LON0=126.8309154 PX4_PARAM_RTL_RETURN_ALT=26 ../bin/px4 -i 1 -d ../etc") > "$OUT/sitl-acact-$c-px4-1.log" 2>&1 &
     local p1=$!
     # the runner is small: keep the simulators ahead of the GCS's software-rendered map so the PX4 estimators
     # do not starve (seen as "Failsafe: blind land" right after takeoff on a loaded runner)
-    sleep 2
-    for pid in $(pgrep -f "bin/px4"); do sudo renice -n -10 -p "$pid" > /dev/null || true; done
+    # every thread of both PX4 processes (renice works per thread on Linux); again once all modules are up
+    px4_prio () { for pid in $(pgrep -f "bin/px4"); do for t in /proc/$pid/task/*; do sudo renice -n -10 -p "${t##*/}" > /dev/null 2>&1; done; done; }
+    sleep 2; px4_prio
+    ( sleep 15; px4_prio ) &
     python3 "$HERE/acact_sitl.py" --out "$OUT" --case "$c" --app-log "$applog" --timeout 1200 > "$OUT/sitl-acact-$c-check.log" 2>&1 &
     local chk=$!
 
