@@ -98,6 +98,16 @@ Item {
     // ---- floating console panels over a full-window map ---------------------
     readonly property real _m: Math.round(10 * _u)
 
+    // soft shadows under the floating panels
+    MLPanelShadow { target: flightColumn }
+    MLPanelShadow { target: systemsColumn }
+    Item {
+        x: dock.x; y: dock.y; width: dock.width; height: dock.height
+        visible: dock.visible
+        MLPanelShadow { target: fleetLanes }
+        MLPanelShadow { target: commandBar }
+    }
+
     MLFlightColumn {
         id:                 flightColumn
         anchors.top:        toolbar.bottom
@@ -215,6 +225,15 @@ Item {
             var m = /^D(\d+)$/.exec(who)
             var level = /긴급|두절|끊김|오류|실패|※/.test(text) ? 3 : (/회피|위험|개입|HOLD/.test(text) ? 2 : 0)
             MLState.log("ACACT · " + (m ? "" : who + " · ") + text, level, m ? Number(m[1]) : 0, "ACACT")
+        }
+        // SITL test runs: guard terminal into the app log
+        property int _logged: 0
+        function onConsoleChanged() {
+            if (typeof mlTestSetpoints === "undefined" || !mlTestSetpoints) return
+            var c = mlGuard.console
+            if (c.length < _logged) _logged = 0
+            for (var i = _logged; i < c.length; i++) console.log("MLGUARD " + c[i])
+            _logged = c.length
         }
         function onActiveChanged() {
             if (mlGuard.active) MLState.log(qsTr("ACACT 가드 연결됨 (%1)").arg(mlGuard.guardHost), 1, 0, "GCS")

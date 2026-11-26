@@ -15,13 +15,26 @@ Item {
     Rectangle {
         visible:        root.rule
         anchors.top:    parent.top
-        width:          parent.width
+        x:              14 * MLTheme.u
+        width:          parent.width - 28 * MLTheme.u
         height:         1
         color:          MLTheme.line
+        Rectangle { width: 22 * MLTheme.u; height: 1; color: MLTheme.accent; opacity: 0.7 }
     }
-    MLText {
+    Rectangle {
+        id:                     bullet
         anchors.left:           parent.left
         anchors.leftMargin:     20 * MLTheme.u
+        anchors.verticalCenter: titleText.verticalCenter
+        width:                  4 * MLTheme.u
+        height:                 4 * MLTheme.u
+        color:                  MLTheme.accent
+        rotation:               45
+    }
+    MLText {
+        id:                     titleText
+        anchors.left:           bullet.right
+        anchors.leftMargin:     9 * MLTheme.u
         anchors.bottom:         parent.bottom
         anchors.bottomMargin:   8 * MLTheme.u
         text:                   root.title

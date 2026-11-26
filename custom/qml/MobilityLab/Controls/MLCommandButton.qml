@@ -59,6 +59,26 @@ Rectangle {
     opacity:        available ? 1 : 0.45
     clip:           true
 
+    Rectangle {
+        anchors.fill:       parent
+        anchors.margins:    1
+        radius:             root.radius
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: root._hover && root.available ? "#18FFFFFF" : "#0CFFFFFF" }
+            GradientStop { position: 0.55; color: "#00FFFFFF" }
+        }
+    }
+    Rectangle {
+        visible:            root.selected || root._pending
+        anchors.bottom:     parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        width:              parent.width * 0.5
+        height:             2 * MLTheme.u
+        radius:             1
+        color:              root._toneColor
+        opacity:            root._pending ? 0 : 0.9
+    }
+
     Column {
         id:                 content
         anchors.centerIn:   parent

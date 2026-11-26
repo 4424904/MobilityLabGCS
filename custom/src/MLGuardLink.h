@@ -10,6 +10,8 @@
 #include <QtNetwork/QHostAddress>
 
 class QUdpSocket;
+class QProcess;
+class MLGuardRouter;
 class QJsonObject;
 
 /// Link to the ACACT Guard (acact_guard/guard.py + gcs_link.py).
@@ -55,6 +57,12 @@ class MLGuardLink : public QObject
     Q_PROPERTY(double       bearing         READ bearing        WRITE setBearing    NOTIFY settingsChanged)
     Q_PROPERTY(QString      agentAddress    READ agentAddress   WRITE setAgentAddress NOTIFY settingsChanged)
     Q_PROPERTY(bool         canLaunchLocal  READ canLaunchLocal CONSTANT)
+    // ---- guard run by the GCS itself (bundled Python on Windows) ----------
+    Q_PROPERTY(bool         local           READ local          CONSTANT)
+    Q_PROPERTY(QString      localDir        READ localDir       CONSTANT)
+    Q_PROPERTY(QString      localPython     READ localPython    CONSTANT)
+    Q_PROPERTY(bool         routeVehicles   READ routeVehicles  WRITE setRouteVehicles NOTIFY settingsChanged)
+    Q_PROPERTY(int          routedVehicles  READ routedVehicles NOTIFY agentChanged)
 
 public:
     explicit MLGuardLink(QObject *parent = nullptr);
@@ -77,7 +85,7 @@ public:
     double guardTime() const { return _guardTime; }
 
     bool agentFound() const { return _agentFound; }
-    QString agentHost() const { return _agentHost.isNull() ? QString() : _agentHost.toString(); }
+    QString agentHost() const { return local() ? QStringLiteral("이 PC") : (_agentHost.isNull() ? QString() : _agentHost.toString()); }
     QString agentState() const { return _agentState; }
     QString agentDir() const { return _agentDir; }
     QStringList agentArgs() const { return _agentArgs; }
@@ -94,6 +102,14 @@ public:
     QString agentAddress() const { return _agentAddress; }
     void setAgentAddress(const QString &v);
     bool canLaunchLocal() const;
+    bool local() const { return !_localPython.isEmpty() && !_localDir.isEmpty(); }
+    QString localDir() const { return _localDir; }
+    QString localPython() const { return _localPython; }
+    bool routeVehicles() const { return _routeVehicles; }
+    void setRouteVehicles(bool v);
+    int routedVehicles() const;
+    /// Open the guard's working folder (plans, logs, site.json)
+    Q_INVOKABLE void openFolder();
 
     /// Start the guard through the agent, e.g. drones "D1,D2" (profile from settings)
     Q_INVOKABLE bool startGuard(const QString &drones);
@@ -135,6 +151,12 @@ private:
     void _agentTick();
     bool _toAgent(const QJsonObject &o);
     QString _guardDir() const;
+    void _findLocal();
+    bool _startLocal(const QString &kind, const QStringList &args, const QString &drones, const QString &profile);
+    void _localOutput();
+    void _localFinished();
+    void _appendConsole(const QString &line);
+    void _updateRouting();
     void _setActive(bool active);
 
     QUdpSocket   *_socket = nullptr;
@@ -168,6 +190,17 @@ private:
     QString       _profile;
     double        _bearing = 0;
     QString       _agentAddress;
+
+    // local runner
+    QString        _localDir;
+    QString        _localPython;
+    QProcess      *_proc = nullptr;
+    QString        _procKind;
+    QStringList    _procArgs;
+    QElapsedTimer  _procSince;
+    QByteArray     _procBuf;
+    MLGuardRouter *_router = nullptr;
+    bool           _routeVehicles = true;
 
     QVariantList  _drones;
     QVariantList  _pairs;

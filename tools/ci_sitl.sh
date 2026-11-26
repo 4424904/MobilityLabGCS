@@ -15,7 +15,10 @@ WORK="$(mktemp -d)"
 BIN="$(find "$BUILD_DIR" -maxdepth 3 -type f -name MobilityLabGCS -perm -u+x | head -n1)"
 [[ -z "$BIN" ]] && { echo "::error::MobilityLabGCS binary not found"; exit 1; }
 
-python3 -m pip install --quiet pymavlink pillow || python3 -m pip install --quiet --break-system-packages pymavlink pillow
+python3 -m pip install --quiet pymavlink pillow "mavsdk<4" numpy || python3 -m pip install --quiet --break-system-packages pymavlink pillow "mavsdk<4" numpy
+# ACACT guard run by the GCS itself (PX4 run): GCS starts guard.py, bridges the vehicle to its mavsdk_server
+GUARD_DIR="$WORK/acact_guard"
+cp -r "$HERE/../integrations/acact_guard/src" "$GUARD_DIR"
 
 shot () { python3 -c "from PIL import ImageGrab; ImageGrab.grab(xdisplay='$1').save('$2')" || echo "screenshot failed: $2"; }
 
@@ -46,7 +49,7 @@ get_arducopter () {
 # ---- one run ------------------------------------------------------------------
 # run_fw <fw> <command that starts the SITL, run in its own dir> <dir> <verifier link>
 run_fw () {
-    local fw="$1" start_cmd="$2" dir="$3" link="$4"
+    local fw="$1" start_cmd="$2" dir="$3" link="$4" extra_env="${5:-}"
     local disp=":$((80 + RANDOM % 9))"
     echo "=================== $fw on $disp"
 
@@ -55,7 +58,7 @@ run_fw () {
     sleep 2
 
     seed_settings
-    sg dialout -c "DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 ML_TEST_SETPOINTS=1 nice -n 10 '$BIN' > '$OUT/sitl-$fw-app.log' 2>&1" &
+    sg dialout -c "$extra_env DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 ML_TEST_SETPOINTS=1 nice -n 10 '$BIN' > '$OUT/sitl-$fw-app.log' 2>&1" &
     sleep 10
     DISPLAY="$disp" xdotool search --onlyvisible --name ".*" 2>/dev/null | while read -r w; do
         DISPLAY="$disp" xdotool windowmove "$w" 0 0 windowsize "$w" 100% 100% || true
@@ -81,6 +84,11 @@ run_fw () {
     tail -n 40 "$OUT/sitl-$fw-check.log"
     echo "--- $fw GCS test steps"
     grep -h "MLTEST" "$OUT/sitl-$fw-app.log" || echo "(no MLTEST lines)"
+    if [[ -n "$extra_env" ]]; then
+        echo "--- $fw guard (run by the GCS)"
+        grep -h "MLGUARD\|GuardRouter\|guard runs locally\|guard |" "$OUT/sitl-$fw-app.log" > "$OUT/sitl-$fw-guard.txt" || true
+        tail -n 40 "$OUT/sitl-$fw-guard.txt"
+    fi
 
     kill "$sim" 2>/dev/null; pkill -f arducopter 2>/dev/null; pkill -f "bin/px4" 2>/dev/null
     pkill -f "$BIN" 2>/dev/null; sleep 2; pkill -9 -f "$BIN" 2>/dev/null
@@ -106,7 +114,8 @@ if [[ -n "$PX4_BUILD" && -x "$PX4_BUILD/bin/px4" ]]; then
     rm -rf "$PX4_BUILD/rootfs" && mkdir -p "$PX4_BUILD/rootfs"
     run_fw px4 \
         "PX4_SIM_MODEL=sihsim_quadx PX4_HOME_LAT=37.21 PX4_HOME_LON=126.83 PX4_HOME_ALT=20 ../bin/px4 -d ../etc" \
-        "$PX4_BUILD/rootfs" "udpin:0.0.0.0:14540" || status=1
+        "$PX4_BUILD/rootfs" "udpin:0.0.0.0:14540" "ACACT_GUARD_DIR='$GUARD_DIR' ACACT_PYTHON=python3" || status=1
+    pkill -f mavsdk_server 2>/dev/null
 else
     echo "::warning::PX4 SITL not available"
     echo '{"fw":"px4","checks":{},"notes":["PX4 SITL build missing"]}' > "$OUT/sitl-px4.json"

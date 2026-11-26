@@ -243,4 +243,6 @@ Rectangle {
         width:          parent.width
         visible:        height > 90 * u
     }
+
+    MLPanelChrome { radius: root.radius }
 }

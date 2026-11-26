@@ -67,7 +67,7 @@ Rectangle {
                 text: !root._agent ? qsTr("에이전트 없음") :
                       root._run ? qsTr("실행 중 · %1 · %2").arg(mlGuard.agentArgs.join(" ")).arg(MLTheme.duration(mlGuard.agentUptime)) :
                       root._busy ? qsTr("%1 실행 중").arg(mlGuard.agentState === "plan" ? "plan_gen" : "set_params") :
-                      qsTr("정지 · 에이전트 %1").arg(mlGuard.agentHost)
+                      (mlGuard.local ? qsTr("정지 · GCS 내장 가드") : qsTr("정지 · 에이전트 %1").arg(mlGuard.agentHost))
             }
             Rectangle {
                 Layout.preferredWidth: 30 * u; Layout.preferredHeight: 30 * u
@@ -148,6 +148,27 @@ Rectangle {
                 visible: root._run
                 text: qsTr("가드 종료"); tone: "caution"
                 onClicked: { if (mlGuard.stopGuard(false)) MLState.command(qsTr("가드 종료")) }
+            }
+        }
+        RowLayout {
+            visible: mlGuard.local
+            Layout.fillWidth: true
+            spacing: 10 * u
+            QGCCheckBox {
+                text: qsTr("GCS 가 기체 연결을 가드에 직접 중계 (mavlink-router 불필요)")
+                checked: mlGuard.routeVehicles
+                onClicked: mlGuard.routeVehicles = checked
+            }
+            Item { Layout.fillWidth: true }
+            Text {
+                visible: root._run || root._busy
+                text: qsTr("중계 %1기").arg(mlGuard.routedVehicles)
+                color: mlGuard.routedVehicles > 0 ? MLTheme.active : MLTheme.caution
+                font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall
+            }
+            MLText {
+                text: qsTr("폴더 열기"); color: MLTheme.accent; font.pixelSize: MLTheme.fsSmall
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: mlGuard.openFolder() }
             }
         }
         QGCCheckBox {
@@ -310,4 +331,6 @@ Rectangle {
             }
         }
     }
+
+    MLPanelChrome { radius: root.radius }
 }

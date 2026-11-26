@@ -45,8 +45,22 @@ Item {
 
     Rectangle {
         anchors.fill:   parent
-        color:          MLTheme.panelSolid
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#0E1318" }
+            GradientStop { position: 1.0; color: "#080B0E" }
+        }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: MLTheme.line }
+        // lit seam under the bar, brightest over the map
+        Rectangle {
+            anchors.bottom: parent.bottom
+            x: parent.width * 0.18; width: parent.width * 0.64; height: 1
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: "#005BC0EB" }
+                GradientStop { position: 0.5; color: "#995BC0EB" }
+                GradientStop { position: 1.0; color: "#005BC0EB" }
+            }
+        }
     }
 
     Row {

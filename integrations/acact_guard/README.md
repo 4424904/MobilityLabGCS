@@ -1,39 +1,36 @@
-# ACACT Guard ↔ MobilityLab GCS
+# ACACT Guard — GCS 내장
 
-GCS 에서 가드를 **켜고 끄고, 터미널 명령을 그대로 주고, 상태를 지도에서 봅니다.**
-회피 판단은 그대로 `guard.py`(core.py)가 합니다. GCS 는 계산하지 않습니다.
+가드(`src/`, 신승환 작성 코드 + GCS 연동 몇 줄)는 **MobilityLab GCS 안에서 실행됩니다.**
+따로 가드를 켜거나 터미널에 입력할 필요가 없습니다. Windows / Linux 모두.
 
 ```
-            가드 노트북 (Ubuntu)                                     MobilityLab GCS (같은 PC 또는 Windows)
- guard_agent.py ── UDP 47003 ◀── 시작·종료·명령 한 줄·plan_gen ───── [가드 콘솔]
-   └─ guard.py (stdin 은 에이전트가 쥠)
-        └─ gcs_link.py ── UDP 47001 ── 상태 JSON 5 Hz ───────────▶ 지도 안전 반경·거리선, 편대 레인, 이벤트 기록
-                        ◀─ UDP 47002 ── h/r/g/auto (에이전트 없이 가드만 켠 경우)
+MobilityLab GCS ─┬─ 기체 링크 (무전기·UDP·SITL)  ── 기체 1…4
+                 ├─ 중계: 기체 n 메시지 ⇄ 127.0.0.1:1454n  (mavlink-router 역할)
+                 │        └─ guard.py 의 mavsdk_server (D1…D4)
+                 ├─ guard.py / plan_gen.py / set_params.py 실행 (stdin·stdout 을 GCS 가 쥠)
+                 └─ 가드 상태 수신 UDP 47001 → 지도 안전 반경·거리선, 편대 레인, 이벤트 기록
 ```
 
-## 가드 노트북에 넣을 것 (1회)
+- **Windows 설치파일**에 전용 파이썬(3.12 + mavsdk + numpy)과 가드 코드가 들어 있습니다.
+  처음 실행할 때 가드 코드는 `%LOCALAPPDATA%\MobilityLab\…\acact_guard` 로 복사되고
+  (plans/, logs/, site.json 이 여기에 생김) GCS 업데이트 때 바뀐 파일만 갱신됩니다.
+- **Linux**: `~/acact_guard` 가 있으면 그것을, `~/acact-venv` 파이썬으로 실행합니다.
+  (`ACACT_GUARD_DIR`, `ACACT_PYTHON` 환경변수로 바꿀 수 있음)
+- GCS 가 기체를 가드에 직접 중계하므로 mavlink-router 는 필요 없습니다.
+  이미 mavlink-router 로 연결하는 환경이면 가드 콘솔에서 "직접 중계"를 끄세요.
+- GCS 가 종료되면 가드도 함께 종료됩니다 → mavsdk_server 가 멈추고 PX4 는 Offboard 상실 시 Hold.
 
-```bash
-cd ~/acact_guard
-cp <이 폴더>/gcs_link.py <이 폴더>/guard_agent.py <이 폴더>/install_agent.sh .
-patch -p1 < <이 폴더>/guard_gcs.patch      # guard.py · config.py 에 몇 줄 (core.py 변경 없음)
-bash install_agent.sh                     # 로그인하면 에이전트 자동 실행
-#   GCS 가 다른 PC(Windows)이면:  bash install_agent.sh --allow-lan
-```
+## GCS 에서 (아래 편대 레인 → [가드 콘솔])
 
-- 같은 PC 에서 GCS 를 쓰고 `~/acact_guard/guard_agent.py` 가 있으면, 에이전트가 안 떠 있어도 GCS 가 직접 띄웁니다.
-- 에이전트는 가드를 자식으로 쥐고 있어서 GCS 를 꺼도 가드는 계속 돕니다. 에이전트가 죽으면 가드는 SIGINT 로 정상 종료(회피 중 기체 HOLD)합니다.
-- 명령 허용 주소: 127.0.0.1, `ACACT_GCS`, `ACACT_AGENT_ALLOW`, (`--allow-lan` 이면 사설망 전체).
-- mavlink-router(무전기 연결)나 SITL 은 지금처럼 따로 띄웁니다.
+1. 기체 연결 → 가드 자동 시작 (끌 수 있음)
+2. 준비: 방위 → [미션 생성] (plan_gen --from-vehicles), [파라미터 확인/적용]
+3. 시나리오 선택 · demo/rehearsal → [불러오기] → [시작 (이륙)]
+4. 진행: 다음 단계 g · g! · 재개 r · 자동 진행 · 상태 s · 전체 HOLD h
+5. 터미널: 가드 출력 그대로, 직접 입력도 가능
 
-## GCS 에서
+기체를 움직이는 명령은 두 번 눌러야 나갑니다. 전체 HOLD 는 한 번.
 
-- 아래 편대 레인 오른쪽 **[가드 콘솔]**
-  - 실행: 기체(D1,D2 — 연결된 기체에서 자동) · 프로파일 · [가드 시작] / [가드 종료]
-  - "기체가 연결되면 가드를 자동으로 시작" (기본 켜짐, 세션당 1번)
-  - 준비: 방위 · [미션 생성] (plan_gen --from-vehicles) · [파라미터 확인/적용]
-  - 시나리오: 목록에서 고르고 demo/rehearsal · [불러오기] · [시작 (이륙)]
-  - 진행: g · g! · r · 자동 진행 · s · 전체 HOLD
-  - 터미널: guard.py 출력 그대로 + 직접 입력
-- `시작`·`load`·`g` 처럼 기체를 움직이는 명령은 두 번 눌러야 나갑니다. 전체 HOLD 는 한 번.
-- Windows 방화벽에서 MobilityLabGCS 의 UDP 를 허용해야 다른 PC 와 주고받습니다.
+## 원격 가드 (선택)
+
+가드를 다른 Ubuntu PC 에서 돌리고 싶으면 그 PC 에서 `src/install_agent.sh --allow-lan`.
+GCS 에 내장 가드가 없을 때만 에이전트를 찾습니다.

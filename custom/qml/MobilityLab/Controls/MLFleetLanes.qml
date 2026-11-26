@@ -317,4 +317,6 @@ Rectangle {
             }
         }
     }
+
+    MLPanelChrome { radius: root.radius }
 }
