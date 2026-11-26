@@ -24,3 +24,12 @@
 | `plan_gen.py` | 방위 생략 시 기체 기수 방향 1초 평균으로 자동 (기체끼리 20° 넘게 다르면 중단) | MLAcactRuntime `setupSite` |
 | `sim_check.py`, `stress_check.py` | advance 모사, 악조건 스트레스 시험 | 비교 검증에 그대로 사용 |
 | `set_params.py`(확인 문구 기체 수), `launch_sitl.sh`, `demo.sh`(신규), `router/wifi*.conf`(신규) | PX4 파라미터·현장 절차 | GCS 범위 밖 (PX4 파라미터는 현장 절차서에서 관리) |
+
+## GCS 에서 원본과 다르게 한 부분 (의도적, 판단 알고리즘은 동일)
+
+| 항목 | 원본 guard.py | GCS | 이유 |
+|---|---|---|---|
+| 0 속도 설정점 미리 보내기 | 모든 기체에 상시 | 미션 비행 중이거나 가드가 비행 중인 기체에만 | PX4 는 Offboard 상실 페일세이프로 Hold 에 들어간 기체에 설정점이 다시 오면 OFFBOARD 로 되돌아감. 링크 복구·GCS 재시작 뒤 기체가 운용자 판단 없이 OFFBOARD 로 돌아가는 것을 SITL(gcskill, linkloss)에서 확인해 막음 |
+| 운용자 명령 | QGC 와 별개 프로세스 | QGC 확인 버튼 명령이 가드 제어를 즉시 해제 | 같은 프로그램 안에서 제어 충돌 방지 |
+| 사용자 미션 | 시나리오 .plan 만 | 임의 미션 + 비행 전 검사(AcactMissionCheck) | 요구사항 3 |
+| 실비행/SITL 구분 | 없음 | 기체 판별, SITL 기록이 있어야 실비행 일괄 시작 | 요구사항 6 |

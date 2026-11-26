@@ -1922,10 +1922,13 @@ void MLAcactRuntime::_tick()
             }
         }
 
-        // setpoint stream (20 Hz) to every PX4 vehicle the guard may fly; zero unless avoiding.
-        // PX4 ignores it outside OFFBOARD; it is what lets a takeover switch at once.
+        // setpoint stream (20 Hz), zero unless avoiding, so a takeover can switch to OFFBOARD at once.
+        // Only to vehicles flying their mission or flown by the guard: PX4 returns a vehicle that fell back to
+        // Hold after an offboard-loss failsafe (GCS restart, link loss) to OFFBOARD as soon as setpoints
+        // arrive again — that vehicle must stay in Hold until the operator decides (SITL gcskill/linkloss).
         for (VS *d : _vs_) {
-            if (d->supported && d->connected) {
+            if (d->supported && d->connected &&
+                (d->mode == QLatin1String("MISSION") || _core->own[d->id.toStdString()].owned)) {
                 _sendSetpoint(d);
             }
         }

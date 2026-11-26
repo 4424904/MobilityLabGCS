@@ -145,6 +145,10 @@ PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX
     local p0=$!
     (cd "$PX4_BUILD/rootfs1" && eval "$common PX4_PARAM_SIH_LOC_LAT0=37.2100856 PX4_PARAM_SIH_LOC_LON0=126.8309154 PX4_PARAM_RTL_RETURN_ALT=26 ../bin/px4 -i 1 -d ../etc") > "$OUT/sitl-acact-$c-px4-1.log" 2>&1 &
     local p1=$!
+    # the runner is small: keep the simulators ahead of the GCS's software-rendered map so the PX4 estimators
+    # do not starve (seen as "Failsafe: blind land" right after takeoff on a loaded runner)
+    sleep 2
+    for pid in $(pgrep -f "bin/px4"); do sudo renice -n -10 -p "$pid" > /dev/null || true; done
     python3 "$HERE/acact_sitl.py" --out "$OUT" --case "$c" --app-log "$applog" --timeout 1200 > "$OUT/sitl-acact-$c-check.log" 2>&1 &
     local chk=$!
 
@@ -192,7 +196,7 @@ PX4_PARAM_COM_RC_IN_MODE=4 PX4_PARAM_NAV_RCL_ACT=0 PX4_PARAM_COM_RCL_EXCEPT=7 PX
     shot "$disp" "$OUT/sitl-acact-$c-final.png"
     echo "--- ACACT $c check"; cat "$OUT/sitl-acact-$c-check.log"
     echo "--- GCS ACACT events"; grep -h "MLACACT" "$OUT"/sitl-acact-$c-app*.log | sed 's/ - qml.*//' | grep -v "preflight D[0-9] 배터리"
-    echo "--- PX4 failsafe / warnings"; grep -hiE "failsafe|warn|error|lost|land|battery|estimat" "$OUT"/sitl-acact-$c-px4-*.log | head -n 80
+    echo "--- PX4 failsafe / warnings"; grep -hiE -B2 -A2 "failsafe|warn|error|lost|land|battery|estimat" "$OUT"/sitl-acact-$c-px4-*.log | head -n 120
     [[ "$c" == linkloss ]] && link restore 1 2>/dev/null
     kill "$p0" "$p1" 2>/dev/null; pkill -f "bin/px4" 2>/dev/null
     pkill -f "$KILLPAT" 2>/dev/null; sleep 3; pkill -9 -f "$KILLPAT" 2>/dev/null
