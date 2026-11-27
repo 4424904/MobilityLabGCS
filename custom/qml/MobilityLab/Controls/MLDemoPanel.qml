@@ -29,6 +29,7 @@ Rectangle {
     Connections {
         target: root._has ? mlDemo : null
         function onActiveChanged() {
+            if (typeof mlTestAcact !== "undefined" && mlTestAcact) console.log("MLDEMO active " + mlDemo.active + " " + mlDemo.scenario)
             if (mlDemo.active && typeof mlDemoAuto !== "undefined" && mlDemoAuto) { root.autoStage = 1; root.autoText = qsTr("시작…") }
             if (!mlDemo.active) root.autoStage = 0
         }

@@ -56,7 +56,7 @@ wait_for "MLACACT D[12] \| 회피 완료" 120 && ok_rel=true
 sleep 5; shot demo-after-avoid
 # during the demo the intruder (sysid 3) must never have been attached
 has "MLVEHICLE added 3" && ok_block=false
-has "demo started" || ok_block=false          # only meaningful if the demo really ran
+has "MLDEMO active true" || ok_block=false          # only meaningful if the demo really ran
 # end of demo → real links allowed → the intruder connects
 end=$((SECONDS + DEMO_S + 120))
 while (( SECONDS < end )); do has "MLVEHICLE added 3" && { ok_after=true; break; }; sleep 2; done
