@@ -13,8 +13,6 @@ Rectangle {
     readonly property var  _scale: QGroundControl.settingsManager.appSettings.uiScalePercent
     property string _capture: ""            // action id waiting for a key press
 
-    width:  Math.min(760 * u, parent ? parent.width - 40 * u : 760 * u)
-    height: Math.min(860 * u, parent ? parent.height - 40 * u : 860 * u)
     radius: 14 * u
     color:  MLTheme.panelSolid
     border.color: MLTheme.lineStrong

@@ -80,7 +80,7 @@ MLPanel {
             readonly property var   _veh:       object
             readonly property bool  _isActive:  _veh === root._active
             readonly property bool  _lost:      _veh && _veh.vehicleLinkManager.communicationLost
-            readonly property color _tagColor:  root._colors[index % root._colors.length]
+            readonly property color _tagColor:  MLTheme.vehicleColor(_veh ? _veh.id : index + 1)
             readonly property real  _bat: {
                 if (!_veh || !_veh.batteries || _veh.batteries.count === 0) return NaN
                 var b = _veh.batteries.get(0)

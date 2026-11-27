@@ -629,13 +629,13 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
         }
         // footer
         p.setPen(QPen(rule, 0.8));
-        p.drawLine(QPointF(0, page.height() - 22), QPointF(page.width(), page.height() - 22));
+        p.drawLine(QPointF(0, page.height() - 30), QPointF(page.width(), page.height() - 30));
         font(6.8);
         p.setPen(sub);
-        p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignLeft | Qt::AlignVCenter,
+        p.drawText(QRectF(0, page.height() - 29, page.width(), 15), Qt::AlignLeft | Qt::AlignVCenter,
                    tr("MOBILITY LAB 연구개발팀 · MobilityLab GCS %1 · %2").arg(QStringLiteral(ML_GCS_VERSION), docNo));
-        p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignHCenter | Qt::AlignVCenter, tr("시뮬레이션 결과는 실제 비행 안전성을 보증하지 않음"));
-        p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("- %1 -").arg(pageNo));
+        p.drawText(QRectF(0, page.height() - 29, page.width(), 15), Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("- %1 -").arg(pageNo));
+        p.drawText(QRectF(0, page.height() - 15, page.width(), 15), Qt::AlignLeft | Qt::AlignVCenter, tr("시뮬레이션 결과는 실제 비행 안전성을 보증하지 않음"));
         if (demoLog) {
             // demo runs are never test evidence: watermark every page (grey: prints on any printer)
             p.save();
@@ -656,7 +656,7 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
         header();
     };
     auto need = [&](double h) {
-        if (y + h > page.height() - 30) {
+        if (y + h > page.height() - 38) {
             newPage();
         }
     };
@@ -701,7 +701,7 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
         double top = y;
         y += rh;
         for (const QStringList &r : rows) {
-            if (y + rh > page.height() - 30) {
+            if (y + rh > page.height() - 38) {
                 p.setPen(QPen(rule, 1.2));
                 p.drawRect(QRectF(0, top, page.width(), y - top));
                 newPage();

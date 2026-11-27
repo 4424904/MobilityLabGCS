@@ -113,8 +113,10 @@ Rectangle {
         if (s && s.lat !== undefined && s.lat !== null) { lat0 = s.lat; lon0 = s.lon; return }
         for (var i = 0; i < _drones.length; i++) if (_drones[i].lat !== undefined && _drones[i].lat !== null) { lat0 = _drones[i].lat; lon0 = _drones[i].lon; return }
     }
+    // the reference is fixed outside any binding (writing lat0 inside one would loop)
+    on_DronesChanged: ensureRef()
+    Component.onCompleted: ensureRef()
     function local(lat, lon, alt) {
-        ensureRef()
         if (isNaN(lat0)) return Qt.vector3d(0, alt, 0)
         var x = (lon - lon0) * Math.cos(lat0 * Math.PI / 180) * 111320
         var z = -(lat - lat0) * 110574
@@ -176,6 +178,7 @@ Rectangle {
     View3D {
         id: view
         anchors.fill: parent
+        camera: cam
         environment: SceneEnvironment {
             clearColor: MLTheme.day ? "#DCE2E8" : "#06090C"
             backgroundMode: SceneEnvironment.Color

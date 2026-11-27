@@ -785,7 +785,7 @@ Item {
             anchors.horizontalCenter:   parent.horizontalCenter
             width:                      Math.min(implicitWidth, parent.width - 160 * _u)
             z:                          QGroundControl.zOrderWidgets + 3
-            visible:                    _consoleVisible && MLState.isStandard && QGroundControl.multiVehicleManager.vehicles.count > 0
+            visible:                    _consoleVisible && MLState.isStandard && (QGroundControl.multiVehicleManager.vehicles.count > 1 || (typeof mlGuard !== "undefined" && mlGuard.active))
         }
 
         // map tools: search, favourites, measurement, provider, fit / centre / follow, server state
@@ -837,6 +837,8 @@ Item {
         }
         Loader {
             anchors.centerIn: parent
+            width:            Math.min(760 * _u, parent.width - 40 * _u)
+            height:           Math.min(880 * _u, parent.height - 40 * _u)
             active:           MLState.prefsOpen
             sourceComponent:  Component {
                 MLPrefsMenu {

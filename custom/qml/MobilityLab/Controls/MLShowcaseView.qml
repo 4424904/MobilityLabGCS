@@ -63,6 +63,7 @@ Rectangle {
         }
         return out
     }
+    onPairRowsChanged: if (typeof mlTour !== "undefined" && mlTour) console.log("MLTOUR showcase pairs " + pairRows.length + " source " + source)
     readonly property var eventRows: {
         var out = []
         if (source === "demo") {

@@ -79,7 +79,7 @@ Rectangle {
                     root.autoText = qsTr("ACACT 감시 중 일괄 이륙 — 충돌 예측 시 자동 회피")
                     root.autoStage = 4
                     MLState.applyPreset(n > 1 ? "fleet" : "single")
-                    MLState.acactTimelineOpen = n > 1
+                    MLState.acactTimelineOpen = n > 1 && MLState.isAdvanced
                 } else {
                     root.autoText = qsTr("일괄 시작 거부 — ACACT 콘솔의 이벤트를 확인하세요")
                     root.autoStage = 0
