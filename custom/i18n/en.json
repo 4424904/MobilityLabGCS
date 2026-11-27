@@ -518,6 +518,7 @@
  "시험장 %1": "Test site %1",
  "시험장 이름": "Site name",
  "실기체": "Real aircraft",
+ "실기체 %1대가 연결되어 있습니다 — 기체 연결을 먼저 끊은 뒤 데모를 시작하세요": "%1 real vehicle(s) connected — disconnect them before starting the demo",
  "실기체 운용": "Live aircraft",
  "실비행": "Field",
  "실비행 · '%1' 은(는) SITL 비행 기록이 없습니다. 시뮬레이션으로 먼저 끝까지 비행하세요.": "Field · '%1' has no SITL flight record. Fly it to the end in simulation first.",

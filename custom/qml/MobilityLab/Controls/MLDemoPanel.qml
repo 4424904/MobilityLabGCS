@@ -127,16 +127,28 @@ Rectangle {
             }
         }
 
+        MLText {
+            id: blockText
+            property string reason: ""
+            visible: !root._on && reason !== ""
+            text: "⚠ " + reason
+            width: col.width; wrapMode: Text.WordWrap
+            color: MLTheme.caution; font.pixelSize: MLTheme.fsSmall
+            Timer { interval: 1000; repeat: true; running: root.visible && root._has && !root._on; triggeredOnStart: true; onTriggered: blockText.reason = mlDemo.startBlockReason() }
+        }
         Row {
             spacing: 8 * u
             MLCommandButton {
                 visible: !root._on
+                enabled: blockText.reason === ""
                 text: qsTr("데모 시작")
                 tone: "go"; twoStep: false
                 implicitHeight: 40 * root.u
                 onClicked: {
+                    if (mlDemo.startBlockReason() !== "") return
                     if (typeof mlGuard !== "undefined" && mlGuard.opMode === "field") { root.prevOpMode = "field"; mlGuard.setOpMode("sim") }
                     if (mlDemo.start(root.pick)) { root.autoStage = 0; root.autoText = "" }
+                    else if (root.prevOpMode === "field") { mlGuard.setOpMode("field"); root.prevOpMode = "" }
                 }
             }
             MLCommandButton {

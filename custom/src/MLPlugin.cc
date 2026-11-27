@@ -248,7 +248,12 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     // CI / exhibition: MLGCS_DEMO=single|duo|trio starts the demo at launch
     if (qEnvironmentVariableIsSet("MLGCS_DEMO")) {
         const QString sc = qEnvironmentVariable("MLGCS_DEMO");
-        QTimer::singleShot(4000, demo, [demo, sc]() { demo->start(sc); });
+        const int delayMs = qEnvironmentVariableIsSet("MLGCS_DEMO_DELAY_MS") ? qEnvironmentVariableIntValue("MLGCS_DEMO_DELAY_MS") : 4000;
+        QTimer::singleShot(delayMs, demo, [demo, sc]() {
+            if (!demo->start(sc)) {
+                qWarning().noquote() << "MLDEMO blocked" << demo->startBlockReason();
+            }
+        });
         // CI: MLGCS_DEMO_SECONDS ends the demo after that many seconds (separation test: real links allowed again)
         const int secs = qEnvironmentVariableIntValue("MLGCS_DEMO_SECONDS");
         if (secs > 0) {

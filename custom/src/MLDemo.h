@@ -137,6 +137,10 @@ public:
 
     /// scenario: single · duo · trio. Closes every real link first and keeps them closed until stop().
     Q_INVOKABLE bool start(const QString &scenario);
+    // Non-empty while the demo must not start: a real vehicle is connected. The demo never
+    // disconnects a real aircraft on its own (dropping the link of a flying aircraft is itself
+    // a hazard); the operator disconnects it first.
+    Q_INVOKABLE QString startBlockReason() const;
     Q_INVOKABLE void stop();
     /// simulate a telemetry link loss of one demo vehicle (both directions) / restore it
     Q_INVOKABLE void setLinkCut(int sysid, bool cut);

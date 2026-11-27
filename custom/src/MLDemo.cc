@@ -1,6 +1,9 @@
 #include "MLDemo.h"
 
 #include "LinkManager.h"
+#include "MultiVehicleManager.h"
+#include "QmlObjectListModel.h"
+#include "Vehicle.h"
 
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -221,9 +224,27 @@ MLDemoVehicle *MLDemo::_veh(int sysid)
     return nullptr;
 }
 
+QString MLDemo::startBlockReason() const
+{
+    if (_active) {
+        return {};
+    }
+    const QmlObjectListModel *vs = MultiVehicleManager::instance() ? MultiVehicleManager::instance()->vehicles() : nullptr;
+    const int n = vs ? vs->count() : 0;
+    if (n > 0) {
+        return tr("실기체 %1대가 연결되어 있습니다 — 기체 연결을 먼저 끊은 뒤 데모를 시작하세요").arg(n);
+    }
+    return {};
+}
+
 bool MLDemo::start(const QString &scenario)
 {
     if (_active) {
+        return false;
+    }
+    const QString blocked = startBlockReason();
+    if (!blocked.isEmpty()) {
+        qCWarning(MLDemoLog).noquote() << "demo start refused:" << blocked;
         return false;
     }
     const std::vector<DemoVeh> def = scenarioDef(scenario);

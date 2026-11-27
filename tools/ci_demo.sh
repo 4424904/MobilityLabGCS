@@ -7,6 +7,8 @@
 #   3. Separation: during the demo a third "aircraft" (raw MAVLink heartbeats, sysid 3, to UDP 14550)
 #      must NOT connect; after the demo ends (MLGCS_DEMO_SECONDS) it must connect.
 #   4. A demo flight is never recorded as a SITL validation.
+#   0. Before all that, a short first launch with the "aircraft" already connected: the demo must
+#      refuse to start (it never drops a real aircraft's link on its own).
 #   usage: ci_demo.sh <MobilityLabGCS.AppImage> <out dir>
 set -uo pipefail
 APP="$1"; mkdir -p "$2"; OUT="$(cd "$2" && pwd)"
@@ -22,8 +24,13 @@ Xvfb :61 -screen 0 1920x1080x24 -nolisten tcp > /dev/null 2>&1 &
 sleep 2
 LOG="$OUT/demo-app.log"
 DEMO_S=420
-sg dialout -c "ML_TEST_ACACT_CASE=none MLGCS_DEMO=duo MLGCS_DEMO_AUTO=1 MLGCS_DEMO_SECONDS=$DEMO_S ML_TEST_ACACT=1 DISPLAY=:61 QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$LOG' 2>&1" &
 shot () { python3 -c "from PIL import ImageGrab; ImageGrab.grab(xdisplay=':61').save('$OUT/$1.png')" || true; }
+launch () { sg dialout -c "MLGCS_DEMO_DELAY_MS=${2:-4000} ML_TEST_ACACT_CASE=none MLGCS_DEMO=duo MLGCS_DEMO_AUTO=1 MLGCS_DEMO_SECONDS=$DEMO_S ML_TEST_ACACT=1 DISPLAY=:61 QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$1' 2>&1" & }
+stop_app () {
+    pkill -INT -f "$W/squashfs-root" 2>/dev/null
+    for _ in $(seq 1 20); do pgrep -f "$W/squashfs-root" > /dev/null || break; sleep 1; done
+    pkill -9 -f "$W/squashfs-root" 2>/dev/null; sleep 2
+}
 
 # intruder: MAVLink v1 heartbeats of sysid 3 to the GCS's auto-connect UDP port, all the time
 cat > "$W/intruder.py" <<'PY'
@@ -42,10 +49,23 @@ while True:
     s.sendto(bytes([0xFE]) + hdr + payload + struct.pack("<H", c), ("127.0.0.1", 14550))
     seq += 1; time.sleep(0.5)
 PY
-python3 "$W/intruder.py" & INTR=$!
-
 has () { grep -qE "$1" "$LOG" 2>/dev/null; }
 wait_for () { local end=$((SECONDS + $2)); while (( SECONDS < end )); do has "$1" && return 0; sleep 1; done; return 1; }
+
+# ---- launch 0: real aircraft connected first → demo start refused ---------------------------------
+ok_refuse=false
+LOG="$OUT/demo-refuse.log"
+python3 "$W/intruder.py" & INTR=$!
+launch "$LOG" 12000
+if wait_for "MLDEMO blocked" 60 && ! has "MLDEMO active true"; then ok_refuse=true; fi
+sleep 3; shot demo-refused
+kill $INTR 2>/dev/null; stop_app
+
+# ---- launch 1: the demo itself; the aircraft appears only once the demo runs ----------------------
+LOG="$OUT/demo-app.log"
+launch "$LOG"
+wait_for "MLDEMO active true" 60
+python3 "$W/intruder.py" & INTR=$!
 
 ok_auto=false; ok_take=false; ok_rel=false; ok_block=true; ok_after=false; ok_norec=true
 wait_for "MLDEMO auto \| .*일괄 이륙" 240 && ok_auto=true
@@ -62,10 +82,13 @@ end=$((SECONDS + DEMO_S + 120))
 while (( SECONDS < end )); do has "MLVEHICLE added 3" && { ok_after=true; break; }; sleep 2; done
 shot demo-ended
 has "SITL 검증 기록" && ok_norec=false
-kill $INTR 2>/dev/null; pkill -f "$W/squashfs-root" ; sleep 2
+kill $INTR 2>/dev/null; stop_app
 grep -E "MLACACT|MLDEMO|MLVEHICLE|blocked \(demo" "$LOG" | head -200 > "$OUT/demo-events.txt"
 cat > "$OUT/sitl-demo.json" <<JSON
-{"case":"demo","checks":{"auto_demo_started":$ok_auto,"acact_takeover_on_demo":$ok_take,"acact_release_on_demo":$ok_rel,
+{"case":"demo","checks":{"demo_refused_with_real_vehicle":$ok_refuse,"auto_demo_started":$ok_auto,"acact_takeover_on_demo":$ok_take,"acact_release_on_demo":$ok_rel,
  "real_link_blocked_during_demo":$ok_block,"real_link_allowed_after_demo":$ok_after,"no_sitl_record_from_demo":$ok_norec},"metrics":{}}
 JSON
 cat "$OUT/sitl-demo.json"
+# the job fails when any check fails
+grep -q '": *false' "$OUT/sitl-demo.json" && { echo "demo check FAILED"; exit 1; }
+echo "demo checks PASS"
