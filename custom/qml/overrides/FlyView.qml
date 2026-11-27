@@ -63,8 +63,9 @@ Item {
     // ---- Console layout ----------------------------------------------------
     readonly property bool _consoleVisible: !QGroundControl.videoManager.fullScreen
     readonly property real _u:              MLTheme.u
-    readonly property real _leftW:          Math.round(Math.max(340 * _u, Math.min(460 * _u, width * 0.24)))
-    readonly property real _rightW:         Math.round(Math.max(330 * _u, Math.min(440 * _u, width * 0.23)))
+    // side panel widths: saved by the operator (drag the inner edge), limited to the window
+    readonly property real _leftW:          Math.round(Math.max(300 * _u, Math.min(MLState.leftWidth * _u, width * 0.34)))
+    readonly property real _rightW:         Math.round(Math.max(300 * _u, Math.min(MLState.rightWidth * _u, width * 0.34)))
     readonly property real _profileH:       height > 900 * _u ? 176 * _u : 132 * _u
     readonly property real _gap:            Math.round(ScreenTools.defaultFontPixelWidth * 0.6)
 
@@ -108,36 +109,76 @@ Item {
         MLPanelShadow { target: commandBar }
     }
 
-    MLFlightColumn {
+    MLSideDock {
         id:                 flightColumn
+        side:               "left"
         anchors.top:        toolbar.bottom
         anchors.topMargin:  _m
         anchors.bottom:     dock.top
         anchors.bottomMargin: _m
         anchors.left:       parent.left
         anchors.leftMargin: _m
-        width:              _leftW
-        visible:            _consoleVisible
-        color:              MLTheme.glass
-        radius:             MLTheme.panelRadius
-        border.color:       MLTheme.glassEdge
-        clip:               true
+        open:               _consoleVisible && MLState.leftOpen
+        openWidth:          _leftW
+        tabs:               [{ key: "flight", label: qsTr("비행 계기") }, { key: "fleet", label: qsTr("편대 · 기체") }]
+        current:            MLState.leftTab
+        onTabSelected:      (k) => { MLState.leftTab = k; MLState.markCustom() }
+        onCloseRequested:   { MLState.leftOpen = false; MLState.markCustom() }
+        onWidthDragged:     (px) => { MLState.leftWidth = px / _u; MLState.markCustom() }
+
+        MLFlightColumn {
+            property string pageKey: "flight"
+            color:          "transparent"
+            clip:           true
+        }
+        MLFleetCards {
+            property string pageKey: "fleet"
+        }
     }
 
-    MLSystemsColumn {
+    MLSideDock {
         id:                 systemsColumn
+        side:               "right"
         anchors.top:        toolbar.bottom
         anchors.topMargin:  _m
         anchors.bottom:     dock.top
         anchors.bottomMargin: _m
         anchors.right:      parent.right
         anchors.rightMargin: _m
-        width:              _rightW
-        visible:            _consoleVisible
-        color:              MLTheme.glass
-        radius:             MLTheme.panelRadius
-        border.color:       MLTheme.glassEdge
-        clip:               true
+        open:               _consoleVisible && MLState.rightOpen
+        openWidth:          _rightW
+        tabs:               [{ key: "systems", label: qsTr("기체 시스템") }, { key: "acact", label: "ACACT" }]
+        current:            MLState.rightTab
+        onTabSelected:      (k) => { MLState.rightTab = k; MLState.markCustom() }
+        onCloseRequested:   { MLState.rightOpen = false; MLState.markCustom() }
+        onWidthDragged:     (px) => { MLState.rightWidth = px / _u; MLState.markCustom() }
+
+        MLSystemsColumn {
+            property string pageKey: "systems"
+            color:          "transparent"
+            clip:           true
+        }
+        MLAcactPanel {
+            property string pageKey: "acact"
+        }
+    }
+
+    // re-open tabs on the screen edges when a side panel is folded away
+    MLEdgeTab {
+        anchors.left:           parent.left
+        anchors.verticalCenter: flightColumn.verticalCenter
+        visible:                _consoleVisible && !MLState.leftOpen
+        side:                   "left"
+        text:                   qsTr("계기 · 편대")
+        onClicked:              { MLState.leftOpen = true; MLState.markCustom() }
+    }
+    MLEdgeTab {
+        anchors.right:          parent.right
+        anchors.verticalCenter: systemsColumn.verticalCenter
+        visible:                _consoleVisible && !MLState.rightOpen
+        side:                   "right"
+        text:                   qsTr("시스템 · ACACT")
+        onClicked:              { MLState.rightOpen = true; MLState.markCustom() }
     }
 
     // bottom dock: fleet lanes (+ ACACT Guard) and the command bar
@@ -151,9 +192,10 @@ Item {
         visible:            _consoleVisible
 
         MLFleetLanes {
-            id:     fleetLanes
-            width:  parent.width
-            height: implicitHeight
+            id:      fleetLanes
+            width:   parent.width
+            height:  implicitHeight
+            visible: MLState.dockOpen
         }
         MLCommandBar {
             id:             commandBar
@@ -243,6 +285,32 @@ Item {
         }
     }
 
+    // map requests from the panels (fleet cards, map tools)
+    Connections {
+        target: MLState
+        function onFitAllRequested() {
+            var vs = QGroundControl.multiVehicleManager.vehicles
+            var pts = []
+            for (var i = 0; i < vs.count; i++) {
+                var c = vs.get(i).coordinate
+                if (c && c.isValid) pts.push(c)
+            }
+            if (pts.length === 0) return
+            if (pts.length === 1) { mapControl.center = pts[0]; return }
+            var n = -90, s = 90, e = -180, w = 180
+            for (var k = 0; k < pts.length; k++) {
+                n = Math.max(n, pts[k].latitude); s = Math.min(s, pts[k].latitude)
+                e = Math.max(e, pts[k].longitude); w = Math.min(w, pts[k].longitude)
+            }
+            // margin: 25 % of the span, at least ~40 m
+            var dLat = Math.max((n - s) * 0.25, 0.0004), dLon = Math.max((e - w) * 0.25, 0.0005)
+            mapControl.setVisibleRegion(QtPositioning.rectangle(QtPositioning.coordinate(n + dLat, w - dLon), QtPositioning.coordinate(s - dLat, e + dLon)))
+        }
+        function onCenterRequested(coordinate) {
+            if (coordinate && coordinate.isValid) mapControl.center = coordinate
+        }
+    }
+
     Component.onCompleted: {
         mainWindow.criticalVehicleMessageHandler = function(message) { alertBanner.push(message) }
     }
@@ -309,10 +377,10 @@ Item {
             visible:        _consoleVisible
             gradient: Gradient {
                 orientation: Gradient.Horizontal
-                GradientStop { position: 0.0;  color: "#99060809" }
-                GradientStop { position: 0.22; color: "#00060809" }
-                GradientStop { position: 0.78; color: "#00060809" }
-                GradientStop { position: 1.0;  color: "#99060809" }
+                GradientStop { position: 0.0;  color: String(MLTheme.alpha(MLTheme.bg, 0.6)) }
+                GradientStop { position: 0.22; color: String(MLTheme.alpha(MLTheme.bg, 0)) }
+                GradientStop { position: 0.78; color: String(MLTheme.alpha(MLTheme.bg, 0)) }
+                GradientStop { position: 1.0;  color: String(MLTheme.alpha(MLTheme.bg, 0.6)) }
             }
         }
     }
@@ -373,7 +441,7 @@ Item {
             width:              ptText.implicitWidth + 24 * _u
             height:             30 * _u
             radius:             15 * _u
-            color:              MLState.profileOpen ? "#E611161B" : MLTheme.glass
+            color:              MLState.profileOpen ? String(MLTheme.glass) : MLTheme.glass
             border.color:       MLState.profileOpen ? MLTheme.accent : MLTheme.glassEdge
             MLText { id: ptText; anchors.centerIn: parent; text: MLState.profileOpen ? qsTr("고도 단면 닫기") : qsTr("고도 단면"); font.pixelSize: MLTheme.fsSmall; color: MLState.profileOpen ? MLTheme.accent : MLTheme.label }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: MLState.profileOpen = !MLState.profileOpen }
@@ -559,5 +627,13 @@ Item {
         leftWidth:          _leftW + _m
         guidedValueSlider:  _guidedValueSlider
         visible:            !QGroundControl.videoManager.fullScreen
+    }
+
+    // MOBILITY LAB start screen (real start-up state), fades out by itself
+    Loader {
+        anchors.fill:   parent
+        z:              QGroundControl.zOrderTopMost + 100
+        active:         !MLState.bootDone
+        sourceComponent: Component { MLBootScreen { } }
     }
 }

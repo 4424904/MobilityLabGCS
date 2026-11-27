@@ -211,7 +211,7 @@ Rectangle {
     radius:         8 * u
     color:          MLTheme.panel
     border.width:   1
-    border.color:   "#232931"
+    border.color:   String(MLTheme.lineStrong)
 
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onWheel: function(wheel) { wheel.accepted = true } }
 
@@ -222,7 +222,7 @@ Rectangle {
         signal picked()
         width:  segText.implicitWidth + 22 * MLTheme.u
         height: 28 * MLTheme.u
-        color:  on ? "#1A2129" : (segMouse.containsMouse ? "#11161B" : "transparent")
+        color:  on ? String(MLTheme.pressed) : (segMouse.containsMouse ? String(MLTheme.hover) : "transparent")
         MLText { id: segText; anchors.centerIn: parent; text: seg.label; color: seg.on ? MLTheme.bright : MLTheme.dim; font.pixelSize: MLTheme.fsSmall }
         MouseArea { id: segMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: seg.picked() }
     }
@@ -232,7 +232,7 @@ Rectangle {
         property string glyph
         signal fire()
         width:  40 * MLTheme.u
-        color:  bm.pressed ? "#1A2129" : (bm.containsMouse ? "#151B21" : "#10151A")
+        color:  bm.pressed ? String(MLTheme.pressed) : (bm.containsMouse ? String(MLTheme.hover) : String(MLTheme.tile))
         MLText { anchors.centerIn: parent; text: b.glyph; color: MLTheme.label; font.pixelSize: 15 * MLTheme.u }
         MouseArea {
             id: bm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -261,7 +261,7 @@ Rectangle {
         Rectangle {
             x: 128 * MLTheme.u; width: parent.width - 128 * MLTheme.u - 96 * MLTheme.u; height: 36 * MLTheme.u
             anchors.verticalCenter: parent.verticalCenter
-            radius: 5 * MLTheme.u; color: MLTheme.bg; border.width: 1; border.color: input.activeFocus ? MLTheme.target : "#232931"; clip: true
+            radius: 5 * MLTheme.u; color: MLTheme.bg; border.width: 1; border.color: input.activeFocus ? MLTheme.target : String(MLTheme.lineStrong); clip: true
             StepBtn { id: mBtn; anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.margins: 1; glyph: "−"; onFire: r3.minus() }
             StepBtn { id: pBtn; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.margins: 1; glyph: "+"; onFire: r3.plus() }
             TextInput {
@@ -310,11 +310,11 @@ Rectangle {
             }
             Rectangle {
                 anchors.right: closeBtn.left; anchors.rightMargin: 8 * u; anchors.verticalCenter: parent.verticalCenter
-                width: segRow.implicitWidth + 2; height: 30 * u; radius: 5 * u; color: "transparent"; border.width: 1; border.color: "#232931"; clip: true
+                width: segRow.implicitWidth + 2; height: 30 * u; radius: 5 * u; color: "transparent"; border.width: 1; border.color: String(MLTheme.lineStrong); clip: true
                 Row {
                     id: segRow; x: 1; y: 1
                     Seg { label: qsTr("미션 유지"); on: root.keepMission; onPicked: root.keepMission = true }
-                    Rectangle { width: 1; height: 28 * u; color: "#232931" }
+                    Rectangle { width: 1; height: 28 * u; color: String(MLTheme.lineStrong) }
                     Seg { label: qsTr("멈추고 변경"); on: !root.keepMission; onPicked: root.keepMission = false }
                 }
             }
@@ -322,7 +322,7 @@ Rectangle {
                 id: closeBtn
                 anchors.right: parent.right; anchors.rightMargin: 8 * u; anchors.verticalCenter: parent.verticalCenter
                 width: 28 * u; height: width; radius: 4 * u
-                color: closeMouse.containsMouse ? "#151B21" : "transparent"
+                color: closeMouse.containsMouse ? String(MLTheme.hover) : "transparent"
                 MLText { anchors.centerIn: parent; text: "✕"; color: MLTheme.dim; font.pixelSize: MLTheme.fsSmall }
                 MouseArea { id: closeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.closeRequested() }
             }
@@ -390,7 +390,7 @@ Rectangle {
             visible: !isNaN(MLState.targetHeading) && root._keep
             MLText {
                 anchors.right: parent.right; anchors.rightMargin: 14 * u; anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("기수 자동으로 되돌리기"); color: "#9FD8F2"; font.pixelSize: MLTheme.fsSmall
+                text: qsTr("기수 자동으로 되돌리기"); color: String(MLTheme.accent); font.pixelSize: MLTheme.fsSmall
                 font.underline: autoMouse.containsMouse
                 MouseArea { id: autoMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.clearHeading() }
             }

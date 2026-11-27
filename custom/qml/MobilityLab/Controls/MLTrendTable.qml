@@ -127,7 +127,7 @@ Column {
                     c.reset()
                     var pts = root._history[row.modelData.id] || []
                     if (pts.length < 2) {
-                        c.strokeStyle = "#1B2026"; c.lineWidth = 1
+                        c.strokeStyle = String(MLTheme.line); c.lineWidth = 1
                         c.beginPath(); c.moveTo(0, height / 2); c.lineTo(width, height / 2); c.stroke()
                         return
                     }
@@ -135,7 +135,7 @@ Column {
                     if (hi - lo < 1e-6) { lo -= 1; hi += 1 }
                     var pad = (hi - lo) * 0.15; lo -= pad; hi += pad
                     var n = 100
-                    c.strokeStyle = row._level >= 2 ? String(row._fg) : "#7D848D"
+                    c.strokeStyle = row._level >= 2 ? String(row._fg) : String(MLTheme.dim)
                     c.lineWidth = 1.4 * MLTheme.u
                     c.beginPath()
                     for (var i = 0; i < pts.length; i++) {

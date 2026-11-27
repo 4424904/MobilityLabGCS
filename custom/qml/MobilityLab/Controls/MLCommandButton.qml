@@ -47,15 +47,15 @@ Rectangle {
 
     radius:         MLTheme.radius
     color: {
-        if (!available) return "#0D1115"
+        if (!available) return String(MLTheme.tile)
         if (_pending)   return Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.22)
         if (selected)   return Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.12)
-        if (mouse.pressed) return "#1A2129"
-        if (_hover)     return "#151B21"
-        return _plain ? "#11161B" : Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.06)
+        if (mouse.pressed) return String(MLTheme.pressed)
+        if (_hover)     return String(MLTheme.hover)
+        return _plain ? String(MLTheme.hover) : Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, 0.06)
     }
     border.width:   _pending ? 2 : 1
-    border.color:   !available ? MLTheme.line : (_pending ? _toneColor : (_plain ? (_hover ? "#3A4450" : MLTheme.lineStrong) : Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, _hover || selected ? 0.9 : 0.45)))
+    border.color:   !available ? MLTheme.line : (_pending ? _toneColor : (_plain ? (_hover ? String(MLTheme.lineStrong) : MLTheme.lineStrong) : Qt.rgba(_toneColor.r, _toneColor.g, _toneColor.b, _hover || selected ? 0.9 : 0.45)))
     opacity:        available ? 1 : 0.45
     clip:           true
 

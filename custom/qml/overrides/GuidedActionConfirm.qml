@@ -139,7 +139,7 @@ Item {
             Layout.preferredWidth:  Math.max(150 * u, titleText.implicitWidth + 40 * u)
             Layout.fillHeight:      true
             radius:                 4 * u
-            color:                  "#12100B"
+            color:                  String(MLTheme.warningFill)
             border.color:           holdMouse.containsMouse ? control._tone : Qt.darker(control._tone, 1.8)
             clip:                   true
 

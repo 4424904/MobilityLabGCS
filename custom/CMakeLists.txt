@@ -19,39 +19,9 @@ set(QML_IMPORT_PATH ${QML_IMPORT_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/qml" CACHE S
 qt_add_library(MobilityLabControlsModule STATIC)
 
 set(ML_QML_DIR ${CMAKE_CURRENT_SOURCE_DIR}/qml/MobilityLab/Controls)
-set(ML_QML_FILES
-    ${ML_QML_DIR}/MLTheme.qml
-    ${ML_QML_DIR}/MLState.qml
-    ${ML_QML_DIR}/MLText.qml
-    ${ML_QML_DIR}/MLNum.qml
-    ${ML_QML_DIR}/MLSection.qml
-    ${ML_QML_DIR}/MLPanel.qml
-    ${ML_QML_DIR}/MLPfd.qml
-    ${ML_QML_DIR}/MLArcGauge.qml
-    ${ML_QML_DIR}/MLMotorView.qml
-    ${ML_QML_DIR}/MLFlightColumn.qml
-    ${ML_QML_DIR}/MLSystemsColumn.qml
-    ${ML_QML_DIR}/MLTrendTable.qml
-    ${ML_QML_DIR}/MLCasList.qml
-    ${ML_QML_DIR}/MLMissionList.qml
-    ${ML_QML_DIR}/MLProfile.qml
-    ${ML_QML_DIR}/MLFleetPanel.qml
-    ${ML_QML_DIR}/MLToast.qml
-    ${ML_QML_DIR}/MLEventLog.qml
-    ${ML_QML_DIR}/MLAlertBanner.qml
-    ${ML_QML_DIR}/MLMapHud.qml
-    ${ML_QML_DIR}/MLGuardMapLayer.qml
-    ${ML_QML_DIR}/MLFleetLanes.qml
-    ${ML_QML_DIR}/MLGuardConsole.qml
-    ${ML_QML_DIR}/MLPanelChrome.qml
-    ${ML_QML_DIR}/MLPanelShadow.qml
-    ${ML_QML_DIR}/MLSetpointPanel.qml
-    ${ML_QML_DIR}/MLCommandBar.qml
-    ${ML_QML_DIR}/MLCommandButton.qml
-    ${ML_QML_DIR}/MLHoldButton.qml
-    ${ML_QML_DIR}/MLAcactTestDriver.qml
-    ${ML_QML_DIR}/MLAnalysisView.qml
-)
+# every QML file of the module (new components are picked up without editing this list)
+file(GLOB ML_QML_FILES CONFIGURE_DEPENDS ${ML_QML_DIR}/*.qml)
+list(SORT ML_QML_FILES)
 set_source_files_properties(${ML_QML_DIR}/MLTheme.qml ${ML_QML_DIR}/MLState.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qgc_set_qt_resource_alias(${ML_QML_FILES})
 

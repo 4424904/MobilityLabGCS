@@ -9,7 +9,7 @@ name: Build MobilityLab GCS
 
 on:
   push:
-    branches: ['**', '!ci-screens', '!ci-windows', '!ui-tour-results']
+    branches: ['**', '!ci-screens', '!ci-windows', '!ui-tour-results', '!ci-appimage']
     tags: ['v*']
     paths-ignore: ['**.md', 'docs/**', 'tools/ui_tour.sh', '.github/workflows/ui-tour.yml']
   workflow_dispatch:
@@ -33,6 +33,9 @@ jobs:
     name: Linux build + AppImage
     runs-on: ubuntu-22.04
     timeout-minutes: 150
+    permissions:
+      contents: write
+      actions: read
     defaults:
       run:
         shell: bash
@@ -136,6 +139,21 @@ jobs:
           name: MobilityLabGCS-Ubuntu-AppImage
           path: ${{ runner.temp }}/dist/MobilityLabGCS-x86_64.AppImage
           retention-days: 30
+
+      - name: Development AppImage → ci-appimage branch (interactive checks; not a release)
+        if: github.ref == 'refs/heads/dev'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          d="${RUNNER_TEMP}/cia"; rm -rf "$d"; mkdir -p "$d" && cd "$d"
+          split -b 45M -d "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage" app.part.
+          sha256sum "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage" | sed 's#  .*#  MobilityLabGCS-x86_64.AppImage#' > SHA256
+          echo "${GITHUB_SHA}" > COMMIT
+          git init -q -b ci-appimage
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "dev AppImage ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-appimage
 
       - name: Upload screens
         if: always()

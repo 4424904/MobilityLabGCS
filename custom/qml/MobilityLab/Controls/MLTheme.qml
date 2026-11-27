@@ -5,70 +5,129 @@ import QtQuick
 import QGroundControl
 import QGroundControl.Controls
 
-// MobilityLab console look: graphite surfaces split by hairlines, warm white
-// text, numbers in IBM Plex Mono. Colour carries meaning only:
-//   accent  (cyan)    route, selection, things the operator controls
-//   target  (magenta) commanded / target values, as on airliner displays
-//   active  (green)   modes that are engaged
-//   caution (amber) / warning (red)  abnormal only
+// MOBILITY LAB design system (v1.0)
+//
+//  Two themes, chosen in Settings or from the top bar:
+//    night  graphite surfaces, for the operations room and dusk/night flying
+//    day    light surfaces with near-black text, for sunlight on the flight line
+//  The QGC palette (MLPlugin::paletteOverride) follows the same values, so QGC's own
+//  pages (plan, setup, settings) switch with the console.
+//
+//  Colour carries meaning only:
+//    brand   (MOBILITY LAB red)  identity: logo, the active page, focus marks — never a status
+//    accent  (cyan / blue)       route, selection, things the operator controls
+//    target  (magenta)           commanded / target values, as on airliner displays
+//    active  (green)             modes that are engaged, normal
+//    caution (amber) / warning (red-orange, filled + icon + text)   abnormal only
+//  Text contrast is ≥ 7:1 for values and ≥ 4.5:1 for labels in both themes.
 QtObject {
-    // ---- scale: 1 design px at the default font size --------------------
+    id: t
+
+    // ---- theme ----------------------------------------------------------------
+    readonly property var  _indoor: QGroundControl.settingsManager.appSettings.indoorPalette
+    readonly property bool day:     _indoor ? !_indoor.rawValue : false
+    function setDay(on) { if (_indoor) _indoor.rawValue = !on }
+    function pick(night, dayValue) { return day ? dayValue : night }
+
+    // ---- scale: 1 design px at the default font size ----------------------------
+    // ScreenTools follows Settings › 화면 배율 (uiScalePercent) and the OS DPI.
     readonly property real u:               ScreenTools.defaultFontPixelHeight / 16
 
-    // ---- type -------------------------------------------------------------
+    // spacing scale (4-pt grid)
+    readonly property real s1:  4 * u
+    readonly property real s2:  8 * u
+    readonly property real s3:  12 * u
+    readonly property real s4:  16 * u
+    readonly property real s5:  24 * u
+    readonly property real s6:  32 * u
+
+    // ---- type -------------------------------------------------------------------
     readonly property string sans:          "IBM Plex Sans KR"
     readonly property string mono:          "IBM Plex Mono"
-    readonly property real   fsLabel:       11 * u
-    readonly property real   fsSmall:       12 * u
-    readonly property real   fsBody:        13 * u
-    readonly property real   fsValue:       14 * u
-    readonly property real   fsBig:         22 * u
+    readonly property real   fsLabel:       12.5 * u     // captions, units, table heads
+    readonly property real   fsSmall:       13.5 * u     // secondary text
+    readonly property real   fsBody:        15 * u       // body, buttons
+    readonly property real   fsValue:       17 * u       // numeric readouts
+    readonly property real   fsTitle:       19 * u       // panel / page titles
+    readonly property real   fsBig:         26 * u       // primary readouts
+    readonly property real   fsHuge:        36 * u       // HUD primary values
 
-    // ---- surfaces ---------------------------------------------------------
-    readonly property color bg:             "#07090B"
-    readonly property color panelSolid:     "#0A0D10"
-    readonly property color panel:          "#F20A0D10"
-    readonly property color panelHeader:    "#0D1115"
-    readonly property color panelRaised:    "#11161B"
-    readonly property color tile:           "#0D1115"
-    readonly property color line:           "#1B2026"
-    readonly property color hair:           "#13181D"
-    readonly property color lineStrong:     "#2A3038"
+    // ---- motion -----------------------------------------------------------------
+    readonly property int animFast:   120
+    readonly property int anim:       200
+    readonly property int animSlow:   320
+    readonly property int easing:     Easing.OutCubic
 
-    // ---- text -------------------------------------------------------------
-    readonly property color text:           "#E6E4DE"
-    readonly property color bright:         "#F2F1EE"
-    readonly property color label:          "#AEB4BB"
-    readonly property color dim:            "#7D848D"
-    readonly property color faint:          "#4A535C"
+    // ---- surfaces -----------------------------------------------------------------
+    readonly property color bg:             pick("#07090C", "#E9ECEF")
+    readonly property color panelSolid:     pick("#0C1014", "#FFFFFF")
+    readonly property color panel:          pick("#F20C1014", "#F7FFFFFF")
+    readonly property color panelHeader:    pick("#10151A", "#F3F5F7")
+    readonly property color panelRaised:    pick("#141A20", "#F0F2F5")
+    readonly property color tile:           pick("#10151A", "#F3F5F7")
+    readonly property color hover:          pick("#1A2129", "#E4E8EC")
+    readonly property color pressed:        pick("#222B34", "#D6DCE2")
+    readonly property color line:           pick("#222931", "#D3D9DF")
+    readonly property color hair:           pick("#171D23", "#E3E7EB")
+    readonly property color lineStrong:     pick("#36404A", "#AAB4BE")
+    readonly property color shadow:         pick("#99000000", "#33000000")
+    readonly property color scrim:          pick("#B3050709", "#80202830")
 
-    // ---- meaning ----------------------------------------------------------
-    readonly property color accent:         "#5BC0EB"
-    readonly property color target:         "#E46BD6"
-    readonly property color active:         "#6FD08C"
-    readonly property color ok:             "#6FD08C"
-    readonly property color caution:        "#F0B232"
-    readonly property color warning:        "#FF5A52"
+    // ---- text ---------------------------------------------------------------------
+    readonly property color text:           pick("#ECEBE7", "#14181C")
+    readonly property color bright:         pick("#FFFFFF", "#000000")
+    readonly property color label:          pick("#C2C8CF", "#3A434C")
+    readonly property color dim:            pick("#9AA3AD", "#56616C")
+    readonly property color faint:          pick("#66707A", "#8A949E")
+    readonly property color onAccent:       pick("#04121A", "#FFFFFF")
+
+    // ---- meaning ----------------------------------------------------------------------
+    readonly property color accent:         pick("#5CC4F0", "#0067A8")
+    readonly property color accentSoft:     pick("#1A5CC4F0", "#1A0067A8")
+    readonly property color target:         pick("#EA72DC", "#A3168F")
+    readonly property color active:         pick("#6FD394", "#0B7A3B")
+    readonly property color ok:             active
+    readonly property color caution:        pick("#F5B83A", "#9A5B00")
+    readonly property color cautionFill:    pick("#2E2208", "#FFF1D1")
+    readonly property color warning:        pick("#FF5F55", "#C8141C")
+    readonly property color warningFill:    pick("#3A0F0E", "#FFE1DF")
+    readonly property color info:           pick("#8FB8FF", "#2D54A8")
+    readonly property color demo:           pick("#C7A2FF", "#6A35B8")     // demo-mode marks
     readonly property color brand:          "#D80E18"
+    readonly property color brandDeep:      "#9E0A12"
     readonly property real  radius:         6 * u
 
-    // ---- floating panels over the map ---------------------------------------
-    readonly property color glass:          "#EB0A0D10"
-    readonly property color glassStrong:    "#F5090C0F"
-    readonly property color glassEdge:      "#242B33"
-    readonly property color glassEdgeHi:    "#33404B"
+    // ---- floating panels over the map ----------------------------------------------------
+    readonly property color glass:          pick("#EE0C1014", "#F5FFFFFF")
+    readonly property color glassStrong:    pick("#F70B0F13", "#FBFFFFFF")
+    readonly property color glassEdge:      pick("#2A323B", "#C9D1D9")
+    readonly property color glassEdgeHi:    pick("#3E4B57", "#9FAAB5")
     readonly property real  panelRadius:    10 * u
 
-    // ---- vehicle identity colours (map, lanes, event log) -------------------
-    readonly property var vehiclePalette: ["#5BC0EB", "#C39BFF", "#B9DE6A", "#FF8FB1", "#7FD8D0", "#F2C46D"]
+    // ---- vehicle identity colours (map, cards, event log) — distinct from status colours ----
+    readonly property var vehiclePalette: day
+        ? ["#0072B2", "#7B3FBF", "#2E7D32", "#C2185B", "#00838F", "#8D6E00"]
+        : ["#5CC4F0", "#C39BFF", "#B9DE6A", "#FF8FB1", "#7FD8D0", "#F2C46D"]
     function vehicleColor(id) {
         var i = Math.max(0, Number(id) - 1) % vehiclePalette.length
         return vehiclePalette[i]
     }
 
-    readonly property color zoneNormal:     "#1F3B2A"
-    readonly property color zoneCaution:    "#5A4416"
-    readonly property color zoneWarning:    "#B23A33"
+    readonly property color zoneNormal:     pick("#1F3B2A", "#CDEBD8")
+    readonly property color zoneCaution:    pick("#5A4416", "#FFE2A8")
+    readonly property color zoneWarning:    pick("#B23A33", "#F6B3AE")
+
+    // ACACT risk level (AcactCore PairEval.level): 0 normal · 1 conflict predicted (CPA) · 2 emergency
+    function riskColor(level) {
+        if (level >= 2) return warning
+        if (level === 1) return caution
+        return active
+    }
+    function riskName(level) {
+        if (level >= 2) return qsTr("비상")
+        if (level === 1) return qsTr("충돌 예측")
+        return qsTr("정상")
+    }
 
     // TandemTelemetry levels: 0 no data, 1 normal, 2 caution, 3 warning
     function levelColor(level) {
@@ -88,16 +147,17 @@ QtObject {
         if (name === "caution") return zoneCaution
         return zoneNormal
     }
+    function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
     function vehicleTypeName(vehicle) {
         if (!vehicle) return ""
-        var t = String(vehicle.vehicleTypeString).toLowerCase()
-        if (t.indexOf("coaxial") >= 0)      return qsTr("동축 헬기")
-        if (t.indexOf("helicopter") >= 0)   return qsTr("헬기")
+        var tt = String(vehicle.vehicleTypeString).toLowerCase()
+        if (tt.indexOf("coaxial") >= 0)      return qsTr("동축 헬기")
+        if (tt.indexOf("helicopter") >= 0)   return qsTr("헬기")
         if (vehicle.vtol)                   return qsTr("VTOL")
         if (vehicle.fixedWing)              return qsTr("고정익")
-        if (t.indexOf("hexa") >= 0)         return qsTr("헥사콥터")
-        if (t.indexOf("octo") >= 0)         return qsTr("옥토콥터")
+        if (tt.indexOf("hexa") >= 0)         return qsTr("헥사콥터")
+        if (tt.indexOf("octo") >= 0)         return qsTr("옥토콥터")
         if (vehicle.multiRotor)             return qsTr("멀티콥터")
         if (vehicle.rover)                  return qsTr("지상 차량")
         if (vehicle.sub)                    return qsTr("수중체")
@@ -105,7 +165,7 @@ QtObject {
     }
 
     function formatValue(value, decimals) {
-        if (value === undefined || isNaN(value)) return "—"
+        if (value === undefined || value === null || isNaN(value)) return "—"
         return Number(value).toLocaleString(Qt.locale("en_US"), "f", decimals === undefined ? 0 : decimals)
     }
     function pad2(n) { return ("0" + Math.floor(n)).slice(-2) }
@@ -118,6 +178,7 @@ QtObject {
         if (isNaN(m) || m < 0) return { v: "—", u: "" }
         return m >= 1000 ? { v: (m / 1000).toFixed(2), u: "km" } : { v: m.toFixed(0), u: "m" }
     }
+    function uavName(id) { return "UAV " + ("0" + id).slice(-2) }
 
     // ---- firmware ------------------------------------------------------------
     // Versions the console's commands were verified against in SITL. Older

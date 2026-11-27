@@ -63,7 +63,7 @@ Rectangle {
 
     component Caption: MLText { color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel; font.letterSpacing: 0.8 * MLTheme.u }
     component Btn: MLCommandButton { compact: true; implicitHeight: 32 * MLTheme.u; twoStep: false }
-    component Card: Rectangle { radius: 6 * MLTheme.u; color: "#0D1115"; border.color: MLTheme.line }
+    component Card: Rectangle { radius: 6 * MLTheme.u; color: String(MLTheme.tile); border.color: MLTheme.line }
 
     ColumnLayout {
         anchors.fill: parent
@@ -130,7 +130,7 @@ Rectangle {
                         height: sCol.implicitHeight + 14 * u
                         radius: 5 * u
                         readonly property bool cur: root._loaded && mlAnalysis.stamp === modelData.stamp
-                        color: cur ? "#132028" : (sMouse.containsMouse ? MLTheme.panelRaised : "#0B0F12")
+                        color: cur ? String(MLTheme.accentSoft) : (sMouse.containsMouse ? MLTheme.panelRaised : String(MLTheme.tile))
                         border.color: cur ? MLTheme.accent : MLTheme.line
                         Column {
                             id: sCol
@@ -198,7 +198,7 @@ Rectangle {
                             if (!root._loaded) return
                             // grid
                             var g = airspace.span > 300 ? 50 : (airspace.span > 120 ? 20 : 10)
-                            ctx.strokeStyle = "#141A20"; ctx.lineWidth = 1
+                            ctx.strokeStyle = String(MLTheme.line); ctx.lineWidth = 1
                             for (var f = Math.floor(root.ext.fMin / g) * g; f <= root.ext.fMax; f += g) { ctx.beginPath(); ctx.moveTo(0, airspace.py(f)); ctx.lineTo(width, airspace.py(f)); ctx.stroke() }
                             for (var r = Math.floor(root.ext.rMin / g) * g; r <= root.ext.rMax; r += g) { ctx.beginPath(); ctx.moveTo(airspace.px(r), 0); ctx.lineTo(airspace.px(r), height); ctx.stroke() }
                             var tr = mlAnalysis.tracks
@@ -232,7 +232,7 @@ Rectangle {
                             for (var a = 0; a < st.length; a++) for (var b = a + 1; b < st.length; b++) {
                                 var dh = Math.hypot(st[a].f - st[b].f, st[a].r - st[b].r), dz = Math.abs(st[a].alt - st[b].alt)
                                 var same = dz < root.vSep && st[a].alt > 1 && st[b].alt > 1
-                                var col = !same ? "#3A434C" : (dh < root.dEmerg ? MLTheme.warning : (dh < root.dSafe ? MLTheme.caution : "#5F6872"))
+                                var col = !same ? String(MLTheme.faint) : (dh < root.dEmerg ? MLTheme.warning : (dh < root.dSafe ? MLTheme.caution : "#5F6872"))
                                 ctx.strokeStyle = col; ctx.lineWidth = same && dh < root.dSafe ? 2 : 1; ctx.setLineDash([4, 4])
                                 ctx.beginPath(); ctx.moveTo(airspace.px(st[a].r), airspace.py(st[a].f)); ctx.lineTo(airspace.px(st[b].r), airspace.py(st[b].f)); ctx.stroke()
                                 ctx.setLineDash([])
@@ -337,7 +337,7 @@ Rectangle {
                             ctx.strokeStyle = MLTheme.warning; ctx.beginPath(); ctx.moveTo(0, Y(root.dEmerg)); ctx.lineTo(width, Y(root.dEmerg)); ctx.stroke()
                             ctx.setLineDash([])
                             var pr = mlAnalysis.pairs
-                            var pal = ["#5BC0EB", "#C39BFF", "#B9DE6A", "#FF8FB1", "#7FD8D0", "#F2C46D"]
+                            var pal = MLTheme.vehiclePalette
                             for (var k = 0; k < pr.length; k++) {
                                 var s = pr[k].series, started = false
                                 ctx.strokeStyle = pal[k % 6]; ctx.lineWidth = 1.5; ctx.beginPath()
@@ -402,7 +402,7 @@ Rectangle {
                         Layout.preferredHeight: vCol.implicitHeight + 20 * u
                         radius: 6 * u
                         readonly property bool pass: root._loaded && mlAnalysis.verdict.pass
-                        color: pass ? "#0F2419" : "#2A1012"
+                        color: pass ? String(MLTheme.alpha(MLTheme.active, 0.15)) : String(MLTheme.warningFill)
                         border.color: pass ? MLTheme.active : MLTheme.warning
                         Column {
                             id: vCol

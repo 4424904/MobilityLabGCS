@@ -30,10 +30,10 @@ Item {
         height: 1
         gradient: Gradient {
             orientation: Gradient.Horizontal
-            GradientStop { position: 0.0;  color: "#005BC0EB" }
+            GradientStop { position: 0.0;  color: "transparent" }
             GradientStop { position: 0.18; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.55) }
-            GradientStop { position: 0.6;  color: "#185BC0EB" }
-            GradientStop { position: 1.0;  color: "#005BC0EB" }
+            GradientStop { position: 0.6;  color: String(MLTheme.alpha(MLTheme.accent, 0.1)) }
+            GradientStop { position: 1.0;  color: "transparent" }
         }
     }
     // corner ticks

@@ -28,7 +28,7 @@ MLPanel {
     readonly property var  _active:     _mvm.activeVehicle
     readonly property real _fw:         ScreenTools.defaultFontPixelWidth
     readonly property real _fh:         ScreenTools.defaultFontPixelHeight
-    readonly property var  _colors:     [ "#4fd3ea", "#ef5fe0", "#f5b331", "#7cdc5a", "#ff8a65", "#9fa8ff" ]
+    readonly property var  _colors:     MLTheme.vehiclePalette
 
     function _v(fact) {
         if (!fact) return NaN
@@ -90,7 +90,7 @@ MLPanel {
             width:          ListView.view.width
             height:         root._fh * 3.3
             radius:         root._fw * 0.4
-            color:          _isActive ? "#14303a" : (cardMouse.containsMouse ? "#16222b" : MLTheme.tile)
+            color:          _isActive ? String(MLTheme.accentSoft) : (cardMouse.containsMouse ? String(MLTheme.hover) : MLTheme.tile)
             border.width:   _isActive ? 1.5 : 1
             border.color:   _lost ? MLTheme.warning : (_isActive ? MLTheme.accent : MLTheme.line)
 
@@ -143,7 +143,7 @@ MLPanel {
                         height:         stateText.implicitHeight + 2
                         radius:         height / 2
                         readonly property bool _on: !!card._veh && card._veh.armed
-                        color:          card._lost ? "#3a1416" : (_on ? "#3a1416" : "#12301f")
+                        color:          card._lost ? String(MLTheme.warningFill) : (_on ? String(MLTheme.warningFill) : String(MLTheme.alpha(MLTheme.active, 0.15)))
                         border.width:   1
                         border.color:   card._lost || _on ? MLTheme.warning : MLTheme.ok
                         QGCLabel {
@@ -201,7 +201,7 @@ MLPanel {
                         anchors.centerIn:   parent
                         visible:            parent._on
                         text:               "✓"
-                        color:              "#04161b"
+                        color:              String(MLTheme.tile)
                         font.bold:          true
                     }
                     MouseArea {
@@ -223,7 +223,7 @@ MLPanel {
                     width:          planText.implicitWidth + root._fw * 1.8
                     height:         root._fh * 1.7
                     radius:         root._fw * 0.4
-                    color:          planMouse.containsMouse ? "#1b3440" : MLTheme.panelRaised
+                    color:          planMouse.containsMouse ? String(MLTheme.hover) : MLTheme.panelRaised
                     border.width:   1
                     border.color:   planMouse.containsMouse ? MLTheme.accent : MLTheme.lineStrong
                     QGCLabel {

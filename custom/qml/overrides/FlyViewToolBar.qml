@@ -46,8 +46,8 @@ Item {
     Rectangle {
         anchors.fill:   parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#0E1318" }
-            GradientStop { position: 1.0; color: "#080B0E" }
+            GradientStop { position: 0.0; color: String(MLTheme.panelHeader) }
+            GradientStop { position: 1.0; color: String(MLTheme.panelSolid) }
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: MLTheme.line }
         // lit seam under the bar, brightest over the map
@@ -56,9 +56,9 @@ Item {
             x: parent.width * 0.18; width: parent.width * 0.64; height: 1
             gradient: Gradient {
                 orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: "#005BC0EB" }
-                GradientStop { position: 0.5; color: "#995BC0EB" }
-                GradientStop { position: 1.0; color: "#005BC0EB" }
+                GradientStop { position: 0.0; color: "transparent" }
+                GradientStop { position: 0.5; color: String(MLTheme.alpha(MLTheme.accent, 0.6)) }
+                GradientStop { position: 1.0; color: "transparent" }
             }
         }
     }
@@ -72,7 +72,7 @@ Item {
             width:  control.leftWidth
             height: parent.height
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
-            Rectangle { anchors.fill: parent; anchors.rightMargin: 1; color: brandMouse.containsMouse ? "#0F1418" : "transparent" }
+            Rectangle { anchors.fill: parent; anchors.rightMargin: 1; color: brandMouse.containsMouse ? String(MLTheme.hover) : "transparent" }
             Row {
                 anchors.left:           parent.left
                 anchors.leftMargin:     20 * u
@@ -98,7 +98,7 @@ Item {
                 readonly property bool   _g:       typeof mlGuard !== "undefined"
                 readonly property bool   field:    _g && mlGuard.opMode === "field"
                 readonly property bool   problem:  _g && mlGuard.opModeProblem !== ""
-                readonly property color  tone:     problem ? MLTheme.caution : (field ? MLTheme.warning : "#5BC0EB")
+                readonly property color  tone:     problem ? MLTheme.caution : (field ? MLTheme.warning : String(MLTheme.accent))
                 anchors.right:          parent.right
                 anchors.rightMargin:    16 * u
                 anchors.verticalCenter: parent.verticalCenter
@@ -177,7 +177,7 @@ Item {
                 readonly property bool _lost:   object && object.vehicleLinkManager.communicationLost
                 width:  196 * u
                 height: leftRow.height
-                Rectangle { anchors.fill: parent; color: tab._active ? "#11161B" : (tabMouse.containsMouse ? "#0D1115" : "transparent") }
+                Rectangle { anchors.fill: parent; color: tab._active ? String(MLTheme.hover) : (tabMouse.containsMouse ? String(MLTheme.tile) : "transparent") }
                 Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
                 Rectangle { visible: tab._active; anchors.bottom: parent.bottom; width: parent.width; height: 2 * u; color: MLTheme.accent }
                 Column {
@@ -231,7 +231,7 @@ Item {
             visible:    control._vehicles.count > 1
             width:      fleetText.implicitWidth + 32 * u
             height:     leftRow.height
-            Rectangle { anchors.fill: parent; color: MLState.fleetOpen ? "#11161B" : (fleetMouse.containsMouse ? "#0D1115" : "transparent") }
+            Rectangle { anchors.fill: parent; color: MLState.fleetOpen ? String(MLTheme.hover) : (fleetMouse.containsMouse ? String(MLTheme.tile) : "transparent") }
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
             MLText { id: fleetText; anchors.centerIn: parent; text: qsTr("편대 명령"); color: MLState.fleetOpen ? MLTheme.accent : MLTheme.label; font.pixelSize: MLTheme.fsSmall }
             MouseArea { id: fleetMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: MLState.fleetOpen = !MLState.fleetOpen }
@@ -257,7 +257,7 @@ Item {
         z:          QGroundControl.zOrderTopMost
         radius:     _fits ? 0 : MLTheme.panelRadius
         color:      _shown && !_fits ? MLTheme.glassStrong : "transparent"
-        border.color: _shown && !_fits ? "#5A4416" : "transparent"
+        border.color: _shown && !_fits ? String(MLTheme.alpha(MLTheme.caution, 0.55)) : "transparent"
 
         GuidedActionConfirm {
             id:                         guidedActionConfirm
@@ -335,11 +335,38 @@ Item {
             ledColor:   !rightRow._has ? MLTheme.faint : (!rightRow._fw.ok || rightRow._fw.modeUnknown ? MLTheme.caution : MLTheme.active)
         }
 
+        // display: theme (day / night) and the layout menu
+        Item {
+            width:  viewRow.implicitWidth + 20 * u
+            height: parent.height
+            Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
+            Row {
+                id: viewRow
+                anchors.centerIn: parent
+                spacing: 4 * u
+                MLIconButton {
+                    size:       34 * u
+                    glyph:      MLTheme.day ? "☀" : "☾"
+                    tip:        MLTheme.day ? qsTr("주간 테마 — 눌러서 야간으로") : qsTr("야간 테마 — 눌러서 주간으로")
+                    onClicked:  MLTheme.setDay(!MLTheme.day)
+                }
+                MLIconButton {
+                    id:         layoutBtn
+                    size:       34 * u
+                    glyph:      "▦"
+                    tip:        qsTr("화면 구성 · 레이아웃")
+                    checked:    layoutMenu.opened
+                    onClicked:  layoutMenu.opened ? layoutMenu.close() : layoutMenu.open()
+                    MLLayoutMenu { id: layoutMenu; y: parent.height + 10 * u; x: parent.width - width }
+                }
+            }
+        }
+
         // QGC's own indicators (RTK, gimbal, remote ID, …) in a drop-down
         Item {
             width:  moreText.implicitWidth + 28 * u
             height: parent.height
-            Rectangle { anchors.fill: parent; color: control._indicatorsOpen ? MLTheme.panelRaised : (moreMouse.containsMouse ? "#0D1115" : "transparent") }
+            Rectangle { anchors.fill: parent; color: control._indicatorsOpen ? MLTheme.panelRaised : (moreMouse.containsMouse ? String(MLTheme.tile) : "transparent") }
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
             MLText { id: moreText; anchors.centerIn: parent; text: qsTr("상세 ▾"); color: control._indicatorsOpen ? MLTheme.accent : MLTheme.label; font.pixelSize: MLTheme.fsSmall }
             MouseArea { id: moreMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: control._indicatorsOpen = !control._indicatorsOpen }

@@ -96,9 +96,9 @@ Rectangle {
             c.font = (10 * k) + "px '" + MLTheme.mono + "'"
             c.textBaseline = "middle"
             for (var a = 0; a <= aMax; a += step) {
-                c.strokeStyle = "#161C22"; c.lineWidth = 1
+                c.strokeStyle = String(MLTheme.line); c.lineWidth = 1
                 c.beginPath(); c.moveTo(L, Y(a)); c.lineTo(W, Y(a)); c.stroke()
-                c.fillStyle = "#56606A"; c.textAlign = "right"; c.fillText(a, L - 6 * k, Y(a))
+                c.fillStyle = String(MLTheme.faint); c.textAlign = "right"; c.fillText(a, L - 6 * k, Y(a))
             }
 
             // terrain under the waypoints
@@ -107,20 +107,20 @@ Rectangle {
                 c.beginPath(); c.moveTo(X(0), H - B)
                 for (i = 0; i < P.length; i++) if (!isNaN(P[i].terr)) c.lineTo(X(P[i].d), Y(Math.max(0, P[i].terr)))
                 c.lineTo(X(dMax), H - B); c.closePath()
-                c.fillStyle = "#1A1F24"; c.fill(); c.strokeStyle = "#2D353D"; c.stroke()
+                c.fillStyle = String(MLTheme.line); c.fill(); c.strokeStyle = String(MLTheme.lineStrong); c.stroke()
             }
 
             // route: flown part grey, rest cyan
             var cur = root._cur
             for (i = 1; i < P.length; i++) {
                 if (isNaN(P[i].alt) || isNaN(P[i - 1].alt)) continue
-                c.strokeStyle = (cur > 0 && P[i].idx <= cur - 1) ? "#4A535C" : String(MLTheme.accent)
+                c.strokeStyle = (cur > 0 && P[i].idx <= cur - 1) ? String(MLTheme.faint) : String(MLTheme.accent)
                 c.lineWidth = 2 * k
                 c.beginPath(); c.moveTo(X(P[i - 1].d), Y(P[i - 1].alt)); c.lineTo(X(P[i].d), Y(P[i].alt)); c.stroke()
             }
-            c.fillStyle = "#7D848D"; c.textAlign = "center"; c.textBaseline = "alphabetic"
+            c.fillStyle = String(MLTheme.dim); c.textAlign = "center"; c.textBaseline = "alphabetic"
             for (i = 0; i < P.length; i++) {
-                c.fillStyle = P[i].idx === cur ? String(MLTheme.accent) : "#7D848D"
+                c.fillStyle = P[i].idx === cur ? String(MLTheme.accent) : String(MLTheme.dim)
                 c.fillText(P[i].seq, X(P[i].d), H - 3 * k)
                 c.beginPath(); c.arc(X(P[i].d), Y(isNaN(P[i].alt) ? 0 : P[i].alt), 2.5 * k, 0, 2 * Math.PI); c.fill()
             }
@@ -131,9 +131,9 @@ Rectangle {
             if (target && !isNaN(vehAlt)) {
                 var dNow = Math.max(0, target.d - (isNaN(vehNext) ? 0 : vehNext))
                 var vx = X(dNow), vy = Y(Math.max(0, vehAlt))
-                c.strokeStyle = "#E6E4DE"; c.lineWidth = 1
+                c.strokeStyle = String(MLTheme.text); c.lineWidth = 1
                 c.beginPath(); c.moveTo(vx, 2 * k); c.lineTo(vx, H - B); c.stroke()
-                c.fillStyle = "#F2F1EE"
+                c.fillStyle = String(MLTheme.bright)
                 c.beginPath(); c.moveTo(vx, vy - 3 * k); c.lineTo(vx - 7 * k, vy - 13 * k); c.lineTo(vx + 7 * k, vy - 13 * k); c.closePath(); c.fill()
             }
         }

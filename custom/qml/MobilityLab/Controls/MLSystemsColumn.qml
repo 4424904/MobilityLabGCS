@@ -89,9 +89,9 @@ Rectangle {
                         width:  parent.width - 96 * u - 140 * u
                         height: 18 * u
                         anchors.verticalCenter: parent.verticalCenter
-                        Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 4 * u; color: "#151B20" }
+                        Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 4 * u; color: String(MLTheme.line) }
                         Rectangle { anchors.verticalCenter: parent.verticalCenter; x: parent.width * (0.5 - 2 / 12); width: parent.width * 4 / 12; height: 4 * u; color: MLTheme.zoneNormal }
-                        Rectangle { anchors.horizontalCenter: parent.horizontalCenter; width: 1; height: parent.height * 0.8; anchors.verticalCenter: parent.verticalCenter; color: "#56606A" }
+                        Rectangle { anchors.horizontalCenter: parent.horizontalCenter; width: 1; height: parent.height * 0.8; anchors.verticalCenter: parent.verticalCenter; color: String(MLTheme.faint) }
                         Rectangle {
                             visible:    !isNaN(parent.parent._split)
                             width:      3 * u
@@ -153,8 +153,8 @@ Rectangle {
                         width:  parent.width - 128 * u - 140 * u
                         height: 6 * u
                         anchors.verticalCenter: parent.verticalCenter
-                        color:  "#151B20"
-                        Rectangle { height: parent.height; width: isNaN(parent.parent.frac) ? 0 : parent.width * Math.max(0, Math.min(1, parent.parent.frac)); color: parent.parent.level >= 2 ? MLTheme.levelColor(parent.parent.level) : "#9AA1A9" }
+                        color:  String(MLTheme.line)
+                        Rectangle { height: parent.height; width: isNaN(parent.parent.frac) ? 0 : parent.width * Math.max(0, Math.min(1, parent.parent.frac)); color: parent.parent.level >= 2 ? MLTheme.levelColor(parent.parent.level) : String(MLTheme.dim) }
                     }
                     Text { anchors.right: parent.right; anchors.rightMargin: 20 * u; anchors.verticalCenter: parent.verticalCenter; text: parent.value; color: parent.level >= 2 ? MLTheme.levelColor(parent.level) : MLTheme.text; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody }
                 }

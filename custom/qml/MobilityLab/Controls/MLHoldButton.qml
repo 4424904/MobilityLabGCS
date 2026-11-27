@@ -26,9 +26,9 @@ Rectangle {
     implicitHeight: 52 * MLTheme.u
 
     radius:         MLTheme.radius
-    color:          "#1E0E0F"
+    color:          String(MLTheme.warningFill)
     border.width:   1
-    border.color:   available ? "#7A2A2A" : MLTheme.line
+    border.color:   available ? String(MLTheme.alpha(MLTheme.warning, 0.6)) : MLTheme.line
     opacity:        available ? 1 : 0.4
     clip:           true
 
@@ -38,7 +38,7 @@ Rectangle {
         anchors.top:    parent.top
         anchors.bottom: parent.bottom
         width:          parent.width * root._progress
-        color:          "#7A2A2A"
+        color:          String(MLTheme.alpha(MLTheme.warning, 0.6))
     }
 
     Row {
@@ -48,14 +48,14 @@ Rectangle {
         MLText {
             anchors.verticalCenter: parent.verticalCenter
             text:           root._sent ? qsTr("명령 전송됨") : (holdMouse.pressed && root.available ? qsTr("계속 누르세요") : root.text)
-            color:          "#FF8A80"
+            color:          String(MLTheme.warning)
             font.pixelSize: MLTheme.fsValue
             font.weight:    Font.DemiBold
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text:           "HOLD " + (root.holdMs / 1000) + "s"
-            color:          "#B9807C"
+            color:          String(MLTheme.label)
             font.family:    MLTheme.mono
             font.pixelSize: MLTheme.fsLabel
         }

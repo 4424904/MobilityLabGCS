@@ -94,11 +94,11 @@ Rectangle {
                         Rectangle {
                             width:  parent.width
                             height: 3 * u
-                            color:  index < root._phase ? "#4A535C" : (index === root._phase ? (root._commLost ? MLTheme.warning : MLTheme.accent) : "#161C22")
+                            color:  index < root._phase ? String(MLTheme.faint) : (index === root._phase ? (root._commLost ? MLTheme.warning : MLTheme.accent) : String(MLTheme.line))
                         }
                         MLText {
                             text:               modelData
-                            color:              index === root._phase ? MLTheme.bright : (index < root._phase ? MLTheme.dim : "#3A424A")
+                            color:              index === root._phase ? MLTheme.bright : (index < root._phase ? MLTheme.dim : MLTheme.faint)
                             font.pixelSize:     MLTheme.fsLabel
                             font.letterSpacing: 0.7 * u
                             font.weight:        index === root._phase ? Font.DemiBold : Font.Normal
@@ -109,7 +109,7 @@ Rectangle {
             MLText {
                 width:          parent.width
                 text:           root.nextStep()
-                color:          root._commLost ? MLTheme.warning : "#9FD8F2"
+                color:          root._commLost ? MLTheme.warning : String(MLTheme.accent)
                 font.pixelSize: MLTheme.fsSmall
             }
         }

@@ -17,6 +17,9 @@
 #include "QGCApplication.h"
 #include "QGCLoggingCategory.h"
 #include "QGCPalette.h"
+
+#include <QGuiApplication>
+#include <QScreen>
 #include "SettingsManager.h"
 
 #include <QtCore/QApplicationStatic>
@@ -115,116 +118,107 @@ void MLPlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData 
 #ifdef ML_VWORLD_KEY
             metaData.setRawDefaultValue(QStringLiteral(ML_VWORLD_KEY));
 #endif
+        } else if (metaData.name() == AppSettings::uiScalePercentName) {
+            // Default UI scale from the primary screen's logical size (Qt already applies the OS DPI
+            // setting): QHD and 4K panels left at 100 % Windows scaling get larger text by default.
+            // The operator can still change it in Settings; a stored value always wins.
+            int pct = 100;
+            if (const QScreen *scr = QGuiApplication::primaryScreen()) {
+                const int h = scr->size().height();
+                pct = h >= 2000 ? 150 : (h >= 1400 ? 120 : 100);
+            }
+            metaData.setRawDefaultValue(pct);
         } else if (metaData.name() == AppSettings::savePathName && qEnvironmentVariableIsSet("MLGCS_PORTABLE_DIR")) {
             // portable build: logs, missions, maps cache next to the program (see patches/0004)
             metaData.setRawDefaultValue(qEnvironmentVariable("MLGCS_PORTABLE_DIR") + QStringLiteral("/data/MobilityLabGCS"));
         }
     } else if (settingsGroup == FlightMapSettings::settingsGroup) {
         if (metaData.name() == FlightMapSettings::mapProviderName) {
+            // VWorld needs a key (and serves Korean IPs only): default to it only when one is built in,
+            // otherwise Esri imagery, which works anywhere without a key.
+#ifdef ML_VWORLD_KEY
             metaData.setRawDefaultValue(QStringLiteral("VWorld"));
+#else
+            metaData.setRawDefaultValue(QStringLiteral("Esri"));
+#endif
         } else if (metaData.name() == FlightMapSettings::mapTypeName) {
+#ifdef ML_VWORLD_KEY
             metaData.setRawDefaultValue(QStringLiteral("Satellite Map"));
+#else
+            metaData.setRawDefaultValue(QStringLiteral("World Satellite"));
+#endif
         }
     }
 }
 
 /*---------------------------------------------------------------------------*/
-/* Palette: graphite night theme with avionics status colours.               */
-/* Only the dark (indoor) theme is restyled; the light theme stays QGC's     */
-/* high-contrast outdoor palette for use in direct sunlight.                  */
+/* Palette: MOBILITY LAB design system, night (QGC "Dark") and day (QGC      */
+/* "Light") themes. Same values as MLTheme.qml so QGC's own pages (plan,     */
+/* setup, settings, dialogs) match the console in both themes.               */
 /*---------------------------------------------------------------------------*/
 
 namespace {
-void setDark(QGCPalette::PaletteColorInfo_t &info, const char *enabled, const char *disabled = nullptr)
-{
-    info[QGCPalette::Dark][QGCPalette::ColorGroupEnabled]  = QColor(QLatin1StringView(enabled));
-    info[QGCPalette::Dark][QGCPalette::ColorGroupDisabled] = QColor(QLatin1StringView(disabled ? disabled : enabled));
-}
-void setBoth(QGCPalette::PaletteColorInfo_t &info, const char *light, const char *dark)
-{
-    info[QGCPalette::Light][QGCPalette::ColorGroupEnabled]  = QColor(QLatin1StringView(light));
-    info[QGCPalette::Light][QGCPalette::ColorGroupDisabled] = QColor(QLatin1StringView(light));
-    info[QGCPalette::Dark][QGCPalette::ColorGroupEnabled]   = QColor(QLatin1StringView(dark));
-    info[QGCPalette::Dark][QGCPalette::ColorGroupDisabled]  = QColor(QLatin1StringView(dark));
-}
+struct PaletteRow { const char *name; const char *dayOn; const char *dayOff; const char *nightOn; const char *nightOff; };
+// name, day enabled, day disabled, night enabled, night disabled
+const PaletteRow kPalette[] = {
+    {"window",              "#F7F8FA", "#F7F8FA", "#0C1014", "#0C1014"},
+    {"windowTransparent",   "#F2FFFFFF", "#F2FFFFFF", "#EE0C1014", "#EE0C1014"},
+    {"windowShade",         "#E9ECEF", "#E9ECEF", "#141A20", "#141A20"},
+    {"windowShadeDark",     "#DDE2E7", "#DDE2E7", "#07090C", "#07090C"},
+    {"windowShadeLight",    "#8A949E", "#AAB4BE", "#66707A", "#36404A"},
+    {"text",                "#14181C", "#8A949E", "#ECEBE7", "#66707A"},
+    {"warningText",         "#C8141C", "#C8141C", "#FF5F55", "#FF5F55"},
+    {"button",              "#FFFFFF", "#F3F5F7", "#141A20", "#10151A"},
+    {"buttonBorder",        "#AAB4BE", "#D3D9DF", "#36404A", "#222931"},
+    {"buttonText",          "#14181C", "#8A949E", "#ECEBE7", "#66707A"},
+    {"buttonHighlight",     "#0067A8", "#E4E8EC", "#1E5A78", "#141A20"},
+    {"buttonHighlightText", "#FFFFFF", "#8A949E", "#FFFFFF", "#66707A"},
+    {"primaryButton",       "#0067A8", "#D3D9DF", "#5CC4F0", "#222931"},
+    {"primaryButtonText",   "#FFFFFF", "#8A949E", "#04121A", "#66707A"},
+    {"textField",           "#FFFFFF", "#F3F5F7", "#07090C", "#10151A"},
+    {"textFieldText",       "#14181C", "#8A949E", "#ECEBE7", "#66707A"},
+    {"mapButton",           "#F2FFFFFF", "#D3D9DF", "#EE0C1014", "#36404A"},
+    {"mapButtonHighlight",  "#0067A8", "#D3D9DF", "#5CC4F0", "#36404A"},
+    {"mapIndicator",        "#0067A8", "#D3D9DF", "#5CC4F0", "#36404A"},
+    {"mapIndicatorChild",   "#5A8DB5", "#D3D9DF", "#2C6E88", "#36404A"},
+    {"colorGreen",          "#0B7A3B", "#0B7A3B", "#6FD394", "#6FD394"},
+    {"colorYellow",         "#8A6D00", "#8A6D00", "#F2D04A", "#F2D04A"},
+    {"colorYellowGreen",    "#557A10", "#557A10", "#B9DE6A", "#B9DE6A"},
+    {"colorOrange",         "#9A5B00", "#9A5B00", "#F5B83A", "#F5B83A"},
+    {"colorRed",            "#C8141C", "#C8141C", "#FF5F55", "#FF5F55"},
+    {"colorBlue",           "#0067A8", "#0067A8", "#5CC4F0", "#5CC4F0"},
+    {"colorGrey",           "#56616C", "#56616C", "#C2C8CF", "#C2C8CF"},
+    {"alertBackground",     "#FFE1DF", "#FFE1DF", "#3A0F0E", "#3A0F0E"},
+    {"alertBorder",         "#C8141C", "#C8141C", "#8C3530", "#8C3530"},
+    {"alertText",           "#14181C", "#14181C", "#FFFFFF", "#FFFFFF"},
+    {"missionItemEditor",   "#EEF3F8", "#F3F5F7", "#141A20", "#10151A"},
+    {"toolStripHoverColor", "#E4E8EC", "#F3F5F7", "#1A2129", "#141A20"},
+    {"statusFailedText",    "#C8141C", "#8A949E", "#FF5F55", "#66707A"},
+    {"statusPassedText",    "#0B7A3B", "#8A949E", "#6FD394", "#66707A"},
+    {"statusPendingText",   "#9A5B00", "#8A949E", "#F5B83A", "#66707A"},
+    {"toolbarBackground",   "#F7FFFFFF", "#F7FFFFFF", "#F20C1014", "#F20C1014"},
+    {"groupBorder",         "#D3D9DF", "#E3E7EB", "#222931", "#171D23"},
+    {"modifiedParamValue",  "#9A5B00", "#9A5B00", "#F5B83A", "#F5B83A"},
+    {"brandingPurple",      "#D80E18", "#D80E18", "#D80E18", "#D80E18"},
+    {"brandingBlue",        "#D80E18", "#D80E18", "#D80E18", "#D80E18"},
+    {"mapMissionTrajectory","#0067A8", "#0067A8", "#5CC4F0", "#5CC4F0"},
+    {"toolStripFGColor",    "#14181C", "#8A949E", "#ECEBE7", "#66707A"},
+    {"hoverColor",          "#E4E8EC", "#E4E8EC", "#1A2129", "#1A2129"},
+    {"surveyPolygonInterior","#0067A8", "#0067A8", "#5CC4F0", "#5CC4F0"},
+    {"surveyPolygonTerrainCollision","#C8141C", "#C8141C", "#FF5F55", "#FF5F55"},
+};
 }
 
 void MLPlugin::paletteOverride(const QString &colorName, QGCPalette::PaletteColorInfo_t &colorInfo)
 {
-    // Console palette (see MLTheme.qml). Dark theme only, except status and
-    // map colours, which are set for both themes so the meaning never changes.
-    if (colorName == QStringLiteral("window")) {
-        setDark(colorInfo, "#0A0D10");
-    } else if (colorName == QStringLiteral("windowTransparent")) {
-        setDark(colorInfo, "#E60A0D10");
-    } else if (colorName == QStringLiteral("windowShade")) {
-        setDark(colorInfo, "#11161B");
-    } else if (colorName == QStringLiteral("windowShadeDark")) {
-        setDark(colorInfo, "#07090B");
-    } else if (colorName == QStringLiteral("windowShadeLight")) {
-        setDark(colorInfo, "#4A535C", "#2A3038");
-    } else if (colorName == QStringLiteral("text")) {
-        setDark(colorInfo, "#E6E4DE", "#4A535C");
-    } else if (colorName == QStringLiteral("warningText")) {
-        setDark(colorInfo, "#FF5A52");
-    } else if (colorName == QStringLiteral("button")) {
-        setDark(colorInfo, "#11161B", "#0D1115");
-    } else if (colorName == QStringLiteral("buttonBorder")) {
-        setDark(colorInfo, "#2A3038", "#1B2026");
-    } else if (colorName == QStringLiteral("buttonText")) {
-        setDark(colorInfo, "#E6E4DE", "#4A535C");
-    } else if (colorName == QStringLiteral("buttonHighlight")) {
-        setDark(colorInfo, "#1E5A72", "#11161B");
-    } else if (colorName == QStringLiteral("buttonHighlightText")) {
-        setDark(colorInfo, "#F2F1EE", "#4A535C");
-    } else if (colorName == QStringLiteral("primaryButton")) {
-        setDark(colorInfo, "#5BC0EB", "#1B2026");
-    } else if (colorName == QStringLiteral("primaryButtonText")) {
-        setDark(colorInfo, "#07090B", "#4A535C");
-    } else if (colorName == QStringLiteral("textField")) {
-        setDark(colorInfo, "#07090B", "#0D1115");
-    } else if (colorName == QStringLiteral("textFieldText")) {
-        setDark(colorInfo, "#E6E4DE", "#4A535C");
-    } else if (colorName == QStringLiteral("mapButton")) {
-        setDark(colorInfo, "#E60A0D10", "#2A3038");
-    } else if (colorName == QStringLiteral("mapButtonHighlight")) {
-        setDark(colorInfo, "#5BC0EB", "#2A3038");
-    } else if (colorName == QStringLiteral("mapIndicator")) {
-        setDark(colorInfo, "#5BC0EB", "#2A3038");
-    } else if (colorName == QStringLiteral("mapIndicatorChild")) {
-        setDark(colorInfo, "#2C6E88", "#2A3038");
-    } else if (colorName == QStringLiteral("colorGreen")) {
-        setBoth(colorInfo, "#0a8a3e", "#6FD08C");
-    } else if (colorName == QStringLiteral("colorYellow")) {
-        setBoth(colorInfo, "#a2a200", "#F0D04A");
-    } else if (colorName == QStringLiteral("colorOrange")) {
-        setBoth(colorInfo, "#b86e00", "#F0B232");
-    } else if (colorName == QStringLiteral("colorRed")) {
-        setBoth(colorInfo, "#c41d24", "#FF5A52");
-    } else if (colorName == QStringLiteral("colorBlue")) {
-        setBoth(colorInfo, "#0b6e86", "#5BC0EB");
-    } else if (colorName == QStringLiteral("colorGrey")) {
-        setBoth(colorInfo, "#808080", "#AEB4BB");
-    } else if (colorName == QStringLiteral("alertBackground")) {
-        setBoth(colorInfo, "#120C0D", "#120C0D");
-    } else if (colorName == QStringLiteral("alertBorder")) {
-        setBoth(colorInfo, "#6B3430", "#6B3430");
-    } else if (colorName == QStringLiteral("alertText")) {
-        setBoth(colorInfo, "#F2F1EE", "#F2F1EE");
-    } else if (colorName == QStringLiteral("missionItemEditor")) {
-        setDark(colorInfo, "#11161B", "#0D1115");
-    } else if (colorName == QStringLiteral("toolStripHoverColor")) {
-        setDark(colorInfo, "#1B2A33", "#11161B");
-    } else if (colorName == QStringLiteral("toolbarBackground")) {
-        setDark(colorInfo, "#F20A0D10");
-    } else if (colorName == QStringLiteral("groupBorder")) {
-        setDark(colorInfo, "#1B2026");
-    } else if (colorName == QStringLiteral("brandingBlue")) {
-        setBoth(colorInfo, "#D80E18", "#D80E18");
-    } else if (colorName == QStringLiteral("mapMissionTrajectory")) {
-        setBoth(colorInfo, "#5BC0EB", "#5BC0EB");
-    } else if (colorName == QStringLiteral("toolStripFGColor")) {
-        setBoth(colorInfo, "#AEB4BB", "#E6E4DE");
+    for (const PaletteRow &r : kPalette) {
+        if (colorName == QLatin1StringView(r.name)) {
+            colorInfo[QGCPalette::Light][QGCPalette::ColorGroupEnabled]  = QColor(QLatin1StringView(r.dayOn));
+            colorInfo[QGCPalette::Light][QGCPalette::ColorGroupDisabled] = QColor(QLatin1StringView(r.dayOff));
+            colorInfo[QGCPalette::Dark][QGCPalette::ColorGroupEnabled]   = QColor(QLatin1StringView(r.nightOn));
+            colorInfo[QGCPalette::Dark][QGCPalette::ColorGroupDisabled]  = QColor(QLatin1StringView(r.nightOff));
+            return;
+        }
     }
 }
 

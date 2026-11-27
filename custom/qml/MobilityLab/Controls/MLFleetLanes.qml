@@ -243,11 +243,11 @@ Rectangle {
                     width:  Math.max(80 * u, lane.width - x - 600 * u)
                     height: parent.height
                     readonly property real frac: lane.total > 0 && lane.cur > 0 ? Math.min(1, lane.cur / lane.total) : 0
-                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 2 * u; color: "#1B2026" }
+                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 2 * u; color: String(MLTheme.line) }
                     Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width * prog.frac; height: 2 * u; color: lane.col; opacity: 0.9 }
                     Repeater {
                         model: Math.min(lane.total, 40)
-                        Rectangle { x: prog.width * (index + 1) / Math.max(1, lane.total) - 1; anchors.verticalCenter: parent.verticalCenter; width: 2 * u; height: 8 * u; color: index + 1 <= lane.cur ? lane.col : "#2A3038"; opacity: 0.8 }
+                        Rectangle { x: prog.width * (index + 1) / Math.max(1, lane.total) - 1; anchors.verticalCenter: parent.verticalCenter; width: 2 * u; height: 8 * u; color: index + 1 <= lane.cur ? lane.col : MLTheme.lineStrong; opacity: 0.8 }
                     }
                     Rectangle {
                         visible: lane.total > 0

@@ -65,7 +65,7 @@ Column {
                 width:      ackText.implicitWidth + 16 * u
                 height:     22 * u
                 radius:     3 * u
-                color:      ackMouse.containsMouse ? "#2A2112" : "transparent"
+                color:      ackMouse.containsMouse ? String(MLTheme.cautionFill) : "transparent"
                 border.width: 1
                 border.color: root._t && root._t.masterWarning ? MLTheme.warning : MLTheme.caution
                 MLText { id: ackText; anchors.centerIn: parent; text: qsTr("확인"); font.pixelSize: MLTheme.fsLabel; color: parent.border.color }
@@ -82,7 +82,7 @@ Column {
             readonly property color _c: a.level === 3 ? MLTheme.warning : MLTheme.caution
             width:  root.width
             height: 28 * u
-            color:  a.acked ? "transparent" : (a.level === 3 ? "#2A1213" : "#211A0C")
+            color:  a.acked ? "transparent" : (a.level === 3 ? String(MLTheme.warningFill) : String(MLTheme.cautionFill))
             Rectangle { x: 20 * u; width: 2 * u; height: parent.height - 10 * u; anchors.verticalCenter: parent.verticalCenter; color: parent._c }
             MLText { x: 30 * u; width: parent.width - 130 * u; anchors.verticalCenter: parent.verticalCenter; text: parent.a.text; color: parent._c; font.pixelSize: MLTheme.fsBody }
             Text { anchors.right: parent.right; anchors.rightMargin: 20 * u; anchors.verticalCenter: parent.verticalCenter; text: parent.a.time || ""; color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel }

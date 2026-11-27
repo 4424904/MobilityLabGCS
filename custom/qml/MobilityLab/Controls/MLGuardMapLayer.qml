@@ -29,7 +29,7 @@ Item {
     function _coord(d) {
         return (d && d.lat !== null && d.lat !== undefined && d.lon !== null) ? QtPositioning.coordinate(d.lat, d.lon) : QtPositioning.coordinate()
     }
-    function _levelColor(level) { return level >= 2 ? MLTheme.warning : (level === 1 ? MLTheme.caution : "#8A939C") }
+    function _levelColor(level) { return level >= 2 ? MLTheme.warning : (level === 1 ? MLTheme.caution : String(MLTheme.dim)) }
 
     // demo area
     property var _area: MapCircle {
@@ -37,7 +37,7 @@ Item {
         center:         visible ? QtPositioning.coordinate(root._site.lat, root._site.lon) : QtPositioning.coordinate()
         radius:         root._site && root._site.radius ? root._site.radius : 25
         color:          "transparent"
-        border.color:   "#665BC0EB"
+        border.color:   String(MLTheme.alpha(MLTheme.accent, 0.4))
         border.width:   1
     }
 
@@ -57,8 +57,8 @@ Item {
                 visible:        dslot.ok
                 center:         dslot.c
                 radius:         root._dSafe / 2
-                color:          dslot.own ? "#30FF5A52" : "#14FFFFFF"
-                border.color:   dslot.lost ? "#99FF5A52" : (dslot.own ? MLTheme.warning : dslot.col)
+                color:          dslot.own ? String(MLTheme.alpha(MLTheme.warning, 0.19)) : MLTheme.alpha(MLTheme.text, 0.08)
+                border.color:   dslot.lost ? String(MLTheme.alpha(MLTheme.warning, 0.6)) : (dslot.own ? MLTheme.warning : dslot.col)
                 border.width:   dslot.own ? 2.5 : 1.5
                 opacity:        dslot.lost ? 0.5 : 1
             }
@@ -84,8 +84,8 @@ Item {
                     width:  tagCol.implicitWidth + 16 * root.u
                     height: tagCol.implicitHeight + 10 * root.u
                     radius: 4 * root.u
-                    color:  "#E6090C0F"
-                    border.color: dslot.own ? MLTheme.warning : (dslot.lost ? MLTheme.warning : "#33404B")
+                    color:  String(MLTheme.glass)
+                    border.color: dslot.own ? MLTheme.warning : (dslot.lost ? MLTheme.warning : String(MLTheme.lineStrong))
                     Column {
                         id: tagCol
                         x: 8 * root.u; y: 5 * root.u
@@ -134,7 +134,7 @@ Item {
                     width:  lblText.implicitWidth + 12 * root.u
                     height: lblText.implicitHeight + 6 * root.u
                     radius: 3 * root.u
-                    color:  "#E6090C0F"
+                    color:  String(MLTheme.glass)
                     border.color: pslot.col
                     Text {
                         id: lblText
@@ -176,7 +176,7 @@ Item {
                     width: ctagText.implicitWidth + 14 * root.u
                     height: ctagText.implicitHeight + 8 * root.u
                     radius: 3 * root.u
-                    color: "#E6090C0F"
+                    color: String(MLTheme.glass)
                     border.color: cslot.col
                     Text {
                         id: ctagText

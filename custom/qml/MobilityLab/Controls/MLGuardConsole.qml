@@ -159,7 +159,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: omRow.implicitHeight + 16 * u
                 radius: 6 * u
-                color: "#22180A"
+                color: String(MLTheme.cautionFill)
                 border.color: MLTheme.caution
                 RowLayout {
                     id: omRow
@@ -189,8 +189,8 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: scCol.implicitHeight + 20 * u
                 radius: 6 * u
-                color: "#0D1115"
-                border.color: mlGuard.scenario !== "" ? "#244A3A" : MLTheme.line
+                color: String(MLTheme.tile)
+                border.color: mlGuard.scenario !== "" ? String(MLTheme.alpha(MLTheme.active, 0.45)) : MLTheme.line
                 ColumnLayout {
                     id: scCol
                     anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
@@ -252,8 +252,8 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 44 * u
                     radius: 6 * u
-                    color: modelData.own ? "#24120C0D" : "#0D1115"
-                    border.color: modelData.own ? "#6B3430" : MLTheme.line
+                    color: modelData.own ? String(MLTheme.warningFill) : String(MLTheme.tile)
+                    border.color: modelData.own ? String(MLTheme.alpha(MLTheme.warning, 0.6)) : MLTheme.line
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 12 * u
@@ -345,7 +345,7 @@ Rectangle {
                         Layout.preferredWidth: mcBadge.implicitWidth + 18 * u
                         radius: 13 * u
                         readonly property var mc: mlGuard.missionCheck
-                        color: mc.errors > 0 ? "#2E1414" : (mc.warnings > 0 ? "#2A2210" : "#102A1E")
+                        color: mc.errors > 0 ? String(MLTheme.warningFill) : (mc.warnings > 0 ? String(MLTheme.cautionFill) : String(MLTheme.alpha(MLTheme.active, 0.15)))
                         border.color: mc.errors > 0 ? MLTheme.warning : (mc.warnings > 0 ? MLTheme.caution : MLTheme.active)
                         MLText {
                             id: mcBadge
@@ -373,8 +373,8 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: mvCol.implicitHeight + 18 * u
                         radius: 6 * u
-                        color: "#0D1115"
-                        border.color: modelData.worst >= 2 ? "#6B2A28" : (modelData.worst === 1 ? "#5A4416" : MLTheme.line)
+                        color: String(MLTheme.tile)
+                        border.color: modelData.worst >= 2 ? String(MLTheme.alpha(MLTheme.warning, 0.6)) : (modelData.worst === 1 ? String(MLTheme.alpha(MLTheme.caution, 0.55)) : MLTheme.line)
                         Rectangle { width: 3 * u; height: parent.height - 16 * u; x: 0; y: 8 * u; color: MLTheme.vehicleColor(mv.modelData.sysid) }
                         ColumnLayout {
                             id: mvCol
@@ -469,8 +469,8 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: pfCol.implicitHeight + 16 * u
                     radius: 6 * u
-                    color: "#0D1115"
-                    border.color: modelData.ok ? MLTheme.line : "#5A4416"
+                    color: String(MLTheme.tile)
+                    border.color: modelData.ok ? MLTheme.line : String(MLTheme.alpha(MLTheme.caution, 0.55))
                     Column {
                         id: pfCol
                         x: 12 * u; y: 8 * u
@@ -524,7 +524,7 @@ Rectangle {
                         Text {
                             required property var modelData
                             text: modelData.id + (modelData.sim === 1 ? " SIM" : (modelData.sim === 0 ? " REAL" : " ?"))
-                            color: modelData.sim === 0 ? MLTheme.warning : (modelData.sim === 1 ? "#5BC0EB" : MLTheme.faint)
+                            color: modelData.sim === 0 ? MLTheme.warning : (modelData.sim === 1 ? String(MLTheme.accent) : MLTheme.faint)
                             font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel
                         }
                     }

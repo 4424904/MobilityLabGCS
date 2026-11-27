@@ -245,6 +245,7 @@ private:
     void _autoTick(double t);
     void _writeLog(double t, const std::vector<acact::DroneIn> &ins);
     void _publish(const std::vector<acact::DroneIn> &ins);
+    QString _riskReason(const QString &id) const;
     void _writeSummary();
     void _loadSettings();
 

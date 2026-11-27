@@ -178,7 +178,7 @@ Rectangle {
                     Rectangle {
                         width:  ((links.width - 116 * u - 112 * u) - 19 * 2 * u) / 20
                         height: 8 * u
-                        color:  index < Math.round(parent.parent.frac * 20) ? parent.parent.barColor : "#161C22"
+                        color:  index < Math.round(parent.parent.frac * 20) ? parent.parent.barColor : String(MLTheme.line)
                     }
                 }
             }

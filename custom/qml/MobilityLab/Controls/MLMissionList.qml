@@ -43,7 +43,7 @@ Column {
         visible:    root._count > 0
         width:      root.width
         height:     11 * u
-        Rectangle { x: 20 * u; width: parent.width - 40 * u; height: 3 * u; color: "#1E242B"
+        Rectangle { x: 20 * u; width: parent.width - 40 * u; height: 3 * u; color: String(MLTheme.line)
             Rectangle { height: parent.height; width: parent.width * Math.max(0, Math.min(1, root._cur / Math.max(1, root._count))); color: MLTheme.accent
                 Behavior on width { NumberAnimation { duration: 300 } } } }
     }
@@ -76,7 +76,7 @@ Column {
             visible:    index > 0
             width:      ListView.view.width
             height:     index > 0 ? 28 * u : 0
-            color:      _current ? "#122029" : "transparent"
+            color:      _current ? String(MLTheme.accentSoft) : "transparent"
 
             Text { x: 8 * u; anchors.verticalCenter: parent.verticalCenter; text: row.object ? ("0" + row.object.sequenceNumber).slice(-2) : ""; color: row._current ? MLTheme.accent : row._fg; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsSmall }
             MLText { x: 44 * u; width: parent.width - 44 * u - 136 * u; anchors.verticalCenter: parent.verticalCenter; text: root._name(row.object); color: row._fg; font.pixelSize: MLTheme.fsSmall }
@@ -109,10 +109,10 @@ Column {
             signal fire()
             height: 40 * MLTheme.u
             radius: MLTheme.radius
-            color:  lbMouse.pressed ? "#16222B" : (lbMouse.containsMouse ? "#11171D" : "transparent")
+            color:  lbMouse.pressed ? String(MLTheme.hover) : (lbMouse.containsMouse ? String(MLTheme.hover) : "transparent")
             border.width: 1
             border.color: lbMouse.containsMouse ? MLTheme.accent : MLTheme.lineStrong
-            MLText { anchors.centerIn: parent; text: lb.label; color: "#9FD8F2"; font.pixelSize: MLTheme.fsSmall; font.letterSpacing: 0.5 * MLTheme.u }
+            MLText { anchors.centerIn: parent; text: lb.label; color: String(MLTheme.accent); font.pixelSize: MLTheme.fsSmall; font.letterSpacing: 0.5 * MLTheme.u }
             MouseArea { id: lbMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: lb.fire() }
         }
         LinkButton {

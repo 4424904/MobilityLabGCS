@@ -22,7 +22,7 @@ Rectangle {
     width:          label.implicitWidth + ScreenTools.defaultFontPixelWidth * 4
     height:         label.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.9
     radius:         height / 2
-    color:          "#e60e151c"
+    color:          String(MLTheme.glass)
     border.width:   1.5
     border.color:   tone
 

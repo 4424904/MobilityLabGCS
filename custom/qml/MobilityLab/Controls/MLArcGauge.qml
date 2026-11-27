@@ -26,7 +26,7 @@ Item {
     readonly property var  _spec:       (_t && key !== "") ? _t.spec(key) : ({})
     readonly property real _keyValue:   { var v = (_t && key !== "") ? _t.values[key] : undefined; return v === undefined ? NaN : v }
     readonly property int  _keyLevel:   { var l = (_t && key !== "") ? _t.levels[key] : undefined; return l === undefined ? (isNaN(value) ? 0 : 1) : l }
-    readonly property color _color:     level === 3 ? MLTheme.warning : (level === 2 ? MLTheme.caution : "#C8CDD2")
+    readonly property color _color:     level === 3 ? MLTheme.warning : (level === 2 ? MLTheme.caution : String(MLTheme.label))
 
     implicitWidth:  size
     implicitHeight: size * 100 / 132 + titleText.implicitHeight
@@ -53,19 +53,19 @@ Item {
             function ang(v) { return a0 + sweep * frac(v) }
 
             c.lineCap = "butt"
-            c.lineWidth = 7; c.strokeStyle = "#151B20"
+            c.lineWidth = 7; c.strokeStyle = String(MLTheme.line)
             c.beginPath(); c.arc(cx, cy, R, a0, a0 + sweep); c.stroke()
 
             // limit band (caution amber-dark, warning red) outside the track
             for (var i = 0; i < root.zones.length; i++) {
                 var z = root.zones[i]
                 if (z[2] === "normal") continue
-                c.strokeStyle = z[2] === "warning" ? "#B23A33" : "#6B5218"
+                c.strokeStyle = z[2] === "warning" ? String(MLTheme.alpha(MLTheme.warning, 0.6)) : String(MLTheme.alpha(MLTheme.caution, 0.55))
                 c.lineWidth = 3
                 c.beginPath(); c.arc(cx, cy, R + 5, ang(z[0]), ang(Math.min(z[1], root.max))); c.stroke()
             }
 
-            c.strokeStyle = "#56606A"; c.lineWidth = 1.2
+            c.strokeStyle = String(MLTheme.faint); c.lineWidth = 1.2
             for (var t = 0; t <= 10; t++) {
                 var ta = a0 + sweep * t / 10, r2 = t % 5 === 0 ? 32 : 35
                 c.beginPath(); c.moveTo(cx + Math.cos(ta) * 40, cy + Math.sin(ta) * 40); c.lineTo(cx + Math.cos(ta) * r2, cy + Math.sin(ta) * r2); c.stroke()
@@ -75,7 +75,7 @@ Item {
             c.lineWidth = 7; c.strokeStyle = root._color
             c.beginPath(); c.arc(cx, cy, R, a0, ang(root.value)); c.stroke()
             var va = ang(root.value)
-            c.strokeStyle = "#F2F1EE"; c.lineWidth = 2
+            c.strokeStyle = String(MLTheme.bright); c.lineWidth = 2
             c.beginPath(); c.moveTo(cx + Math.cos(va) * (R - 4), cy + Math.sin(va) * (R - 4)); c.lineTo(cx + Math.cos(va) * (R + 4), cy + Math.sin(va) * (R + 4)); c.stroke()
         }
     }

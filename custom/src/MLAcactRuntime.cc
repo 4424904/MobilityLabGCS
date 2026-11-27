@@ -183,6 +183,8 @@ struct MLAcactRuntime::VS {
     int rcOk = -1;                // RC receiver health from SYS_STATUS (-1 unknown)
     bool attSeen = false;
     double layer = 20.0;          // RTL / transit layer (config DRONES[].layer)
+    QString reason;               // why the guard took this vehicle (from the ACACT pair evaluation at takeover)
+    double reasonT = -1;
     int sim = -1;                 // -1 unknown, 0 real aircraft, 1 SITL/HITL
     bool staleTold = false;       // link-loss announcements
     bool dlTold = false;
@@ -1109,7 +1111,7 @@ void MLAcactRuntime::_takeover(VS *d, const Vec3 &v)
     }
     _setMode(d, PX4_MAIN_OFFBOARD, 0);
     d->takeoverCheckAt = _now() + 2.0;   // no OFFBOARD by then → failure handling (_tick)
-    _event(d->id, tr("회피 개입 (Offboard)"));
+    _event(d->id, d->reason.isEmpty() ? tr("회피 개입 (Offboard)") : tr("회피 개입 (Offboard) — %1").arg(d->reason));
 }
 
 void MLAcactRuntime::_release(VS *d)
@@ -1905,6 +1907,8 @@ void MLAcactRuntime::_tick()
                 continue;
             }
             if (c.kind == CmdKind::Takeover) {
+                d->reason = _riskReason(d->id);
+                d->reasonT = t;
                 _takeover(d, c.v);
             } else if (c.kind == CmdKind::Vel) {
                 const auto ne = _frame->frToNe(c.v[0], c.v[1]);
@@ -1987,8 +1991,57 @@ void MLAcactRuntime::_writeLog(double t, const std::vector<DroneIn> &ins)
     ts << "," << mp << "," << md << "\n";
 }
 
+QString MLAcactRuntime::_riskReason(const QString &id) const
+{
+    // the pair evaluation that made the guard take this vehicle (same values the core used this step)
+    if (!_core) {
+        return {};
+    }
+    const std::string me = id.toStdString();
+    const PairEval *w = nullptr;
+    std::string other;
+    for (const auto &[k, pe] : _core->pairs) {
+        if (k.first != me && k.second != me) {
+            continue;
+        }
+        if (!w || pe.level > w->level || (pe.level == w->level && pe.dCpa < w->dCpa)) {
+            w = &pe;
+            other = k.first == me ? k.second : k.first;
+        }
+    }
+    if (!w || w->level < 1) {
+        return {};
+    }
+    const Config c = _core->config();
+    const QString o = QString::fromStdString(other);
+    QString r;
+    if (w->level >= 2) {
+        r = tr("%1와 현재 %2 m — 비상 이격 %3 m 이내").arg(o).arg(w->dNow, 0, 'f', 1).arg(c.dEmerg, 0, 'f', 1);
+    } else if (w->dNow < c.dSafe) {
+        r = tr("%1와 현재 %2 m — 안전 이격 %3 m 미만").arg(o).arg(w->dNow, 0, 'f', 1).arg(c.dSafe, 0, 'f', 1);
+    } else {
+        r = tr("%1와 %2초 후 최소 %3 m 예측 — 안전 이격 %4 m 미만").arg(o).arg(w->tCpa, 0, 'f', 1).arg(w->dCpa, 0, 'f', 1).arg(c.dSafe, 0, 'f', 1);
+    }
+    return r + tr(" · 고도차 %1 m").arg(w->dz, 0, 'f', 1);
+}
+
 void MLAcactRuntime::_publish(const std::vector<DroneIn> &ins)
 {
+    const double tNow = _now();
+    const Config cfgNow = _core->config();
+    auto findIn = [&ins](const std::string &id) -> const DroneIn * {
+        for (const DroneIn &i : ins) {
+            if (i.id == id) {
+                return &i;
+            }
+        }
+        return nullptr;
+    };
+    std::map<std::string, int> riskOf;
+    for (const auto &[k, pe] : _core->pairs) {
+        riskOf[k.first] = std::max(riskOf[k.first], pe.level);
+        riskOf[k.second] = std::max(riskOf[k.second], pe.level);
+    }
     QVariantList drones;
     int avoiding = 0;
     for (VS *d : _vs_) {
@@ -2024,6 +2077,40 @@ void MLAcactRuntime::_publish(const std::vector<DroneIn> &ins)
             const auto ll = _frame->frToLl((*x->goal)[0], (*x->goal)[1]);
             m[QStringLiteral("goal")] = QVariantList{ll[0], ll[1]};
         }
+        // ACACT view of this vehicle: phase, risk, reason, commanded velocity, linear prediction over T_LOOK
+        QString phase;
+        if (!d->connected || (x && !x->fresh)) {
+            phase = QStringLiteral("lost");
+        } else if (o.owned) {
+            phase = QStringLiteral("avoid");
+        } else if (o.lock) {
+            phase = QStringLiteral("operator");
+        } else if (o.yielding) {
+            phase = QStringLiteral("yield");
+        } else if (tNow - d->tRelease < 8.0 && d->mode == QLatin1String("MISSION")) {
+            phase = QStringLiteral("return");
+        } else if (d->mode == QLatin1String("MISSION")) {
+            phase = QStringLiteral("mission");
+        } else if (!d->inAir) {
+            phase = QStringLiteral("ground");
+        } else {
+            phase = QStringLiteral("other");
+        }
+        m[QStringLiteral("phase")] = phase;
+        m[QStringLiteral("risk")] = riskOf[d->id.toStdString()];
+        m[QStringLiteral("reason")] = o.owned ? d->reason : QString();
+        m[QStringLiteral("lastReason")] = d->reason;
+        if (o.owned) {
+            m[QStringLiteral("cmd")] = QVariantList{d->sp[0], d->sp[1]};
+        }
+        if (x && _frame && x->inAir) {
+            QVariantList pred;
+            for (int k = 0; k <= static_cast<int>(std::ceil(cfgNow.tLook)); k++) {
+                const auto ll = _frame->frToLl(x->f + x->vf * k, x->r + x->vr * k);
+                pred.append(QVariant(QVariantList{ll[0], ll[1]}));
+            }
+            m[QStringLiteral("pred")] = pred;
+        }
         drones.append(m);
     }
     QVariantList pairs;
@@ -2031,10 +2118,20 @@ void MLAcactRuntime::_publish(const std::vector<DroneIn> &ins)
     int worst = 0;
     for (const auto &[k, pe] : _core->pairs) {
         auto ms = _core->minSep.find(k);
-        pairs.append(QVariantMap{{QStringLiteral("a"), QString::fromStdString(k.first)}, {QStringLiteral("b"), QString::fromStdString(k.second)},
-                                 {QStringLiteral("d"), pe.dNow}, {QStringLiteral("dz"), pe.dz}, {QStringLiteral("level"), pe.level},
-                                 {QStringLiteral("cpa"), pe.dCpa}, {QStringLiteral("tcpa"), pe.tCpa},
-                                 {QStringLiteral("min"), ms == _core->minSep.end() ? QVariant() : QVariant(ms->second)}});
+        QVariantMap pm{{QStringLiteral("a"), QString::fromStdString(k.first)}, {QStringLiteral("b"), QString::fromStdString(k.second)},
+                       {QStringLiteral("d"), pe.dNow}, {QStringLiteral("dz"), pe.dz}, {QStringLiteral("level"), pe.level},
+                       {QStringLiteral("cpa"), pe.dCpa}, {QStringLiteral("tcpa"), pe.tCpa}, {QStringLiteral("clear"), pe.clear},
+                       {QStringLiteral("min"), ms == _core->minSep.end() ? QVariant() : QVariant(ms->second)}};
+        // closest-approach points of both vehicles (same linear model as the pair evaluation)
+        const DroneIn *xa = findIn(k.first);
+        const DroneIn *xb = findIn(k.second);
+        if (xa && xb && _frame && pe.tCpa >= 0 && pe.tCpa <= cfgNow.tLook) {
+            const auto la = _frame->frToLl(xa->f + xa->vf * pe.tCpa, xa->r + xa->vr * pe.tCpa);
+            const auto lb = _frame->frToLl(xb->f + xb->vf * pe.tCpa, xb->r + xb->vr * pe.tCpa);
+            pm[QStringLiteral("cpaA")] = QVariantList{la[0], la[1]};
+            pm[QStringLiteral("cpaB")] = QVariantList{lb[0], lb[1]};
+        }
+        pairs.append(pm);
         const double sep = std::hypot(pe.dNow, pe.dz);
         if (std::isnan(closest) || sep < closest) {
             closest = sep;

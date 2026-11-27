@@ -1,6 +1,7 @@
 pragma Singleton
 
 import QtQuick
+import QtCore
 
 import QGroundControl
 
@@ -20,6 +21,54 @@ QtObject {
     // second monitor: the ACACT console / analysis in their own windows
     property bool consoleDetached:  false
     property bool analysisDetached: false
+
+    // ---- layout (saved per user, restored at start) ---------------------
+    // preset: "single" 단일 기체 · "fleet" 다기체 · "map" 지도 중심 · "custom"
+    property bool   leftOpen:       true
+    property bool   rightOpen:      true
+    property real   leftWidth:      400     // design px (× MLTheme.u)
+    property real   rightWidth:     390
+    property string leftTab:        "flight"    // flight · fleet
+    property string rightTab:       "systems"   // systems · acact
+    property bool   dockOpen:       true
+    property string layoutPreset:   "single"
+    property bool   showPositionHud: true
+    property bool   showTrails:     true
+    property bool   showPredictions: true
+    property bool   alertCenterOpen: false
+    property bool   preflightOpen:  false
+    property bool   acactTimelineOpen: false
+    property bool   acact3dOpen:    false
+    property bool   bootDone:       false
+
+    property Settings _layout: Settings {
+        category:                   "MLLayout"
+        property alias leftOpen:    root.leftOpen
+        property alias rightOpen:   root.rightOpen
+        property alias leftWidth:   root.leftWidth
+        property alias rightWidth:  root.rightWidth
+        property alias leftTab:     root.leftTab
+        property alias rightTab:    root.rightTab
+        property alias dockOpen:    root.dockOpen
+        property alias layoutPreset: root.layoutPreset
+        property alias showPositionHud: root.showPositionHud
+        property alias showTrails:  root.showTrails
+        property alias showPredictions: root.showPredictions
+        property alias profileOpen: root.profileOpen
+    }
+
+    // map requests from panels (handled by the fly view map)
+    signal fitAllRequested()
+    signal centerRequested(var coordinate)
+    signal measureRequested(string kind)        // "distance" · "area" · ""
+
+    function applyPreset(p) {
+        layoutPreset = p
+        if (p === "single") { leftOpen = true; rightOpen = true; leftTab = "flight"; rightTab = "systems"; dockOpen = true }
+        else if (p === "fleet") { leftOpen = true; rightOpen = true; leftTab = "fleet"; rightTab = "acact"; dockOpen = true }
+        else if (p === "map") { leftOpen = false; rightOpen = false; dockOpen = true }
+    }
+    function markCustom() { if (layoutPreset !== "custom") layoutPreset = "custom" }
 
     // ACACT Guard ids (D1…D4) of the connected vehicles: MAVLink system id n → Dn
     function guardDrones() {

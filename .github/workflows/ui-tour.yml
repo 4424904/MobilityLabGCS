@@ -4,9 +4,6 @@ name: UI tour (released build)
 # Results → ui-tour-results branch. Tooling only: the product is the release asset, verified by SHA256SUMS.
 
 on:
-  push:
-    branches: [dev]
-    paths: ['tools/ui_tour.sh', '.github/workflows/ui-tour.yml']
   workflow_dispatch:
 
 permissions:

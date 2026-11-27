@@ -49,8 +49,8 @@ Item {
         id:     card
         width:  parent.width
         height: Math.max(48 * u, msgText.implicitHeight + 26 * u)
-        color:  "#F2120C0D"
-        border.color: "#5A2A27"
+        color:  String(MLTheme.warningFill)
+        border.color: String(MLTheme.alpha(MLTheme.warning, 0.6))
         radius: 4 * u
 
         Rectangle { width: 3 * u; height: parent.height; radius: 1; color: MLTheme.warning }
@@ -74,7 +74,7 @@ Item {
                 font.pixelSize: MLTheme.fsLabel
             }
         }
-        Rectangle { x: tag.x + 84 * u; y: 10 * u; width: 1; height: parent.height - 20 * u; color: "#3A2220" }
+        Rectangle { x: tag.x + 84 * u; y: 10 * u; width: 1; height: parent.height - 20 * u; color: String(MLTheme.alpha(MLTheme.warning, 0.6)) }
 
         MLText {
             id:                     msgText
@@ -108,8 +108,8 @@ Item {
             width:                  56 * u
             height:                 28 * u
             radius:                 3 * u
-            color:                  ackMouse.containsMouse ? "#2A1715" : "transparent"
-            border.color:           "#6B3430"
+            color:                  ackMouse.containsMouse ? String(MLTheme.warningFill) : "transparent"
+            border.color:           String(MLTheme.alpha(MLTheme.warning, 0.6))
             MLText { anchors.centerIn: parent; text: qsTr("확인"); font.pixelSize: MLTheme.fsSmall; color: MLTheme.text }
             MouseArea { id: ackMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.acknowledge() }
         }

@@ -32,7 +32,7 @@ Rectangle {
 
     width:          grid.implicitWidth + 24 * u
     height:         grid.implicitHeight + 16 * u
-    color:          "#D90A0D10"
+    color:          String(MLTheme.glass)
     border.color:   MLTheme.line
     radius:         3 * u
     visible:        !!vehicle
