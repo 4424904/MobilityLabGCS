@@ -29,8 +29,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p "${RUNNER_TEMP}/rel" && cd "${RUNNER_TEMP}/rel"
-          gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" -p '*AppImage' -p SHA256SUMS
-          grep AppImage SHA256SUMS | sha256sum -c -
+          gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" -p '*AppImage' -p SHA256SUMS.txt
+          grep AppImage SHA256SUMS.txt | sha256sum -c -
           mv *.AppImage app.AppImage && chmod +x app.AppImage
 
       - name: PX4 SITL binary (cache)
@@ -57,7 +57,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cd "${RUNNER_TEMP}/tour"
+          mkdir -p "${RUNNER_TEMP}/tour" && cd "${RUNNER_TEMP}/tour"
           rm -rf plans
           if [ -f tour.mp4 ] && [ "$(stat -c%s tour.mp4)" -gt 90000000 ]; then
             ffmpeg -loglevel error -i tour.mp4 -vf scale=1600:-2 -c:v libx264 -preset veryfast -crf 38 small.mp4 && mv small.mp4 tour.mp4
