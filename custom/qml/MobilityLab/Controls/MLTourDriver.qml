@@ -72,15 +72,17 @@ Item {
         case 32: log("detached"); shot("24_dual_monitor"); wait = 2; break
         case 33: MLState.leftDetached = false; MLState.rightDetached = false; wait = 2; break
         // ---- after landing: analysis, PDF -----------------------------------------------------
-        case 34: if (!allLanded()) { step--; break } wait = 5; break
+        case 34: if (!allLanded()) { step--; break } log("key Escape"); wait = 5; break
         case 35: mlGuard.stop(); wait = 3; break
         case 36: MLState.analysisOpen = true; wait = 3; break
         case 37: mlAnalysis.refresh(); if (mlAnalysis.sessions.length > 0) mlAnalysis.load(mlAnalysis.sessions[0].stamp); wait = 4; break
         case 38: shot("25_analysis"); log("pdf " + mlAnalysis.exportPdf(mlAnalysis.defaultReportPath())); wait = 3; break
-        case 39: MLState.analysisOpen = false; mlUi.language = "en"; wait = 4; break
-        case 40: shot("26_english"); MLState.rightTab = "acact"; wait = 2; break
-        case 41: shot("27_english_acact"); mlUi.language = "ko"; wait = 3; break
-        case 42: log("done"); running = false; break
+        case 39: MLState.analysisOpen = false; mlUi.language = "en"; wait = 2; break
+        case 40: log("key Return"); wait = 3; break
+        case 41: shot("26_english"); MLState.rightTab = "acact"; wait = 2; break
+        case 42: shot("27_english_acact"); mlUi.language = "ko"; wait = 2; break
+        case 43: log("key Return"); wait = 2; break
+        case 44: log("done"); running = false; break
         }
     }
     property bool running: true

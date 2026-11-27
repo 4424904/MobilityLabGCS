@@ -16,7 +16,14 @@ Rectangle {
     readonly property real dEmerg: _has && mlGuard.config.d_emerg ? mlGuard.config.d_emerg : 5.5
     property real span: 180            // seconds shown; 0 = whole run
     property real tNow: 0
-    Timer { interval: 500; running: root.visible; repeat: true; onTriggered: { root.tNow = root._has ? mlGuard.guardTime : 0; plot.requestPaint() } }
+    Timer { interval: 500; running: root.visible; repeat: true; onTriggered: { root.tNow = root._has && mlGuard.running ? mlGuard.guardTime : root.lastT(); plot.requestPaint() } }
+    // after the guard stops the run stays on screen up to its last record
+    function lastT() {
+        var t = 0
+        if (MLState.acactSep.length) t = MLState.acactSep[MLState.acactSep.length - 1].t
+        if (MLState.acactEvents.count) t = Math.max(t, MLState.acactEvents.get(MLState.acactEvents.count - 1).t)
+        return t
+    }
 
     color: MLTheme.glassStrong
     radius: MLTheme.panelRadius

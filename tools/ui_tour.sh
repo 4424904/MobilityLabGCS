@@ -20,8 +20,9 @@ seed () {
 run_app () {   # run_app <display> <log>
     sg dialout -c "ML_TOUR=1 ML_TEST_ACACT=1 ML_TEST_ACACT_CASE=none DISPLAY=$1 QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$2' 2>&1" &
 }
-maximise () {  # maximise <display> <w> <h>
-    for w in $(DISPLAY=$1 xdotool search --onlyvisible --name "MobilityLabGCS" 2>/dev/null); do
+maximise () {  # maximise <display> <w> <h>   (main window only: class MobilityLabGCS, title exactly "MobilityLabGCS")
+    for w in $(DISPLAY=$1 xdotool search --class "MobilityLabGCS" 2>/dev/null); do
+        [[ "$(DISPLAY=$1 xdotool getwindowname "$w" 2>/dev/null)" == "MobilityLabGCS" ]] || continue
         DISPLAY=$1 xdotool windowmove "$w" 0 0 windowsize "$w" "$2" "$3" 2>/dev/null
     done
 }
@@ -36,10 +37,11 @@ ffmpeg -loglevel error -f x11grab -video_size 1920x1080 -framerate 10 -i :55+0,0
     -c:v libx264 -preset veryfast -crf 30 -pix_fmt yuv420p "$OUT/MobilityLabGCS-v1.0-demo-tour.mp4" &
 FF=$!
 seen=""
+keys_done=0
 end=$((SECONDS + 1800))
 while (( SECONDS < end )); do
     sleep 0.5
-    (( SECONDS % 10 == 0 )) && maximise :55 1920 1080
+    (( SECONDS % 5 == 0 )) && maximise :55 1920 1080
     while read -r name; do
         [[ " $seen " == *" $name "* ]] && continue
         seen="$seen $name"
@@ -49,10 +51,18 @@ while (( SECONDS < end )); do
             sleep 2
             DISPLAY=:55 import -window root "$OUT/$name.png"
         else
+            maximise :55 1920 1080; sleep 0.7
             DISPLAY=:55 import -window root -crop 1920x1080+0+0 +repage "$OUT/$name.png"
         fi
         echo "captured $name"
     done < <(grep -o "MLTOUR shot [0-9a-z_]*" "$LOG" 2>/dev/null | awk '{print $3}')
+    # keys the tour asks for (closing QGC's own dialogs: mission complete, restart notice)
+    nk=$(grep -c "MLTOUR key " "$LOG" 2>/dev/null); nk=${nk:-0}
+    while (( keys_done < nk )); do
+        keys_done=$((keys_done + 1))
+        k=$(grep "MLTOUR key " "$LOG" | sed -n "${keys_done}p" | grep -o "key [A-Za-z]*" | awk '{print $2}')
+        DISPLAY=:55 xdotool key "$k"; echo "key $k"
+    done
     grep -q "MLTOUR done" "$LOG" && break
 done
 sleep 2

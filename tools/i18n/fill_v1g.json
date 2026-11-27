@@ -1,0 +1,5 @@
+{
+"%1 기체와 %2초 후 최소 %3 m 예측 — 안전 이격 %4 m 미만": "with %1: minimum %3 m predicted in %2 s — below safe separation %4 m",
+"%1 기체와 현재 %2 m — 비상 이격 %3 m 이내": "with %1: %2 m now — within emergency separation %3 m",
+"%1 기체와 현재 %2 m — 안전 이격 %3 m(여유 포함) 이내": "with %1: %2 m now — within safe separation %3 m (incl. margin)"
+}
