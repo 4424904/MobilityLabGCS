@@ -75,6 +75,7 @@ Popup {
         Toggle { text: qsTr("오른쪽 패널 (시스템 · ACACT)"); checked: MLState.rightOpen; onToggled: { MLState.rightOpen = !MLState.rightOpen; MLState.markCustom() } }
         Toggle { text: qsTr("편대 레인"); checked: MLState.dockOpen; onToggled: { MLState.dockOpen = !MLState.dockOpen; MLState.markCustom() } }
         Toggle { text: qsTr("고도 단면"); checked: MLState.profileOpen; onToggled: MLState.profileOpen = !MLState.profileOpen }
+        Toggle { text: qsTr("지도 HUD (선택 기체 주요 수치)"); checked: MLState.showVehicleHud; onToggled: MLState.showVehicleHud = !MLState.showVehicleHud }
         Toggle { text: qsTr("위치 정보 (좌표 · MGRS)"); checked: MLState.showPositionHud; onToggled: MLState.showPositionHud = !MLState.showPositionHud }
         Toggle { text: qsTr("비행 궤적"); checked: MLState.showTrails; onToggled: MLState.showTrails = !MLState.showTrails }
         Toggle { text: qsTr("ACACT 예측선 · 최근접점"); checked: MLState.showPredictions; onToggled: MLState.showPredictions = !MLState.showPredictions }

@@ -200,7 +200,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        case: [targets, s7duo, preflight, user, gcskill, linkloss, operator]
+        case: [targets, s7duo, preflight, user, gcskill, linkloss, operator, demo]
     defaults:
       run:
         shell: bash
@@ -233,7 +233,12 @@ jobs:
 
       - name: Run ${{ matrix.case }}
         timeout-minutes: 35
-        run: bash tools/ci_sitl.sh "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage" "${RUNNER_TEMP}/screens" "${RUNNER_TEMP}/px4sitl" "${{ matrix.case }}"
+        run: |
+          if [ "${{ matrix.case }}" = "demo" ]; then
+            bash tools/ci_demo.sh "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage" "${RUNNER_TEMP}/screens"
+          else
+            bash tools/ci_sitl.sh "${RUNNER_TEMP}/dist/MobilityLabGCS-x86_64.AppImage" "${RUNNER_TEMP}/screens" "${RUNNER_TEMP}/px4sitl" "${{ matrix.case }}"
+          fi
 
       - name: Upload results
         if: always()

@@ -249,7 +249,13 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     if (qEnvironmentVariableIsSet("MLGCS_DEMO")) {
         const QString sc = qEnvironmentVariable("MLGCS_DEMO");
         QTimer::singleShot(4000, demo, [demo, sc]() { demo->start(sc); });
+        // CI: MLGCS_DEMO_SECONDS ends the demo after that many seconds (separation test: real links allowed again)
+        const int secs = qEnvironmentVariableIntValue("MLGCS_DEMO_SECONDS");
+        if (secs > 0) {
+            QTimer::singleShot(4000 + secs * 1000, demo, [demo]() { demo->stop(); });
+        }
     }
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlDemoAuto"), qEnvironmentVariable("MLGCS_DEMO_AUTO") == QStringLiteral("1"));
     // Korean / English for the MobilityLab UI (custom/i18n/en.json)
     auto *ui = new MLUi(this);
     ui->attach(_qmlEngine);

@@ -1,0 +1,18 @@
+{
+" · 동시 출발 시 %1 m (%2초)": " · %1 m if started together (%2 s)",
+" 미션": " mission",
+"%1 km · %2 · 최고 %3 m · 경유점 %4": "%1 km · %2 · max %3 m · %4 waypoints",
+"%1 미션 계획": "%1 mission plan",
+"%1·%2 계획 경로 최소 %3 m%4": "%1·%2 planned tracks min %3 m%4",
+"ACACT 재검증": "Re-check with ACACT",
+"검사 %1": "Checked %1",
+"기체가 연결되면 각 기체에 올라간 미션을 함께 검사합니다. 미션을 업로드한 뒤 [ACACT 재검증]을 누르세요.": "With vehicles connected, the missions on board are checked together. Upload missions, then press [Re-check with ACACT].",
+"다기체 미션 검사 (ACACT)": "Multi-vehicle mission check (ACACT)",
+"미션 계획 (기체 없음)": "Mission plan (no vehicle)",
+"비행 거리": "Distance",
+"예상 시간": "Time",
+"오류 %1 · 시작 차단": "%1 errors · start blocked",
+"주의 %1": "%1 cautions",
+"지도 HUD (선택 기체 주요 수치)": "Map HUD (selected vehicle)",
+"최대 거리": "Max range"
+}

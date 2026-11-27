@@ -34,6 +34,7 @@ QtObject {
     property string layoutPreset:   "single"
     property bool   showPositionHud: true
     property bool   showTrails:     true
+    property bool   showVehicleHud: false     // also shown whenever the instrument panel is folded
     property bool   showPredictions: true
     property bool   alertCenterOpen: false
     property bool   preflightOpen:  false
@@ -56,6 +57,7 @@ QtObject {
         property alias layoutPreset: root.layoutPreset
         property alias showPositionHud: root.showPositionHud
         property alias showTrails:  root.showTrails
+        property alias showVehicleHud: root.showVehicleHud
         property alias showPredictions: root.showPredictions
         property alias profileOpen: root.profileOpen
     }

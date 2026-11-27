@@ -232,6 +232,7 @@ Item {
     Connections {
         target: QGroundControl.multiVehicleManager
         function onVehicleAdded(vehicle) {
+            if (typeof mlTestAcact !== "undefined" && mlTestAcact) console.log("MLVEHICLE added " + vehicle.id)
             if (QGroundControl.multiVehicleManager.vehicles.count > 1) {
                 toast.show(qsTr("UAV %1 연결됨 · 위쪽 탭에서 선택하세요").arg(("0" + vehicle.id).slice(-2)), MLTheme.ok)
             }
@@ -653,6 +654,15 @@ Item {
                     }
                 }
             }
+        }
+
+        // selected-vehicle HUD over the map (instrument panel folded, or chosen in 화면 구성)
+        MLVehicleHud {
+            anchors.horizontalCenter:   parent.horizontalCenter
+            anchors.bottom:             acactTimeline.visible ? acactTimeline.top : (profile.visible ? profile.top : parent.bottom)
+            anchors.bottomMargin:       _gap * 2
+            z:                          QGroundControl.zOrderWidgets + 2
+            visible:                    _consoleVisible && !!_activeVehicle && !_is3DMode && (MLState.showVehicleHud || !MLState.leftOpen)
         }
 
         // built-in demo: banner (always while running) and the control panel

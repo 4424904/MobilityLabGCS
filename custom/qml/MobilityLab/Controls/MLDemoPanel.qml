@@ -25,6 +25,17 @@ Rectangle {
     border.color: MLTheme.demo
     border.width: 1.5
 
+    // CI / exhibition (MLGCS_DEMO_AUTO=1): run the automatic demonstration as soon as the demo is up
+    Connections {
+        target: root._has ? mlDemo : null
+        function onActiveChanged() {
+            if (mlDemo.active && typeof mlDemoAuto !== "undefined" && mlDemoAuto) { root.autoStage = 1; root.autoText = qsTr("시작…") }
+            if (!mlDemo.active) root.autoStage = 0
+        }
+    }
+    // progress into the log (CI)
+    onAutoTextChanged: if (typeof mlTestAcact !== "undefined" && mlTestAcact && autoText !== "") console.log("MLDEMO auto | " + autoText)
+
     function vehicleCount() { return QGroundControl.multiVehicleManager.vehicles.count }
     function allReady(n) {
         var vs = QGroundControl.multiVehicleManager.vehicles
