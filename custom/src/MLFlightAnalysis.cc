@@ -682,7 +682,7 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
     p.drawText(QRectF(0, y, page.width(), 24), Qt::AlignLeft | Qt::AlignVCenter,
                QStringLiteral("%1 · %2 · %3").arg(dt.isValid() ? dt.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")) : _stamp,
                                                   plan.isEmpty() ? tr("계획 정보 없음") : plan,
-                                                  mode == QLatin1String("field") ? tr("실비행") : (mode == QLatin1String("sim") ? tr("시뮬레이션(SITL)") : tr("운용 모드 기록 없음"))));
+                                                  mode == QLatin1String("field") ? tr("실비행") : (mode == QLatin1String("sim") ? tr("시뮬레이션(SITL)") : (mode == QLatin1String("demo") ? tr("데모 (GCS 내장 시뮬레이션 · 시험 기록 아님)") : tr("운용 모드 기록 없음")))));
     y += 30;
     // verdict box
     const bool pass = _verdict.value(QStringLiteral("pass")).toBool();

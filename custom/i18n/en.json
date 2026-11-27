@@ -310,6 +310,7 @@
  "대기점(LOITER_UNLIM) %1개 — 가드 동기 진행 대상": "%1 wait points (LOITER_UNLIM) — the guard advances them together",
  "대상": "Who",
  "대체 지도:": "Alternative map:",
+ "데모 (GCS 내장 시뮬레이션 · 시험 기록 아님)": "Demo (built-in simulation · not a test record)",
  "데모 (실기체 명령 차단)": "Demo (no commands to real aircraft)",
  "데모 · 시뮬레이션 모드": "Demo · simulation mode",
  "데모 · 시험 기록 아님": "DEMO · not test evidence",
