@@ -259,9 +259,29 @@ def main():
             # STANDARD and ADVANCED both used, SHOWCASE refused (real SITL vehicles connected), never entered
             n_adv = len(re.findall(r"MLMODE advanced", app)); n_std = len(re.findall(r"MLMODE standard", app))
             res["metrics"]["mode_switches"] = {"advanced": n_adv, "standard": n_std, "showcase_refused": len(re.findall(r"MLMODE refused showcase", app))}
+            # SHOWCASE may be entered before the SITL vehicles connect (nothing real yet); once a real
+            # vehicle is connected the screen must never be in SHOWCASE: a vehicle that appears while it
+            # is shown makes the GCS leave it at once, and later requests are refused
+            ev = re.findall(r"^\s*([\d.]+) (MLMODE (?:refused )?\w+|MLVEHICLE added \d+)", app, re.M)
+            in_show, real, bad, left_on_vehicle = False, False, False, None
+            for i, (t, e) in enumerate(ev):
+                if e.startswith("MLVEHICLE added"):
+                    real = True
+                    if in_show:
+                        nxt = next(((float(t2), e2) for t2, e2 in ev[i + 1:] if e2.startswith("MLMODE ") and not e2.startswith("MLMODE refused")), None)
+                        left_on_vehicle = nxt is not None and nxt[0] - float(t) <= 1.0
+                        bad |= not left_on_vehicle
+                elif e.startswith("MLMODE refused"):
+                    continue
+                else:
+                    mode = e.split()[1]
+                    if mode == "showcase" and real:
+                        bad = True
+                    in_show = mode == "showcase"
+            res["metrics"]["mode_switches"]["left_showcase_when_vehicle_connected"] = left_on_vehicle
             C.update({"modes_switched_in_flight": n_adv >= 5 and n_std >= 5,
                       "showcase_refused_with_real_vehicles": tl(r"MLMODE refused showcase"),
-                      "showcase_never_entered": not tl(r"MLMODE showcase\b")})
+                      "never_showcase_with_real_vehicle": not bad})
     elif a.case == "gcskill":
         tk, tr = marker(a.out, "gcs_killed_at"), marker(a.out, "gcs_restarted_at")
         res["metrics"]["killed_at_s"] = round(tk - t0, 1) if tk else None
