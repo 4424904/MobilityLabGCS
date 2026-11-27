@@ -1,0 +1,35 @@
+diff --git a/src/QtLocationPlugin/QGeoMapReplyQGC.cpp b/src/QtLocationPlugin/QGeoMapReplyQGC.cpp
+index cb3c796..e072b22 100644
+--- a/src/QtLocationPlugin/QGeoMapReplyQGC.cpp
++++ b/src/QtLocationPlugin/QGeoMapReplyQGC.cpp
+@@ -1,5 +1,7 @@
+ #include "QGeoMapReplyQGC.h"
+ 
++#include <QtNetwork/QNetworkInformation>
++
+ #include <QtCore/QFile>
+ #include <QtLocation/private/qgeotilespec_p.h>
+ #include <QtNetwork/QNetworkAccessManager>
+@@ -197,9 +199,19 @@ void QGeoTiledMapReplyQGC::_cacheError(QGCMapTask::TaskType type, QStringView er
+ 
+     Q_ASSERT(type == QGCMapTask::TaskType::taskFetchTile);
+ 
+-    if (!QGCNetworkHelper::isInternetAvailable()) {
+-        setError(QGeoTiledMapReply::CommunicationError, tr("Network Not Available"));
+-        return;
++    // MobilityLab: refuse only when the OS positively reports "disconnected". With no
++    // reachability backend (AppImage on hosts without NetworkManager, some Windows setups)
++    // or an Unknown state, QGC refused every tile and the map stayed grey; try the request.
++    {
++        const QNetworkInformation *netInfo = QNetworkInformation::instance();
++        if (!netInfo && !QNetworkInformation::availableBackends().isEmpty()) {
++            (void) QNetworkInformation::loadBackendByFeatures(QNetworkInformation::Feature::Reachability);
++            netInfo = QNetworkInformation::instance();
++        }
++        if (netInfo && (netInfo->reachability() == QNetworkInformation::Reachability::Disconnected)) {
++            setError(QGeoTiledMapReply::CommunicationError, tr("Network Not Available"));
++            return;
++        }
+     }
+ 
+     _request.setOriginatingObject(this);

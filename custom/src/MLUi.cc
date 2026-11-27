@@ -1,4 +1,5 @@
 #include "MLUi.h"
+#include "FactMetaData.h"
 
 #include "AppSettings.h"
 #include "Fact.h"
@@ -57,7 +58,18 @@ void MLUi::setLanguage(const QString &lang)
     _lang = l;
     QSettings().setValue(QStringLiteral("MobilityLab/uiLanguage"), l);
     // QGC's own strings follow (its language fact reloads its translators)
-    SettingsManager::instance()->appSettings()->qLocaleLanguage()->setRawValue(l == QLatin1String("en") ? QLocale::English : QLocale::Korean);
+    // The screen is retranslated live below, so QGC's blocking "restart application" dialog is
+    // not shown; the console notes that QGC's own settings-page labels follow after a restart.
+    Fact *fact = SettingsManager::instance()->appSettings()->qLocaleLanguage();
+    FactMetaData *meta = fact->metaData();
+    const bool reboot = meta && meta->qgcRebootRequired();
+    if (meta) {
+        meta->setQGCRebootRequired(false);
+    }
+    fact->setRawValue(l == QLatin1String("en") ? QLocale::English : QLocale::Korean);
+    if (meta) {
+        meta->setQGCRebootRequired(reboot);
+    }
     _apply(true);
     emit languageChanged();
 }

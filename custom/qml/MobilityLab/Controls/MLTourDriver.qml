@@ -103,12 +103,10 @@ Item {
         [function() { shot("26_analysis") }, 2],
         [function() { log("pdf " + mlAnalysis.exportPdf(mlAnalysis.defaultReportPath())) }, 3],
         [function() { MLState.analysisOpen = false; mlUi.language = "en" }, 2],
-        [function() { log("key Return") }, 3],
         [function() { shot("27_english") }, 2],
         [function() { MLState.rightTab = "acact" }, 2],
         [function() { shot("28_english_acact") }, 2],
         [function() { mlUi.language = "ko" }, 2],
-        [function() { log("key Return") }, 2],
         [function() { log("done") }, 0]
     ]
     function next() {

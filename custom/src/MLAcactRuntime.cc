@@ -2032,6 +2032,9 @@ QString MLAcactRuntime::_riskReason(const QString &id) const
     QString r;
     if (w->level >= 2) {
         r = tr("%1 기체와 현재 %2 m — 비상 이격 %3 m 이내").arg(o).arg(w->dNow, 0, 'f', 1).arg(c.dEmerg, 0, 'f', 1);
+    } else if (w->dCpa < c.dSafe && w->tCpa >= c.tLook - 0.1) {
+        // closest point lies at (or past) the end of the look-ahead window: still closing
+        r = tr("%1 기체와 %2초 안에 %3 m까지 접근 예측 — 안전 이격 %4 m 미만").arg(o).arg(c.tLook, 0, 'f', 0).arg(w->dCpa, 0, 'f', 1).arg(c.dSafe, 0, 'f', 1);
     } else if (w->dCpa < c.dSafe && w->tCpa < c.tLook) {
         r = tr("%1 기체와 %2초 후 최소 %3 m 예측 — 안전 이격 %4 m 미만").arg(o).arg(w->tCpa, 0, 'f', 1).arg(w->dCpa, 0, 'f', 1).arg(c.dSafe, 0, 'f', 1);
     } else {

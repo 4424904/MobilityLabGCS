@@ -512,6 +512,7 @@ Rectangle {
                     Btn { text: "한국어"; tone: "active"; twoStep: false; selected: typeof mlUi !== "undefined" && mlUi.language === "ko"; onClicked: mlUi.language = "ko" }
                     Btn { text: "English"; tone: "active"; twoStep: false; selected: typeof mlUi !== "undefined" && mlUi.language === "en"; onClicked: mlUi.language = "en" }
                 }
+                Caption { text: qsTr("바로 적용됩니다 · QGC 설정 화면의 일부 항목 이름은 프로그램을 다시 시작하면 바뀝니다"); Layout.fillWidth: true; wrapMode: Text.WordWrap; opacity: 0.7 }
                 Caption { text: qsTr("운용 모드") }
                 RowLayout {
                     Layout.fillWidth: true

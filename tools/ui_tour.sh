@@ -37,6 +37,11 @@ ffmpeg -loglevel error -f x11grab -video_size 1920x1080 -framerate 10 -i :55+0,0
     -c:v libx264 -preset veryfast -crf 30 -pix_fmt yuv420p "$OUT/MobilityLabGCS-v1.0-demo-tour.mp4" &
 FF=$!
 seen=""
+stop_app() {   # the next run refuses to start while any instance is alive
+    pkill -INT -f squashfs-root/ 2>/dev/null
+    for _ in $(seq 1 20); do pgrep -f squashfs-root/ > /dev/null || break; sleep 1; done
+    pkill -9 -f squashfs-root/ 2>/dev/null; sleep 2
+}
 keys_done=0
 end=$((SECONDS + 1800))
 while (( SECONDS < end )); do
@@ -67,12 +72,12 @@ while (( SECONDS < end )); do
 done
 sleep 2
 kill -INT $FF; sleep 3
-pdf="$(grep -o 'MLTOUR pdf .*' "$LOG" | head -1 | sed 's/MLTOUR pdf //')"
+pdf="$(grep -o 'MLTOUR pdf .*' "$LOG" | head -1 | sed -e 's/MLTOUR pdf //' -e 's/ - qml - .*//')"
 if [[ -n "$pdf" && -f "$pdf" ]]; then
     cp "$pdf" "$OUT/ACACT_report_demo.pdf"
-    pdftoppm -r 100 -png "$OUT/ACACT_report_demo.pdf" "$OUT/28_pdf_page"
+    pdftoppm -r 100 -png "$OUT/ACACT_report_demo.pdf" "$OUT/29_pdf_page"
 fi
-pkill -f "$W/squashfs-root"; sleep 3
+stop_app
 grep -E "MLTOUR|MLDEMO|MLACACT|MLVEHICLE" "$LOG" > "$OUT/tour-events.txt"
 
 # ---- scaling: QHD and 4K (start of the tour only) ------------------------------------------------
@@ -93,6 +98,6 @@ for res in 2560x1440 3840x2160; do
         done
         [[ "$got" == *09_map_layout_hud* ]] && break
     done
-    pkill -f "$W/squashfs-root"; sleep 2; kill $XV 2>/dev/null; sleep 1
+    stop_app; kill $XV 2>/dev/null; sleep 1
 done
 ls -la "$OUT"
