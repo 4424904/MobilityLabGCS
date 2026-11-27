@@ -9,6 +9,7 @@
         <file alias="QGroundControl/FlyView/FlyViewToolStripActionList.qml">qml/overrides/FlyViewToolStripActionList.qml</file>
         <file alias="QGroundControl/FlyView/GuidedActionConfirm.qml">qml/overrides/GuidedActionConfirm.qml</file>
         <file alias="QGroundControl/PlanView/PlanView.qml">qml/overrides/PlanView.qml</file>
+        <file alias="QGroundControl/FlyView/FlyViewMissionCompleteDialog.qml">qml/overrides/FlyViewMissionCompleteDialog.qml</file>
     </qresource>
     <!-- Branding overrides -->
     <qresource prefix="/Custom/res">

@@ -52,6 +52,16 @@ Rectangle {
         if (mlAnalysis.load(stamp)) { cursor = 0; state = mlAnalysis.stateAt(0); trackLayer.requestPaint(); live.requestPaint(); sepChart.requestPaint(); altChart.requestPaint() }
     }
 
+    // a log loaded from elsewhere (tour, another window): draw it
+    Connections {
+        target: root._ok ? mlAnalysis : null
+        function onLoadedChanged() {
+            if (!mlAnalysis.loaded) return
+            root.playing = false; root.cursor = 0; root.state = mlAnalysis.stateAt(0)
+            trackLayer.requestPaint(); live.requestPaint(); sepChart.requestPaint(); altChart.requestPaint()
+        }
+    }
+
     Timer {
         interval: 50; repeat: true; running: root.playing && root._loaded
         onTriggered: { if (root.cursor >= mlAnalysis.duration) { root.playing = false; return } root.cursor = Math.min(mlAnalysis.duration, root.cursor + 0.05 * root.speed) }

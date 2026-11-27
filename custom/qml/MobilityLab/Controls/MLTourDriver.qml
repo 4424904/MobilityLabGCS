@@ -32,60 +32,90 @@ Item {
     }
 
     // each step: do something, then wait n seconds (or until a condition) before the next
+    // the tour: [action, seconds to wait] — a "shot" step only announces the screen, so nothing
+    // changes on screen while it is captured
+    readonly property var plan: [
+        [function() {}, 2],
+        [function() { shot("01_start_screen") }, 5],
+        [function() { MLState.applyPreset("single") }, 2],
+        [function() { shot("02_main_no_vehicle") }, 2],
+        [function() { MLState.leftTab = "fleet" }, 2],
+        [function() { shot("03_waiting_for_vehicles") }, 2],
+        [function() { MLState.demoOpen = true }, 2],
+        [function() { shot("04_demo_panel") }, 2],
+        [function() { MLState.demoOpen = false; mlDemo.start("single") }, 8],
+        [function() { return vs.count >= 1 && vs.get(0).initialConnectComplete }, 0],
+        [function() { MLState.leftTab = "flight" }, 3],
+        [function() { shot("05_single_vehicle_ground") }, 2],
+        [function() { MLState.preflightOpen = true; mlGuard.runPreflight() }, 3],
+        [function() { shot("06_preflight_check") }, 2],
+        [function() { MLState.preflightOpen = false; MLState.alertPanelOpen = true }, 2],
+        [function() { shot("07_alert_center") }, 2],
+        [function() { MLState.alertPanelOpen = false; vs.get(0).armed = true }, 2],
+        [function() { vs.get(0).startMission() }, 35],
+        [function() { shot("08_single_vehicle_mission") }, 2],
+        [function() { MLState.leftOpen = false }, 3],
+        [function() { shot("09_map_layout_hud") }, 2],
+        [function() { MLState.applyPreset("single"); MLState.layoutMenuOpen = true }, 2],
+        [function() { shot("10_layout_menu") }, 2],
+        [function() { MLState.layoutMenuOpen = false; mainWindow.showPlanView() }, 5],
+        [function() { shot("11_plan_view") }, 3],
+        [function() { mainWindow.showFlyView(); MLTheme.setDay(true) }, 3],
+        [function() { shot("12_day_theme") }, 2],
+        [function() { MLTheme.setDay(false); vs.get(0).flightMode = vs.get(0).rtlFlightMode }, 2],
+        // ---- two vehicles: ACACT ---------------------------------------------------------------
+        [function() { mlDemo.stop() }, 8],
+        [function() { mlDemo.start("duo"); MLState.applyPreset("fleet") }, 15],
+        [function() { return vs.count >= 2 && vs.get(0).initialConnectComplete && vs.get(1).initialConnectComplete }, 2],
+        [function() { shot("13_multi_vehicle_ground") }, 2],
+        [function() { MLState.demoAutoRequested = true }, 5],
+        [function() { return mlGuard.running && hasEvent(/일괄 시작/) }, 15],
+        [function() { shot("14_multi_vehicle_flying") }, 2],
+        [function() { return mlGuard.worstLevel >= 1 || mlGuard.avoiding > 0 }, 0],
+        [function() { shot("15_acact_conflict_predicted") }, 2],
+        [function() { return mlGuard.avoiding > 0 }, 1],
+        [function() { shot("16_acact_avoidance") }, 2],
+        [function() { MLState.acactTimelineOpen = true }, 2],
+        [function() { shot("17_acact_timeline") }, 2],
+        [function() { MLState.acact3dOpen = true }, 4],
+        [function() { shot("18_acact_3d") }, 2],
+        [function() { MLState.acact3dOpen = false; MLState.guardConsoleOpen = true }, 2],
+        [function() { shot("19_acact_console") }, 2],
+        [function() { MLState.guardConsoleOpen = false }, 0],
+        [function() { return hasEvent(/회피 완료/) }, 4],
+        [function() { shot("20_back_to_mission") }, 2],
+        [function() { mlDemo.setLinkCut(2, true) }, 8],
+        [function() { shot("21_link_loss") }, 2],
+        [function() { MLState.alertPanelOpen = true }, 2],
+        [function() { shot("22_link_loss_alerts") }, 2],
+        [function() { MLState.alertPanelOpen = false; mlDemo.setLinkCut(2, false) }, 8],
+        [function() { shot("23_link_restored") }, 2],
+        [function() { MLState.leftDetached = true; MLState.rightDetached = true }, 4],
+        [function() { log("detached"); shot("24_dual_monitor") }, 3],
+        [function() { MLState.leftDetached = false; MLState.rightDetached = false }, 2],
+        // ---- after landing: analysis, PDF, English ---------------------------------------------
+        [function() { return allLanded() }, 5],
+        [function() { mlGuard.stop() }, 3],
+        [function() { MLState.acactTimelineOpen = true }, 2],
+        [function() { shot("25_timeline_after_flight") }, 2],
+        [function() { MLState.acactTimelineOpen = false; MLState.analysisOpen = true }, 3],
+        [function() { mlAnalysis.refresh(); if (mlAnalysis.sessions.length > 0) mlAnalysis.load(mlAnalysis.sessions[0].stamp) }, 4],
+        [function() { shot("26_analysis") }, 2],
+        [function() { log("pdf " + mlAnalysis.exportPdf(mlAnalysis.defaultReportPath())) }, 3],
+        [function() { MLState.analysisOpen = false; mlUi.language = "en" }, 2],
+        [function() { log("key Return") }, 3],
+        [function() { shot("27_english") }, 2],
+        [function() { MLState.rightTab = "acact" }, 2],
+        [function() { shot("28_english_acact") }, 2],
+        [function() { mlUi.language = "ko" }, 2],
+        [function() { log("key Return") }, 2],
+        [function() { log("done") }, 0]
+    ]
     function next() {
-        var s = step
+        if (step >= plan.length) return
+        var r = plan[step][0]()
+        if (r === false) return             // a condition: try again next second
+        wait = plan[step][1]
         step++
-        switch (s) {
-        case 0:  wait = 2; break                                                   // start screen visible
-        case 1:  shot("01_start_screen"); wait = 5; break
-        case 2:  MLState.applyPreset("single"); wait = 2; break
-        case 3:  shot("02_main_no_vehicle"); MLState.leftTab = "fleet"; wait = 2; break
-        case 4:  shot("03_waiting_for_vehicles"); MLState.demoOpen = true; wait = 2; break
-        case 5:  shot("04_demo_panel"); MLState.demoOpen = false; mlDemo.start("single"); wait = 20; break
-        case 6:  if (vs.count < 1 || !vs.get(0).initialConnectComplete) { step--; break } MLState.leftTab = "flight"; wait = 3; break
-        case 7:  shot("05_single_vehicle_ground"); MLState.preflightOpen = true; mlGuard.runPreflight(); wait = 3; break
-        case 8:  shot("06_preflight_check"); MLState.preflightOpen = false; MLState.alertPanelOpen = true; wait = 2; break
-        case 9:  shot("07_alert_center"); MLState.alertPanelOpen = false; vs.get(0).armed = true; wait = 2; break
-        case 10: vs.get(0).startMission(); wait = 35; break
-        case 11: shot("08_single_vehicle_mission"); MLState.leftOpen = false; wait = 3; break
-        case 12: shot("09_map_layout_hud"); MLState.applyPreset("single"); MLState.layoutMenuOpen = true; wait = 2; break
-        case 13: shot("10_layout_menu"); MLState.layoutMenuOpen = false; mainWindow.showPlanView(); wait = 5; break
-        case 14: shot("11_plan_view"); mainWindow.showFlyView(); MLTheme.setDay(true); wait = 3; break
-        case 15: shot("12_day_theme"); MLTheme.setDay(false); vs.get(0).flightMode = vs.get(0).rtlFlightMode; wait = 2; break
-        // ---- two vehicles: ACACT -------------------------------------------------------------
-        case 16: mlDemo.stop(); wait = 8; break
-        case 17: mlDemo.start("duo"); MLState.applyPreset("fleet"); wait = 25; break
-        case 18: if (vs.count < 2) { step--; break } shot("13_multi_vehicle_ground"); mlDemoAutoRun(); wait = 5; break
-        case 19: if (!mlGuard.running || !hasEvent(/일괄 시작/)) { step--; break } wait = 15; break
-        case 20: shot("14_multi_vehicle_flying"); wait = 0; break
-        case 21: if (!(mlGuard.worstLevel >= 1 || mlGuard.avoiding > 0)) { step--; break } shot("15_acact_conflict_predicted"); wait = 1; break
-        case 22: if (mlGuard.avoiding < 1) { step--; break } wait = 2; break
-        case 23: shot("16_acact_avoidance"); MLState.acactTimelineOpen = true; wait = 2; break
-        case 24: shot("17_acact_timeline"); MLState.acact3dOpen = true; wait = 4; break
-        case 25: shot("18_acact_3d"); MLState.acact3dOpen = false; MLState.guardConsoleOpen = true; wait = 2; break
-        case 26: shot("19_acact_console"); MLState.guardConsoleOpen = false; wait = 0; break
-        case 27: if (!hasEvent(/회피 완료/)) { step--; break } wait = 4; break
-        case 28: shot("20_back_to_mission"); mlDemo.setLinkCut(2, true); wait = 8; break
-        case 29: shot("21_link_loss"); MLState.alertPanelOpen = true; wait = 2; break
-        case 30: shot("22_link_loss_alerts"); MLState.alertPanelOpen = false; mlDemo.setLinkCut(2, false); wait = 8; break
-        case 31: shot("23_link_restored"); MLState.leftDetached = true; MLState.rightDetached = true; wait = 4; break
-        case 32: log("detached"); shot("24_dual_monitor"); wait = 2; break
-        case 33: MLState.leftDetached = false; MLState.rightDetached = false; wait = 2; break
-        // ---- after landing: analysis, PDF -----------------------------------------------------
-        case 34: if (!allLanded()) { step--; break } log("key Escape"); wait = 5; break
-        case 35: mlGuard.stop(); wait = 3; break
-        case 36: MLState.analysisOpen = true; wait = 3; break
-        case 37: mlAnalysis.refresh(); if (mlAnalysis.sessions.length > 0) mlAnalysis.load(mlAnalysis.sessions[0].stamp); wait = 4; break
-        case 38: shot("25_analysis"); log("pdf " + mlAnalysis.exportPdf(mlAnalysis.defaultReportPath())); wait = 3; break
-        case 39: MLState.analysisOpen = false; mlUi.language = "en"; wait = 2; break
-        case 40: log("key Return"); wait = 3; break
-        case 41: shot("26_english"); MLState.rightTab = "acact"; wait = 2; break
-        case 42: shot("27_english_acact"); mlUi.language = "ko"; wait = 2; break
-        case 43: log("key Return"); wait = 2; break
-        case 44: log("done"); running = false; break
-        }
     }
-    property bool running: true
-    // the demo panel's automatic demonstration (same operator workflow)
-    function mlDemoAutoRun() { MLState.demoAutoRequested = true }
 }

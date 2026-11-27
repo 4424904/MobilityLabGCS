@@ -340,6 +340,7 @@
  "마지막 개입: ": "Last intervention: ",
  "마지막 검사 %1 · 미션·지오펜스가 바뀌면 자동으로 다시 검사": "Last check %1 · checks again by itself when a mission or geofence changes",
  "마지막에 착륙/RTL 없음 — 마지막 지점에서 대기": "no LAND/RTL at the end — it will hover at the last point",
+ "멀어짐": "diverging",
  "멀티콥터": "Multicopter",
  "멈추고 변경": "Stop and change",
  "메인 로터": "Main rotor",

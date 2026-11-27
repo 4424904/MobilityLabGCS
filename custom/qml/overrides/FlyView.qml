@@ -728,9 +728,10 @@ Item {
 
         // built-in demo: banner (always while running) and the control panel
         MLDemoBanner {
-            anchors.top:                parent.top
-            anchors.topMargin:          _gap * 2
-            anchors.horizontalCenter:   parent.horizontalCenter
+            anchors.bottom:             parent.bottom
+            anchors.bottomMargin:       _gap * 2
+            anchors.left:               parent.left
+            anchors.leftMargin:         _gap * 2
             z:                          QGroundControl.zOrderTopMost
         }
         MLDemoPanel {
@@ -747,7 +748,6 @@ Item {
             map:            mapControl
             visible:        _consoleVisible && !_is3DMode
             rightInset:     guidedValueSlider.visible ? guidedValueSlider.width : 0
-            topInset:       typeof mlDemo !== "undefined" && mlDemo.active ? 40 * _u : 0
         }
 
         // Position readout

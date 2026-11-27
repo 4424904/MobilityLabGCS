@@ -50,6 +50,12 @@ Rectangle {
         var z = -(lat - lat0) * 110574
         return Qt.vector3d(x, alt, z)
     }
+    readonly property vector3d centroid: {
+        root.tracksRev
+        var n = 0, x = 0, z = 0
+        for (var i = 0; i < _drones.length; i++) if (okOf(_drones[i])) { var p = posOf(_drones[i]); x += p.x; z += p.z; n++ }
+        return n ? Qt.vector3d(x / n, 0, z / n) : Qt.vector3d(0, 0, 0)
+    }
     function colorOf(id) { var m = /^D(\d+)$/.exec(id); return MLTheme.vehicleColor(m ? Number(m[1]) : 1) }
     function byId(id) { for (var i = 0; i < _drones.length; i++) if (_drones[i].id === id) return _drones[i]; return null }
 
@@ -94,9 +100,12 @@ Rectangle {
         }
         Node {
             id: originNode
+            // orbit around the middle of the fleet (follows it smoothly)
+            position: root.centroid
+            Behavior on position { Vector3dAnimation { duration: 600 } }
             PerspectiveCamera {
                 id: cam
-                position: Qt.vector3d(0, 90, 160)
+                position: Qt.vector3d(0, 45, 85)
                 eulerRotation.x: -28
                 clipNear: 0.5
                 clipFar: 5000
@@ -259,7 +268,7 @@ Rectangle {
         Row {
             anchors.right: parent.right; anchors.rightMargin: 6 * u; anchors.verticalCenter: parent.verticalCenter
             spacing: 2 * u
-            MLIconButton { glyph: "⟲"; tip: qsTr("시점 초기화"); onClicked: { originNode.eulerRotation = Qt.vector3d(0, 0, 0); cam.position = Qt.vector3d(0, 90, 160); cam.eulerRotation = Qt.vector3d(-28, 0, 0) } }
+            MLIconButton { glyph: "⟲"; tip: qsTr("시점 초기화"); onClicked: { originNode.eulerRotation = Qt.vector3d(0, 0, 0); cam.position = Qt.vector3d(0, 45, 85); cam.eulerRotation = Qt.vector3d(-28, 0, 0) } }
             MLIconButton { glyph: "⌫"; tip: qsTr("궤적 지우기"); onClicked: { root.tracks = ({}); root.tracksRev++ } }
             MLIconButton { visible: root.detachable; glyph: "⧉"; tip: qsTr("새 창으로 분리"); onClicked: root.detachRequested() }
             MLIconButton { glyph: "✕"; tip: qsTr("닫기"); onClicked: root.closeRequested() }

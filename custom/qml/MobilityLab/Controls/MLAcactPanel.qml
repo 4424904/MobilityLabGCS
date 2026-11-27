@@ -160,7 +160,7 @@ Item {
                                     { k: qsTr("현재 수평"), v: pr.p.d.toFixed(1), u: "m" },
                                     { k: qsTr("고도차"), v: pr.p.dz.toFixed(1), u: "m" },
                                     { k: qsTr("예측 최소"), v: pr.p.cpa.toFixed(1), u: "m" },
-                                    { k: qsTr("최근접까지"), v: pr.p.tcpa >= root.tLook ? "> " + root.tLook.toFixed(0) : pr.p.tcpa.toFixed(1), u: "s" }
+                                    { k: qsTr("최근접까지"), v: pr.p.tcpa < 0.05 ? qsTr("멀어짐") : (pr.p.tcpa >= root.tLook ? "> " + root.tLook.toFixed(0) : pr.p.tcpa.toFixed(1)), u: pr.p.tcpa < 0.05 ? "" : "s" }
                                 ]
                                 Column {
                                     width: parent.cw
