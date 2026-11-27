@@ -92,6 +92,10 @@ bool MLDemoLink::_connect()
     if (_inChan == LinkManager::invalidMavlinkChannel() || _outChan == LinkManager::invalidMavlinkChannel()) {
         return false;
     }
+    // MAVLink 2 both ways (QGC 5 drops MAVLink 1 traffic after a grace period)
+    mavlink_set_proto_version(_inChan, 2);
+    mavlink_set_proto_version(_outChan, 2);
+    mavlink_get_channel_status(_outChan)->flags &= ~MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
     _connected = true;
     QMetaObject::invokeMethod(this, [this]() { emit connected(); }, Qt::QueuedConnection);
     return true;
@@ -917,7 +921,7 @@ void MLDemo::_step()
         if (_tickN % 250 == 0) {
             auto *link = _config ? qobject_cast<MLDemoLink *>(_config->link()) : nullptr;
             if (link) {
-                qCInfo(MLDemoLog) << "demo link rx bytes" << link->rxBytes() << "msgs" << link->rxMsgs() << "bad" << link->rxBad();
+                qCWarning(MLDemoLog) << "demo link rx bytes" << link->rxBytes() << "msgs" << link->rxMsgs() << "bad" << link->rxBad();
             }
         }
     }
