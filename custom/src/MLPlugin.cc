@@ -3,6 +3,7 @@
 #include "MLAcactRuntime.h"
 #include "MLFlightAnalysis.h"
 #include "MLUi.h"
+#include "MLMapService.h"
 
 #ifndef ML_GCS_VERSION
 #define ML_GCS_VERSION "dev"
@@ -238,6 +239,7 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlAcact"), _acact);
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlAnalysis"), new MLFlightAnalysis(this));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlVersion"), QStringLiteral(ML_GCS_VERSION));
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlMap"), new MLMapService(this));
     // Korean / English for the MobilityLab UI (custom/i18n/en.json)
     auto *ui = new MLUi(this);
     ui->attach(_qmlEngine);

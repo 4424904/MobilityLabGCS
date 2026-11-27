@@ -597,13 +597,22 @@ Item {
             z:                          QGroundControl.zOrderTopMost
         }
 
+        // map tools: search, favourites, measurement, provider, fit / centre / follow, server state
+        MLMapTools {
+            anchors.fill:   parent
+            z:              QGroundControl.zOrderWidgets + 1
+            map:            mapControl
+            visible:        _consoleVisible && !_is3DMode
+            rightInset:     guidedValueSlider.visible ? guidedValueSlider.width : 0
+        }
+
         // Position readout
         MLMapHud {
             anchors.top:            parent.top
             anchors.right:          guidedValueSlider.visible ? guidedValueSlider.left : parent.right
             anchors.margins:        _gap * 2
             z:                      QGroundControl.zOrderWidgets
-            visible:                _consoleVisible && !!_activeVehicle && !_is3DMode
+            visible:                _consoleVisible && !!_activeVehicle && !_is3DMode && MLState.showPositionHud
         }
 
 
