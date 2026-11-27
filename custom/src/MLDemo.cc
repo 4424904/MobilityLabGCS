@@ -111,13 +111,20 @@ void MLDemoLink::_writeBytes(const QByteArray &bytes)
         return;
     }
     emit bytesSent(this, bytes);
-    mavlink_message_t msg;
-    mavlink_status_t status;
-    for (const char c : bytes) {
-        if (mavlink_parse_char(_inChan, static_cast<uint8_t>(c), &msg, &status) == MAVLINK_FRAMING_OK) {
-            _demo->receive(msg);
+    // Answer after this call returns (like a real link): the GCS registers what it waits for
+    // (command acks, parameters) right after writing, so a reply inside the write would be missed.
+    QMetaObject::invokeMethod(this, [this, bytes]() {
+        if (!_connected || !_demo) {
+            return;
         }
-    }
+        mavlink_message_t msg;
+        mavlink_status_t status;
+        for (const char c : bytes) {
+            if (mavlink_parse_char(_inChan, static_cast<uint8_t>(c), &msg, &status) == MAVLINK_FRAMING_OK) {
+                _demo->receive(msg);
+            }
+        }
+    }, Qt::QueuedConnection);
 }
 
 void MLDemoLink::deliver(const mavlink_message_t &msg)
