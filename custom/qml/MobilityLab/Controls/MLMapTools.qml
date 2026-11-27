@@ -5,6 +5,7 @@ import QtPositioning
 
 import QGroundControl
 import QGroundControl.Controls
+import QGroundControl.Viewer3D
 
 // Map tools of the flight console (fills the visible map area, above the map):
 //   top centre   place / coordinate search (decimal, DMS, MGRS, names via OpenStreetMap)
@@ -168,6 +169,14 @@ Item {
             MLIconButton { size: 38 * root.u; glyph: "↔"; tip: qsTr("거리 측정"); checked: measure.mode === "distance"; onClicked: measure.toggle("distance") }
             MLIconButton { size: 38 * root.u; glyph: "▱"; tip: qsTr("면적 측정"); checked: measure.mode === "area"; onClicked: measure.toggle("area") }
             Rectangle { width: 30 * root.u; height: 1; color: MLTheme.line; anchors.horizontalCenter: parent.horizontalCenter }
+            MLIconButton {
+                size: 38 * root.u; glyph: "◭"; tip: qsTr("3D 지도 (건물·고도)로 전환")
+                onClicked: {
+                    var v3 = QGroundControl.settingsManager.viewer3DSettings
+                    if (v3 && !v3.enabled.rawValue) v3.enabled.rawValue = true
+                    QGCViewer3DManager.setDisplayMode(QGCViewer3DManager.View3D)
+                }
+            }
             MLIconButton { id: layerBtn; size: 38 * root.u; glyph: "◫"; tip: qsTr("지도 공급자 · 유형"); checked: layerPop.opened; onClicked: layerPop.opened ? layerPop.close() : layerPop.open() }
             MLIconButton { size: 38 * root.u; glyph: "+"; tip: qsTr("확대"); onClicked: if (root.map) root.map.zoomLevel = Math.min(root.map.maximumZoomLevel, root.map.zoomLevel + 1) }
             MLIconButton { size: 38 * root.u; glyph: "−"; tip: qsTr("축소"); onClicked: if (root.map) root.map.zoomLevel = Math.max(root.map.minimumZoomLevel, root.map.zoomLevel - 1) }

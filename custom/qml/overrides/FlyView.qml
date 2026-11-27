@@ -118,8 +118,10 @@ Item {
         anchors.bottomMargin: _m
         anchors.left:       parent.left
         anchors.leftMargin: _m
-        open:               _consoleVisible && MLState.leftOpen
+        open:               _consoleVisible && MLState.leftOpen && !MLState.leftDetached
         openWidth:          _leftW
+        detachable:         true
+        onDetachRequested:  MLState.leftDetached = true
         tabs:               [{ key: "flight", label: qsTr("비행 계기") }, { key: "fleet", label: qsTr("편대 · 기체") }]
         current:            MLState.leftTab
         onTabSelected:      (k) => { MLState.leftTab = k; MLState.markCustom() }
@@ -145,8 +147,10 @@ Item {
         anchors.bottomMargin: _m
         anchors.right:      parent.right
         anchors.rightMargin: _m
-        open:               _consoleVisible && MLState.rightOpen
+        open:               _consoleVisible && MLState.rightOpen && !MLState.rightDetached
         openWidth:          _rightW
+        detachable:         true
+        onDetachRequested:  MLState.rightDetached = true
         tabs:               [{ key: "systems", label: qsTr("기체 시스템") }, { key: "acact", label: "ACACT" }]
         current:            MLState.rightTab
         onTabSelected:      (k) => { MLState.rightTab = k; MLState.markCustom() }
@@ -163,11 +167,62 @@ Item {
         }
     }
 
+    // side panels in their own windows (dual monitor); closing the window docks the panel again
+    Loader {
+        active: MLState.leftDetached
+        sourceComponent: Component {
+            Window {
+                visible:    true
+                width:      460 * _u
+                height:     980 * _u
+                title:      "MobilityLab GCS — " + qsTr("비행 계기 · 편대")
+                color:      MLTheme.bg
+                onClosing:  MLState.leftDetached = false
+                MLSideDock {
+                    anchors.fill:   parent
+                    anchors.margins: 6 * _u
+                    openWidth:      parent.width - 12 * _u
+                    tabs:           [{ key: "flight", label: qsTr("비행 계기") }, { key: "fleet", label: qsTr("편대 · 기체") }]
+                    current:        MLState.leftTab
+                    onTabSelected:  (k) => MLState.leftTab = k
+                    onCloseRequested: MLState.leftDetached = false
+                    MLFlightColumn { property string pageKey: "flight"; color: "transparent"; clip: true }
+                    MLFleetCards { property string pageKey: "fleet" }
+                }
+            }
+        }
+    }
+    Loader {
+        active: MLState.rightDetached
+        sourceComponent: Component {
+            Window {
+                visible:    true
+                width:      460 * _u
+                height:     980 * _u
+                title:      "MobilityLab GCS — " + qsTr("기체 시스템 · ACACT")
+                color:      MLTheme.bg
+                onClosing:  MLState.rightDetached = false
+                MLSideDock {
+                    anchors.fill:   parent
+                    anchors.margins: 6 * _u
+                    side:           "right"
+                    openWidth:      parent.width - 12 * _u
+                    tabs:           [{ key: "systems", label: qsTr("기체 시스템") }, { key: "acact", label: "ACACT" }]
+                    current:        MLState.rightTab
+                    onTabSelected:  (k) => MLState.rightTab = k
+                    onCloseRequested: MLState.rightDetached = false
+                    MLSystemsColumn { property string pageKey: "systems"; color: "transparent"; clip: true }
+                    MLAcactPanel { property string pageKey: "acact" }
+                }
+            }
+        }
+    }
+
     // re-open tabs on the screen edges when a side panel is folded away
     MLEdgeTab {
         anchors.left:           parent.left
         anchors.verticalCenter: flightColumn.verticalCenter
-        visible:                _consoleVisible && !MLState.leftOpen
+        visible:                _consoleVisible && !MLState.leftOpen && !MLState.leftDetached
         side:                   "left"
         text:                   qsTr("계기 · 편대")
         onClicked:              { MLState.leftOpen = true; MLState.markCustom() }
@@ -175,7 +230,7 @@ Item {
     MLEdgeTab {
         anchors.right:          parent.right
         anchors.verticalCenter: systemsColumn.verticalCenter
-        visible:                _consoleVisible && !MLState.rightOpen
+        visible:                _consoleVisible && !MLState.rightOpen && !MLState.rightDetached
         side:                   "right"
         text:                   qsTr("시스템 · ACACT")
         onClicked:              { MLState.rightOpen = true; MLState.markCustom() }

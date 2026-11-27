@@ -137,3 +137,30 @@ CI 가 빌드할 때마다 돌린다. 원본은 `vendor/acact_guard/rev1` 이고
 | windows | 빌드 → NSIS 설치 파일 → 무인 설치·부팅·GUI 실행·포터블 zip·포터블 실행·제거 시험 → `ci-windows` 브랜치 |
 
 SITL 시나리오의 상세 판정 기준은 `tools/acact_sitl.py` 머리말에 있다. 운용자 동작은 `MLAcactTestDriver.qml` 이 흉내 낸다.
+
+## v1.0 추가 구성 요소
+
+| 파일 | 역할 |
+|---|---|
+| `custom/qml/MobilityLab/Controls/MLTheme.qml` | 디자인 시스템: 주간/야간 토큰(표면·글자·의미 색), 글자 크기, 4pt 간격, 애니메이션 시간, 기체 색 팔레트, 위험도 색. `appSettings.indoorPalette` 를 따릅니다. |
+| `custom/src/MLPlugin.cc` `paletteOverride` | QGC 팔레트를 주간(Light)·야간(Dark) 모두 같은 값으로 덮어써서 QGC 계획·설정 화면도 테마를 따르게 합니다. `uiScalePercent` 기본값을 화면 크기(QHD 120 %, 4K 150 %)로 정합니다. 지도 기본값: VWorld 키가 빌드에 없으면 Esri 위성. |
+| `MLSideDock`, `MLEdgeTab`, `MLLayoutMenu`, `MLState` | 탭·접기·폭 조절·별도 창이 되는 좌우 패널과 레이아웃 프리셋. 사용자 레이아웃은 `QtCore.Settings`(그룹 `MLLayout`)에 저장됩니다. |
+| `MLFleetCards`, `MLVehicleHud`, `MLBootScreen` | 기체 카드, 지도 HUD, 시작 화면(실제 초기화 상태 표시). |
+| `custom/src/MLMapService.*` (`mlMap`) | 지도 타일 서버 점검(지도 엔진과 같은 URL·Referer·토큰으로 타일 1장 요청 → 원인 분류), 좌표 파싱(십진·도분초·MGRS), Nominatim 장소 검색, 시험장 즐겨찾기. |
+| `MLMapTools` | 검색창, 지도 도구 막대(맞춤·이동·추적·즐겨찾기·거리/면적 측정·3D·공급자), 지도 서버 상태와 대체 지도 버튼. |
+| `MLAcactRuntime::_publish` / `_riskReason` | ACACT 계산값을 QML 로 내보냅니다: 기체별 단계(phase), 위험도, 개입 사유(인수 시점의 쌍 평가: 현재 이격·예측 최소 이격·최근접 시간·고도차), 회피 명령 속도, T_LOOK 선형 예측 경로; 쌍별 최근접 예측 지점(cpaA/cpaB). **ACACT 코어(AcactCore)는 바꾸지 않았습니다** — 동등성 회귀시험 그대로 통과. |
+| `MLAcactPanel`, `MLSeparationBar`, `MLAcactRecorder`, `MLAcactTimeline`, `MLAcact3D` | ACACT 상황판, 이격 눈금, 실행 기록(가드 이벤트 + 쌍 위험도 변화 + 2 Hz 최근접), 이벤트 타임라인, QtQuick3D 3D 상황도(분석 3D 리플레이 겸용). |
+| `MLGuardMapLayer` | 지도 위 궤적(회피 구간 구분)·예측선·최근접 예측 지점·위험 영역·회피 명령 속도. |
+| `MLAlertCenter`, `MLAlertCenterPanel`, `MLPreflightView` | 통합 경고 센터(조건 기반, 확인해도 조건이 계속되면 남음), 기체별 7항목 비행 전 통합 점검(GO/NO-GO). |
+| `custom/qml/overrides/PlanView.qml` + `MLPlanOverlay` | QGC v5.1.5 계획 화면 + 계획 통계, 다기체 ACACT 미션 검사, 다른 기체 미션 표시. |
+| `custom/src/MLDemo.*` (`mlDemo`) | 데모 모드. GCS 프로세스 안의 PX4 동작 시뮬레이터(모드, 미션 프로토콜, Offboard·페일세이프, 파라미터, 배터리)와 그 전용 링크(`MLDemoLink`). |
+| `patches/0005-demo-link-factory-and-no-setup-popup.patch` | `LinkManager` 에 사용자 링크 팩토리와 **링크 게이트**를 추가(데모 중 실기체 링크 생성 거부), "Configuration tasks remain" 모달 대화상자를 로그 경고로 바꿈(경고 센터·사전 점검에 표시). |
+| `MLFlightAnalysis` | 로그 v1.0: 기체별 배터리 열(끝에 추가, 이전 로그도 읽힘), 속도 계열, 기체별 고도/속도/배터리 그래프 데이터, PDF 로고·바닥글·데모 워터마크. |
+
+### 데모와 실기체의 분리 (구조)
+
+1. `MLDemo::start()` 가 `LinkManager::setLinkGate()` 를 설치합니다. 게이트는 `MLDemoLinkConfiguration` 이 아닌 모든 링크 생성(UDP·시리얼·TCP·블루투스·자동 연결 포함)을 `createConnectedLink` 단계에서 거부합니다.
+2. 이어서 `LinkManager::disconnectAll()` 로 열려 있던 링크를 모두 닫습니다.
+3. 데모 링크는 소켓·포트가 없는 프로세스 내부 링크입니다. GCS 가 보내는 바이트는 시뮬레이터로만 갑니다.
+4. 데모 기체는 `sim = 2` 로 표시되어 SITL 검증 기록(`_flightEndCheck`, `sim == 1` 만)에서 빠지고, 가드 로그 메타의 운용 모드가 `demo` 가 됩니다.
+5. CI `demo` 시험이 1–4를 확인합니다(데모 중 UDP 14550 으로 들어오는 다른 기체가 연결되지 않고, 데모 종료 뒤에는 연결됨).

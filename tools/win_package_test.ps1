@@ -4,11 +4,14 @@
 #   3. GUI launch                         → still running after 25 s, screenshot
 #   4. portable zip from the installed files (+ portable.txt), unpacked elsewhere → boots, keeps its settings in .\data
 #   5. silent uninstall                   → program folder, shortcuts and registry entry gone
+#   0. (with -PrevInstaller) upgrade      → the previous release installed and used first; installing this
+#                                           version over it keeps the user's settings, missions and logs
 # Writes results.json, screenshots and logs to -Out.
 param(
     [Parameter(Mandatory = $true)][string]$Installer,
     [Parameter(Mandatory = $true)][string]$Out,
-    [Parameter(Mandatory = $true)][string]$Dist
+    [Parameter(Mandatory = $true)][string]$Dist,
+    [string]$PrevInstaller = ''
 )
 $ErrorActionPreference = 'Continue'
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
@@ -46,6 +49,26 @@ function GuiTest([string]$exe, [string]$tag) {
     return $alive
 }
 
+# ---- 0. upgrade from the previous release ---------------------------------------------
+$markerIni = Join-Path $env:APPDATA 'MobilityLab\MobilityLabGCS.ini'
+$markerPlan = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'MobilityLab\Missions\upgrade_keep_test.plan'
+$markerLog = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'MobilityLab\ACACT\guard_upgrade_keep_test.csv'
+if ($PrevInstaller -ne '' -and (Test-Path $PrevInstaller)) {
+    Start-Process -FilePath $PrevInstaller -ArgumentList '/S', "/D=$InstDir" -Wait
+    $prevExe = Get-ChildItem -Path "$InstDir\bin" -Filter 'MobilityLabGCS.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+    $results.prev_installed = [bool]$prevExe
+    if ($prevExe) {
+        # use it once so it writes its own settings, then add what an operator would have: a setting, a mission, a log
+        $p = Start-Process -FilePath $prevExe.FullName -PassThru; Start-Sleep -Seconds 25
+        if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force; Start-Sleep -Seconds 3 }
+        New-Item -ItemType Directory -Force -Path (Split-Path $markerIni), (Split-Path $markerPlan), (Split-Path $markerLog) | Out-Null
+        Add-Content -Path $markerIni -Value "`r`n[MLUpgradeTest]`r`nmarker=keep-1234`r`n"
+        Set-Content -Path $markerPlan -Value '{"fileType":"Plan","marker":"keep"}'
+        Set-Content -Path $markerLog -Value 't,marker'
+        $notes += "previous release installed and used: $PrevInstaller"
+    }
+}
+
 # ---- 1. install ----------------------------------------------------------------
 $t = Measure-Command { Start-Process -FilePath $Installer -ArgumentList '/S', "/D=$InstDir" -Wait }
 $notes += "install took $([int]$t.TotalSeconds) s"
@@ -62,6 +85,14 @@ if ($exe) {
     $notes += ("installed size {0:N0} MB, {1} files" -f $size, (Get-ChildItem $InstDir -Recurse -File).Count)
     # runtime bundled: Qt and the MSVC runtime next to the exe
     $results.runtime_bundled = (Test-Path "$InstDir\bin\Qt6Core.dll") -and ((Test-Path "$InstDir\bin\vcruntime140.dll") -or (Test-Path "$InstDir\bin\msvcp140.dll"))
+}
+
+if ($PrevInstaller -ne '' -and $results.Contains('prev_installed')) {
+    $results.upgrade_keeps_settings = (Test-Path $markerIni) -and ((Get-Content $markerIni -Raw) -match 'marker=keep-1234')
+    $results.upgrade_keeps_missions = Test-Path $markerPlan
+    $results.upgrade_keeps_logs = Test-Path $markerLog
+    $ver = Get-ChildItem -Path "$InstDir" -Recurse -Filter 'ML_VERSION.txt' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($ver) { $notes += "installed version file: $((Get-Content $ver.FullName -Raw).Trim())" }
 }
 
 # ---- 2/3. boot + GUI -----------------------------------------------------------------

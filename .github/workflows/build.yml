@@ -375,9 +375,20 @@ jobs:
 
       # install silently, launch, build the portable zip from the installed files, run it from
       # elsewhere, then uninstall — all on a machine with no Qt / Python / QGC installed
+      - name: Previous release installer (upgrade test)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\prev" | Out-Null
+          gh release download v0.9.0-build.67 -R "$env:GITHUB_REPOSITORY" -p "*Windows-Setup.exe" -D "$env:RUNNER_TEMP\prev"
+          Get-ChildItem "$env:RUNNER_TEMP\prev"
+
       - name: Install / launch / portable / uninstall test
         shell: pwsh
-        run: pwsh -File mlgcs/tools/win_package_test.ps1 -Installer "$env:RUNNER_TEMP\dist\MobilityLabGCS-installer-win64.exe" -Out "$env:RUNNER_TEMP\wintest" -Dist "$env:RUNNER_TEMP\dist"
+        run: |
+          $prev = Get-ChildItem "$env:RUNNER_TEMP\prev" -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          pwsh -File mlgcs/tools/win_package_test.ps1 -Installer "$env:RUNNER_TEMP\dist\MobilityLabGCS-installer-win64.exe" -Out "$env:RUNNER_TEMP\wintest" -Dist "$env:RUNNER_TEMP\dist" -PrevInstaller "$(if ($prev) { $prev.FullName } else { '' })"
 
       - name: Upload installer
         uses: actions/upload-artifact@v4

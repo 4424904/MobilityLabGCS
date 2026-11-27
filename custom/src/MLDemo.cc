@@ -1240,11 +1240,8 @@ void MLDemo::_sendTelemetry(MLDemoVehicle &v, bool fast, bool slow)
         b.battery_function = MAV_BATTERY_FUNCTION_ALL;
         b.type = MAV_BATTERY_TYPE_LIPO;
         b.temperature = INT16_MAX;
-        for (uint16_t &x : b.voltages) {
-            x = UINT16_MAX;
-        }
-        for (int i = 0; i < 4; i++) {
-            b.voltages[i] = static_cast<uint16_t>(std::lround(volt / 4 * 1000));
+        for (int i = 0; i < 10; i++) {
+            b.voltages[i] = i < 4 ? static_cast<uint16_t>(std::lround(volt / 4 * 1000)) : UINT16_MAX;
         }
         b.current_battery = static_cast<int16_t>(std::lround(amp * 100));
         b.current_consumed = -1;

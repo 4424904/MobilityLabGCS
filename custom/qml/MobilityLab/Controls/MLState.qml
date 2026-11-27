@@ -39,6 +39,9 @@ QtObject {
     property bool   alertCenterOpen: false
     property bool   preflightOpen:  false
     property bool   demoOpen:       false
+    // side panels in their own windows (second monitor)
+    property bool   leftDetached:   false
+    property bool   rightDetached:  false
     property bool   acactTimelineOpen: false
     property bool   acact3dOpen:    false
     property bool   acact3dDetached: false
