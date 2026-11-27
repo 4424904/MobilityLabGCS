@@ -96,6 +96,9 @@ public:
     /// simulator → GCS
     void deliver(const mavlink_message_t &msg);
     uint8_t outChannel() const { return _outChan; }
+    qint64 rxBytes() const { return _rxBytes; }
+    qint64 rxMsgs() const { return _rxMsgs; }
+    qint64 rxBad() const { return _rxBad; }
 
 private slots:
     void _writeBytes(const QByteArray &bytes) override;
@@ -107,6 +110,7 @@ private:
     bool _connected = false;
     uint8_t _inChan = 0;
     uint8_t _outChan = 0;
+    qint64 _rxBytes = 0, _rxMsgs = 0, _rxBad = 0;
 };
 
 class MLDemo : public QObject
