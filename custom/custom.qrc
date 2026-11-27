@@ -33,5 +33,34 @@
         <file alias="icons/kill.svg">res/icons/kill.svg</file>
         <file alias="icons/abort.svg">res/icons/abort.svg</file>
         <file alias="icons/collapse.svg">res/icons/collapse.svg</file>
+        <file alias="ui/area.svg">res/icons/ui/area.svg</file>
+        <file alias="ui/bell.svg">res/icons/ui/bell.svg</file>
+        <file alias="ui/check.svg">res/icons/ui/check.svg</file>
+        <file alias="ui/checklist.svg">res/icons/ui/checklist.svg</file>
+        <file alias="ui/close.svg">res/icons/ui/close.svg</file>
+        <file alias="ui/console.svg">res/icons/ui/console.svg</file>
+        <file alias="ui/cube.svg">res/icons/ui/cube.svg</file>
+        <file alias="ui/detach.svg">res/icons/ui/detach.svg</file>
+        <file alias="ui/download.svg">res/icons/ui/download.svg</file>
+        <file alias="ui/fit.svg">res/icons/ui/fit.svg</file>
+        <file alias="ui/follow.svg">res/icons/ui/follow.svg</file>
+        <file alias="ui/layers.svg">res/icons/ui/layers.svg</file>
+        <file alias="ui/layout.svg">res/icons/ui/layout.svg</file>
+        <file alias="ui/left.svg">res/icons/ui/left.svg</file>
+        <file alias="ui/minus.svg">res/icons/ui/minus.svg</file>
+        <file alias="ui/moon.svg">res/icons/ui/moon.svg</file>
+        <file alias="ui/pin.svg">res/icons/ui/pin.svg</file>
+        <file alias="ui/plus.svg">res/icons/ui/plus.svg</file>
+        <file alias="ui/radar.svg">res/icons/ui/radar.svg</file>
+        <file alias="ui/refresh.svg">res/icons/ui/refresh.svg</file>
+        <file alias="ui/right.svg">res/icons/ui/right.svg</file>
+        <file alias="ui/ruler.svg">res/icons/ui/ruler.svg</file>
+        <file alias="ui/search.svg">res/icons/ui/search.svg</file>
+        <file alias="ui/star.svg">res/icons/ui/star.svg</file>
+        <file alias="ui/sun.svg">res/icons/ui/sun.svg</file>
+        <file alias="ui/target.svg">res/icons/ui/target.svg</file>
+        <file alias="ui/timeline.svg">res/icons/ui/timeline.svg</file>
+        <file alias="ui/trash.svg">res/icons/ui/trash.svg</file>
+        <file alias="ui/undo.svg">res/icons/ui/undo.svg</file>
     </qresource>
 </RCC>

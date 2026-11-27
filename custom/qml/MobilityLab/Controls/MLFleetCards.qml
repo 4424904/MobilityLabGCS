@@ -95,6 +95,15 @@ Item {
             color: MLTheme.dim; font.pixelSize: MLTheme.fsSmall
             text: qsTr("UDP 14550 · 시리얼 텔레메트리를 자동으로 찾고 있습니다. 연결되면 기체마다 카드가 생기고 고유 색상이 지정됩니다.")
         }
+        MLIconButton {
+            anchors.horizontalCenter: parent.horizontalCenter
+            size: 36 * root.u
+            label: qsTr("기체 없이 데모 모드로 체험")
+            glyph: "◭"
+            tone: MLTheme.demo
+            checked: true
+            onClicked: MLState.demoOpen = true
+        }
     }
 
     ListView {

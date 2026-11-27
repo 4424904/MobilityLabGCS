@@ -597,6 +597,78 @@ Item {
             z:                          QGroundControl.zOrderTopMost
         }
 
+        // alert centre model (bell in the top bar) and the integrated pre-flight check
+        MLAlertCenter { id: alertModel; Component.onCompleted: MLState.alertCenter = alertModel }
+        MLPreflightView {
+            anchors.fill:       parent
+            anchors.margins:    _gap * 2
+            z:                  QGroundControl.zOrderTopMost + 2
+            visible:            _consoleVisible && MLState.preflightOpen
+            onCloseRequested:   MLState.preflightOpen = false
+        }
+
+        // ACACT: run recorder (timeline data), event timeline, 3D situation view
+        MLAcactRecorder { }
+        MLAcactTimeline {
+            id:                 acactTimeline
+            anchors.left:       parent.left
+            anchors.right:      parent.right
+            anchors.bottom:     profile.visible ? profile.top : parent.bottom
+            anchors.bottomMargin: profile.visible ? _m : 0
+            height:             Math.min(300 * _u, parent.height * 0.42)
+            z:                  QGroundControl.zOrderWidgets + 3
+            visible:            _consoleVisible && MLState.acactTimelineOpen
+            onCloseRequested:   MLState.acactTimelineOpen = false
+        }
+        Loader {
+            anchors.left:       parent.left
+            anchors.top:        parent.top
+            anchors.topMargin:  60 * _u
+            anchors.leftMargin: 70 * _u
+            width:              Math.min(parent.width * 0.55, 900 * _u)
+            height:             Math.min(parent.height - 80 * _u - (acactTimeline.visible ? acactTimeline.height : 0), 640 * _u)
+            z:                  QGroundControl.zOrderWidgets + 4
+            active:             _consoleVisible && MLState.acact3dOpen && !MLState.acact3dDetached
+            sourceComponent: Component {
+                MLAcact3D {
+                    onCloseRequested:   MLState.acact3dOpen = false
+                    onDetachRequested:  MLState.acact3dDetached = true
+                }
+            }
+        }
+        Loader {
+            active: MLState.acact3dOpen && MLState.acact3dDetached
+            sourceComponent: Component {
+                Window {
+                    visible:    true
+                    width:      1100 * _u
+                    height:     760 * _u
+                    title:      "MobilityLab GCS — " + qsTr("ACACT 3D 상황도")
+                    color:      MLTheme.bg
+                    onClosing:  { MLState.acact3dDetached = false; MLState.acact3dOpen = false }
+                    MLAcact3D {
+                        anchors.fill:       parent
+                        detachable:         false
+                        onCloseRequested:   { MLState.acact3dDetached = false; MLState.acact3dOpen = false }
+                    }
+                }
+            }
+        }
+
+        // built-in demo: banner (always while running) and the control panel
+        MLDemoBanner {
+            anchors.top:                parent.top
+            anchors.topMargin:          _gap * 2
+            anchors.horizontalCenter:   parent.horizontalCenter
+            z:                          QGroundControl.zOrderTopMost
+        }
+        MLDemoPanel {
+            anchors.centerIn:   parent
+            z:                  QGroundControl.zOrderTopMost + 3
+            visible:            _consoleVisible && MLState.demoOpen
+            onCloseRequested:   MLState.demoOpen = false
+        }
+
         // map tools: search, favourites, measurement, provider, fit / centre / follow, server state
         MLMapTools {
             anchors.fill:   parent
@@ -604,6 +676,7 @@ Item {
             map:            mapControl
             visible:        _consoleVisible && !_is3DMode
             rightInset:     guidedValueSlider.visible ? guidedValueSlider.width : 0
+            topInset:       typeof mlDemo !== "undefined" && mlDemo.active ? 40 * _u : 0
         }
 
         // Position readout

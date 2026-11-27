@@ -117,10 +117,10 @@ Item {
                 text: root._run ? qsTr("두 기체 이상이 비행 중이면 쌍마다 현재 이격, 예측 최소 이격과 최근접 시점이 표시됩니다.") : qsTr("가드 정지 중 — 표시할 계산값 없음")
             }
             Repeater {
-                model: root._run ? mlGuard.pairs : []
+                model: root._run ? mlGuard.pairs.length : 0
                 Rectangle {
                     id: pr
-                    readonly property var p: modelData
+                    readonly property var p: index < mlGuard.pairs.length ? mlGuard.pairs[index] : ({ a: "", b: "", d: 0, dz: 0, cpa: 0, tcpa: 0, level: 0 })
                     readonly property bool sameLayer: p.dz <= root.vSep
                     width: col.width
                     height: prCol.implicitHeight + 20 * u
@@ -190,9 +190,9 @@ Item {
             // ---- vehicles -----------------------------------------------------------------
             MLSectionTitle { text: qsTr("기체별 ACACT 상태"); visible: root._run }
             Repeater {
-                model: root._run ? mlGuard.drones : []
+                model: root._run ? mlGuard.drones.length : 0
                 Rectangle {
-                    readonly property var d: modelData
+                    readonly property var d: index < mlGuard.drones.length ? mlGuard.drones[index] : ({ id: "", phase: "", takeovers: 0, ownedTime: 0 })
                     width: col.width
                     height: dCol.implicitHeight + 16 * u
                     radius: 8 * u

@@ -1,6 +1,10 @@
 #include "MLFlightAnalysis.h"
 
+#include <QtSvg/QSvgRenderer>
+
 #include <QtCore/QCoreApplication>
+
+#include <cmath>
 #include <QtCore/QDateTime>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -125,6 +129,7 @@ bool MLFlightAnalysis::load(const QString &stamp)
         Track tr;
         tr.id = head[c].left(head[c].size() - 5);
         tr.sysid = tr.id.mid(1).toInt();
+        tr.battCol = head.indexOf(tr.id + QStringLiteral("_batt"));
         _tr.append(tr);
     }
     while (!ts.atEnd()) {
@@ -141,6 +146,8 @@ bool MLFlightAnalysis::load(const QString &stamp)
             tr.f.append(ok ? c[b + 1].toFloat() : NAN);
             tr.r.append(ok ? c[b + 2].toFloat() : NAN);
             tr.alt.append(ok ? c[b + 3].toFloat() : NAN);
+            tr.spd.append(ok ? std::hypot(c[b + 4].toFloat(), c[b + 5].toFloat()) : NAN);
+            tr.batt.append(tr.battCol > 0 && tr.battCol < c.size() && !c[tr.battCol].isEmpty() ? c[tr.battCol].toFloat() : NAN);
             tr.own.append(ok && c[b + 6] == QLatin1String("1"));
             tr.fresh.append(ok && c[b + 7] == QLatin1String("1"));
         }
@@ -233,7 +240,9 @@ void MLFlightAnalysis::_compute()
                 gap = 0;
             }
             if (i % step == 0 && !std::isnan(tr.f[i])) {
-                pts.append(QVariant(QVariantList{_t[i] - t0, tr.f[i], tr.r[i], tr.alt[i], tr.own[i]}));
+                pts.append(QVariant(QVariantList{_t[i] - t0, tr.f[i], tr.r[i], tr.alt[i], tr.own[i],
+                                                 std::isnan(tr.spd[i]) ? QVariant() : QVariant(tr.spd[i]),
+                                                 std::isnan(tr.batt[i]) ? QVariant() : QVariant(tr.batt[i])}));
             }
         }
         aMax = std::max(aMax, maxAlt);
@@ -366,6 +375,8 @@ QVariantList MLFlightAnalysis::stateAt(double t) const
         out.append(QVariantMap{{QStringLiteral("id"), tr.id}, {QStringLiteral("sysid"), tr.sysid}, {QStringLiteral("f"), tr.f[i]},
                                {QStringLiteral("r"), tr.r[i]}, {QStringLiteral("alt"), tr.alt[i]}, {QStringLiteral("own"), bool(tr.own[i])},
                                {QStringLiteral("fresh"), bool(tr.fresh[i])}, {QStringLiteral("mode"), tr.mode[i]},
+                               {QStringLiteral("spd"), std::isnan(tr.spd[i]) ? QVariant() : QVariant(tr.spd[i])},
+                               {QStringLiteral("batt"), std::isnan(tr.batt[i]) ? QVariant() : QVariant(tr.batt[i])},
                                {QStringLiteral("vf"), std::isnan(tr.f[j]) ? 0.0 : (tr.f[i] - tr.f[j]) / dt},
                                {QStringLiteral("vr"), std::isnan(tr.r[j]) ? 0.0 : (tr.r[i] - tr.r[j]) / dt}});
     }
@@ -569,15 +580,42 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
     const QColor ink(QStringLiteral("#15191E")), sub(QStringLiteral("#5A626B")), brand(QStringLiteral("#D80E18")), rule(QStringLiteral("#D5DAE0"));
     double y = 0;
     int pageNo = 1;
+    QSvgRenderer logo(QStringLiteral(":/MobilityLab/logo.svg"));
+    const bool demoLog = _info.value(QStringLiteral("opMode")).toString() == QLatin1String("demo");
     auto header = [&]() {
         p.fillRect(QRectF(0, 0, page.width(), 4), brand);
-        font(8, true);
+        if (logo.isValid()) {
+            logo.render(&p, QRectF(0, 8, 30, 30));
+        }
+        font(8.5, true);
         p.setPen(ink);
-        p.drawText(QRectF(0, 10, page.width(), 22), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("MOBILITY LAB"));
+        p.drawText(QRectF(36, 10, page.width(), 26), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("MOBILITY LAB  ·  GCS"));
         font(7.5);
         p.setPen(sub);
-        p.drawText(QRectF(0, 10, page.width(), 22), Qt::AlignRight | Qt::AlignVCenter, tr("ACACT 비행 시험 보고서 · %1 · %2쪽").arg(_stamp).arg(pageNo));
-        y = 46;
+        p.drawText(QRectF(0, 10, page.width(), 26), Qt::AlignRight | Qt::AlignVCenter, tr("ACACT 비행 시험 보고서 · %1 · %2쪽").arg(_stamp).arg(pageNo));
+        // footer
+        p.setPen(QPen(rule, 0.8));
+        p.drawLine(QPointF(0, page.height() - 22), QPointF(page.width(), page.height() - 22));
+        font(6.8);
+        p.setPen(sub);
+        p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignLeft | Qt::AlignVCenter,
+                   tr("MOBILITY LAB Co., Ltd. · MobilityLab GCS %1 · ACACT 가드 로그에서 자동 생성").arg(QStringLiteral(ML_GCS_VERSION)));
+        p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignRight | Qt::AlignVCenter,
+                   tr("시뮬레이션 결과는 실제 비행 안전성을 보증하지 않음"));
+        if (demoLog) {
+            // demo runs are never test evidence: watermark every page
+            p.save();
+            p.translate(page.center());
+            p.rotate(-30);
+            QFont wf(sans);
+            wf.setPointSizeF(54);
+            wf.setBold(true);
+            p.setFont(wf);
+            p.setPen(QColor(106, 53, 184, 40));
+            p.drawText(QRectF(-page.width(), -60, page.width() * 2, 120), Qt::AlignCenter, tr("데모 · 시험 기록 아님"));
+            p.restore();
+        }
+        y = 50;
     };
     auto newPage = [&]() {
         w.newPage();

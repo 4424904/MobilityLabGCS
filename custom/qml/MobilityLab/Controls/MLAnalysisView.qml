@@ -29,6 +29,8 @@ Rectangle {
     property bool   playing: false
     property real   speed: 4
     property var    state: []
+    property bool   view3d: false
+    property string chartKind: "alt"       // alt · spd · batt
     readonly property var ext: _loaded ? mlAnalysis.extent : ({})
     readonly property real dSafe: _loaded && mlAnalysis.verdict.dSafe ? mlAnalysis.verdict.dSafe : 10
     readonly property real dEmerg: _loaded && mlAnalysis.verdict.dEmerg ? mlAnalysis.verdict.dEmerg : 5.5
@@ -40,6 +42,7 @@ Rectangle {
 
     onVisibleChanged: if (visible && _ok) mlAnalysis.refresh()
     onCursorChanged: { if (_loaded) state = mlAnalysis.stateAt(cursor); live.requestPaint(); sepChart.requestPaint(); altChart.requestPaint() }
+    Connections { target: MLTheme; function onDayChanged() { trackLayer.requestPaint(); live.requestPaint(); sepChart.requestPaint(); altChart.requestPaint() } }
 
     function fmt(t) { var s = Math.max(0, Math.floor(t)); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2) }
     function m1(v) { return v === undefined || v === null ? "—" : Number(v).toFixed(1) + " m" }
@@ -143,9 +146,9 @@ Rectangle {
                                 Rectangle {
                                     visible: !!modelData.opMode
                                     width: omt.implicitWidth + 8 * u; height: 14 * u; radius: 2 * u
-                                    readonly property color c: modelData.opMode === "field" ? MLTheme.warning : MLTheme.accent
+                                    readonly property color c: modelData.opMode === "field" ? MLTheme.warning : (modelData.opMode === "demo" ? MLTheme.demo : MLTheme.accent)
                                     color: Qt.rgba(c.r, c.g, c.b, 0.14); border.color: c
-                                    Text { id: omt; anchors.centerIn: parent; text: modelData.opMode === "field" ? "FIELD" : "SIM"; color: parent.c; font.family: MLTheme.mono; font.pixelSize: 9 * u }
+                                    Text { id: omt; anchors.centerIn: parent; text: modelData.opMode === "field" ? "FIELD" : (modelData.opMode === "demo" ? "DEMO" : "SIM"); color: parent.c; font.family: MLTheme.mono; font.pixelSize: 10 * u }
                                 }
                             }
                             MLText { width: parent.width; elide: Text.ElideRight; text: modelData.plan || modelData.vehicles || "—"; color: MLTheme.label; font.pixelSize: MLTheme.fsLabel }
@@ -266,6 +269,27 @@ Rectangle {
                         Text { text: "T+" + root.fmt(root.cursor); color: MLTheme.bright; font.family: MLTheme.mono; font.pixelSize: 22 * u; font.weight: Font.Medium }
                         MLText { text: qsTr("위에서 본 시연 좌표계 · 위쪽 = 전방 F"); color: MLTheme.faint; font.pixelSize: MLTheme.fsLabel }
                     }
+                    // 3D replay (same log, heights to scale)
+                    Loader {
+                        anchors.fill: parent
+                        active: root._loaded && root.view3d
+                        sourceComponent: Component {
+                            MLAcact3D {
+                                detachable: false
+                                replay: true
+                                replayDrones: root.state
+                                replayTracks: mlAnalysis.tracks
+                                replayCursor: root.cursor
+                                dSafeOverride: root.dSafe
+                                onCloseRequested: root.view3d = false
+                            }
+                        }
+                    }
+                    Row {
+                        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10 * u
+                        visible: root._loaded && !root.view3d
+                        MLIconButton { glyph: "◭"; label: qsTr("3D 리플레이"); size: 30 * root.u; onClicked: root.view3d = true }
+                    }
                     MLText {
                         anchors.centerIn: parent
                         visible: !root._loaded
@@ -299,6 +323,21 @@ Rectangle {
                                 anchors.verticalCenter: parent.verticalCenter
                                 height: 10 * u; radius: 2 * u
                                 color: MLTheme.warning; opacity: 0.75
+                            }
+                        }
+                        // abnormal events: link loss / failsafe (red ▾), operator takeover (blue ▾)
+                        Repeater {
+                            model: root._loaded ? mlAnalysis.events.length : 0
+                            Text {
+                                readonly property var e: mlAnalysis.events[index]
+                                readonly property bool bad: /두절|끊김|페일세이프|failsafe|lost|※/i.test(e.text)
+                                readonly property bool op: /운용자|조종|모드 .* 전환|operator|pilot/i.test(e.text)
+                                visible: bad || op
+                                x: (e.t || 0) / Math.max(1, mlAnalysis.duration) * parent.width - width / 2
+                                y: -4 * u
+                                text: "▾"
+                                color: bad ? MLTheme.warning : MLTheme.info
+                                font.pixelSize: 14 * u
                             }
                         }
                         Rectangle {
@@ -358,23 +397,41 @@ Rectangle {
                 }
                 Card {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 96 * u
-                    Caption { x: 10 * u; y: 6 * u; text: qsTr("고도") }
+                    Layout.preferredHeight: 120 * u
+                    Row {
+                        x: 8 * u; y: 2 * u; spacing: 4 * u; z: 2
+                        Repeater {
+                            model: [ { k: "alt", t: qsTr("고도 (m)") }, { k: "spd", t: qsTr("속도 (m/s)") }, { k: "batt", t: qsTr("배터리 (%)") } ]
+                            MLIconButton { size: 22 * root.u; label: modelData.t; checked: root.chartKind === modelData.k; onClicked: { root.chartKind = modelData.k; altChart.requestPaint() } }
+                        }
+                    }
                     Canvas {
                         id: altChart
                         anchors.fill: parent; anchors.topMargin: 22 * u; anchors.margins: 8 * u
                         onPaint: {
                             var ctx = getContext("2d"); ctx.reset()
                             if (!root._loaded) return
-                            var T = Math.max(1, mlAnalysis.duration), yMax = root.ext.altMax
-                            function X(t) { return t / T * width } function Y(v) { return height - Math.min(1, v / yMax) * height }
+                            var col = root.chartKind === "spd" ? 5 : (root.chartKind === "batt" ? 6 : 3)
                             var tr = mlAnalysis.tracks
+                            var yMax = root.chartKind === "batt" ? 100 : 1
+                            if (root.chartKind !== "batt") for (var q = 0; q < tr.length; q++) for (var w = 0; w < tr[q].points.length; w++) { var vv = tr[q].points[w][col]; if (vv !== undefined && vv !== null) yMax = Math.max(yMax, vv * 1.1) }
+                            var T = Math.max(1, mlAnalysis.duration)
+                            function X(t) { return t / T * width } function Y(v) { return height - Math.min(1, v / yMax) * height }
+                            ctx.fillStyle = String(MLTheme.dim); ctx.font = (10 * root.u) + "px '" + MLTheme.mono + "'"; ctx.textAlign = "right"
+                            ctx.fillText(yMax.toFixed(0), width - 2, 10 * root.u)
+                            var any = false
                             for (var k = 0; k < tr.length; k++) {
-                                var p = tr[k].points
+                                var p = tr[k].points, started = false
                                 ctx.strokeStyle = MLTheme.vehicleColor(tr[k].sysid); ctx.lineWidth = 1.5; ctx.beginPath()
-                                for (var i = 0; i < p.length; i++) { if (i === 0) ctx.moveTo(X(p[i][0]), Y(p[i][3])); else ctx.lineTo(X(p[i][0]), Y(p[i][3])) }
+                                for (var i = 0; i < p.length; i++) {
+                                    var y = p[i][col]
+                                    if (y === undefined || y === null) { started = false; continue }
+                                    any = true
+                                    if (!started) { ctx.moveTo(X(p[i][0]), Y(y)); started = true } else ctx.lineTo(X(p[i][0]), Y(y))
+                                }
                                 ctx.stroke()
                             }
+                            if (!any) { ctx.textAlign = "center"; ctx.fillStyle = String(MLTheme.faint); ctx.fillText(qsTr("이 기록에는 해당 데이터가 없습니다 (v1.0 이전 로그)"), width / 2, height / 2) }
                             ctx.strokeStyle = MLTheme.accent; ctx.lineWidth = 1.5
                             ctx.beginPath(); ctx.moveTo(X(root.cursor), 0); ctx.lineTo(X(root.cursor), height); ctx.stroke()
                         }

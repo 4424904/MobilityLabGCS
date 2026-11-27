@@ -4,6 +4,7 @@
 #include "MLFlightAnalysis.h"
 #include "MLUi.h"
 #include "MLMapService.h"
+#include "MLDemo.h"
 
 #ifndef ML_GCS_VERSION
 #define ML_GCS_VERSION "dev"
@@ -27,6 +28,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QLocale>
 #include <QtCore/QSettings>
+#include <QtCore/QTimer>
 #include <QtCore/QSignalBlocker>
 #include <QtGui/QFontDatabase>
 #include <QtQml/QQmlApplicationEngine>
@@ -240,6 +242,14 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlAnalysis"), new MLFlightAnalysis(this));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlVersion"), QStringLiteral(ML_GCS_VERSION));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlMap"), new MLMapService(this));
+    // built-in demo (simulated vehicles on an in-process link; real links blocked while it runs)
+    auto *demo = new MLDemo(this);
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlDemo"), demo);
+    // CI / exhibition: MLGCS_DEMO=single|duo|trio starts the demo at launch
+    if (qEnvironmentVariableIsSet("MLGCS_DEMO")) {
+        const QString sc = qEnvironmentVariable("MLGCS_DEMO");
+        QTimer::singleShot(4000, demo, [demo, sc]() { demo->start(sc); });
+    }
     // Korean / English for the MobilityLab UI (custom/i18n/en.json)
     auto *ui = new MLUi(this);
     ui->attach(_qmlEngine);

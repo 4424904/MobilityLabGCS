@@ -37,9 +37,12 @@ QtObject {
     property bool   showPredictions: true
     property bool   alertCenterOpen: false
     property bool   preflightOpen:  false
+    property bool   demoOpen:       false
     property bool   acactTimelineOpen: false
     property bool   acact3dOpen:    false
+    property bool   acact3dDetached: false
     property bool   bootDone:       false
+    property var    alertCenter:    null      // MLAlertCenter (created by the fly view)
 
     property Settings _layout: Settings {
         category:                   "MLLayout"
@@ -56,6 +59,13 @@ QtObject {
         property alias showPredictions: root.showPredictions
         property alias profileOpen: root.profileOpen
     }
+
+    // ---- ACACT timeline (filled by MLAcactRecorder from the guard's own events and evaluations) ----
+    // kind: start · stop · predict · clear · takeover · release · lost · operator · info
+    property ListModel acactEvents: ListModel {}
+    property var  acactSep: []          // [{ t, d, level }] closest pair distance, 2 Hz
+    property int  acactSepRev: 0         // bumps when acactSep grows (arrays are not observable)
+    property real acactT0: -1            // guard time at the first sample of this run
 
     // map requests from panels (handled by the fly view map)
     signal fitAllRequested()

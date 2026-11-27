@@ -97,8 +97,10 @@ Item {
                 id: modeChip
                 readonly property bool   _g:       typeof mlGuard !== "undefined"
                 readonly property bool   field:    _g && mlGuard.opMode === "field"
+                readonly property bool   demo:     typeof mlDemo !== "undefined" && mlDemo.active
                 readonly property bool   problem:  _g && mlGuard.opModeProblem !== ""
-                readonly property color  tone:     problem ? MLTheme.caution : (field ? MLTheme.warning : String(MLTheme.accent))
+                readonly property color  tone:     demo ? MLTheme.demo : (problem ? MLTheme.caution : (field ? MLTheme.warning : String(MLTheme.accent)))
+                z:      2
                 anchors.right:          parent.right
                 anchors.rightMargin:    16 * u
                 anchors.verticalCenter: parent.verticalCenter
@@ -111,15 +113,21 @@ Item {
                 MLText {
                     id: modeText
                     anchors.centerIn: parent
-                    text: modeChip.field ? "FIELD" : "SIM"
+                    text: modeChip.demo ? "DEMO" : (modeChip.field ? "FIELD" : "SIM")
                     color: modeChip.tone
                     font.family: MLTheme.mono
                     font.pixelSize: MLTheme.fsLabel
                     font.weight: Font.DemiBold
                     font.letterSpacing: 1.2 * u
                 }
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -4 * u
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: MLState.demoOpen = !MLState.demoOpen
+                }
                 SequentialAnimation on opacity {
-                    running: modeChip.problem
+                    running: modeChip.problem && !modeChip.demo
                     loops: Animation.Infinite
                     onStopped: modeChip.opacity = 1
                     NumberAnimation { to: 0.35; duration: 450 }
@@ -344,6 +352,40 @@ Item {
                 id: viewRow
                 anchors.centerIn: parent
                 spacing: 4 * u
+                // alert centre: bell with the number of unacknowledged alerts, coloured by the worst
+                MLIconButton {
+                    id:         bell
+                    readonly property var c: MLState.alertCenter
+                    readonly property int n: c ? c.unacked : 0
+                    readonly property int w: c ? c.worst : 0
+                    size:       34 * u
+                    glyph:      "🔔"
+                    tip:        qsTr("통합 경고 센터")
+                    checked:    alertPop.opened
+                    tone:       w >= 3 ? MLTheme.warning : (w === 2 ? MLTheme.caution : MLTheme.accent)
+                    onClicked:  alertPop.opened ? alertPop.close() : alertPop.open()
+                    Rectangle {
+                        visible:    bell.n > 0
+                        anchors.right: parent.right; anchors.top: parent.top
+                        anchors.rightMargin: -3 * u; anchors.topMargin: -3 * u
+                        width:      Math.max(18 * u, cnt.implicitWidth + 8 * u); height: 18 * u; radius: 9 * u
+                        color:      bell.w >= 3 ? MLTheme.warning : (bell.w === 2 ? MLTheme.caution : MLTheme.info)
+                        Text { id: cnt; anchors.centerIn: parent; text: bell.n; color: "white"; font.family: MLTheme.mono; font.pixelSize: 11 * u; font.weight: Font.Bold }
+                        SequentialAnimation on opacity {
+                            running: bell.w >= 3 && bell.n > 0; loops: Animation.Infinite
+                            onStopped: parent.opacity = 1
+                            NumberAnimation { to: 0.4; duration: 400 } NumberAnimation { to: 1; duration: 400 }
+                        }
+                    }
+                    MLAlertCenterPanel { id: alertPop; y: parent.height + 10 * u; x: parent.width - width }
+                }
+                MLIconButton {
+                    size:       34 * u
+                    glyph:      "☑"
+                    tip:        qsTr("비행 전 통합 점검")
+                    checked:    MLState.preflightOpen
+                    onClicked:  MLState.preflightOpen = !MLState.preflightOpen
+                }
                 MLIconButton {
                     size:       34 * u
                     glyph:      MLTheme.day ? "☀" : "☾"

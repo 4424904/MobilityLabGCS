@@ -1,4 +1,5 @@
 #include "MLAcactRuntime.h"
+#include "MLDemo.h"
 
 #ifndef ML_GCS_VERSION
 #define ML_GCS_VERSION "dev"
@@ -859,7 +860,12 @@ void MLAcactRuntime::_attach(Vehicle *vehicle)
         // simulation: PX4 SITL has the simulator parameters (SIM_*), HITL/SIH-on-hardware sets SYS_HITL; ArduPilot SITL has SIM_*
         const bool hitl = has("SYS_HITL") && pm->getParameter(ParameterManager::defaultComponentId, QStringLiteral("SYS_HITL"))->rawValue().toInt() > 0;
         d->sim = (has("SIM_BAT_DRAIN") || has("SIM_SPEEDUP") || has("SIM_GPS_USED") || hitl) ? 1 : 0;
-        _event(d->id, d->sim ? tr("시뮬레이션 기체 (SITL/HITL)") : tr("실기체"));
+        // built-in demo vehicle (in-process simulation): never counted as SITL validation
+        SharedLinkInterfacePtr pl = vehicle->vehicleLinkManager()->primaryLink().lock();
+        if (MLDemo::isDemoLink(pl.get())) {
+            d->sim = 2;
+        }
+        _event(d->id, d->sim == 2 ? tr("데모 기체 (GCS 내장 시뮬레이션 · 실기체 아님)") : (d->sim ? tr("시뮬레이션 기체 (SITL/HITL)") : tr("실기체")));
         emit opModeChanged();
         emit profilesChanged();
     });
@@ -1193,7 +1199,12 @@ bool MLAcactRuntime::start()
                 ts << "," << d->id << "_" << c;
             }
         }
-        ts << ",min_pair,min_dist\n";
+        ts << ",min_pair,min_dist";
+        // v1.0: battery per vehicle after the pair columns (older readers ignore trailing columns)
+        for (VS *d : _vs_) {
+            ts << "," << d->id << "_batt";
+        }
+        ts << "\n";
     }
     _metaPath = QDir(logDir()).filePath(QStringLiteral("guard_%1_meta.json").arg(stamp));
     _startedAt = QDateTime::currentDateTime();
@@ -1988,7 +1999,11 @@ void MLAcactRuntime::_writeLog(double t, const std::vector<DroneIn> &ins)
             md = QString::number(dd, 'f', 2);
         }
     }
-    ts << "," << mp << "," << md << "\n";
+    ts << "," << mp << "," << md;
+    for (VS *d : _vs_) {
+        ts << "," << (std::isnan(d->batt) ? QString() : QString::number(d->batt, 'f', 0));
+    }
+    ts << "\n";
 }
 
 QString MLAcactRuntime::_riskReason(const QString &id) const
@@ -2622,8 +2637,8 @@ QString MLAcactRuntime::opModeProblem() const
         }
         if (d->sim == 0) {
             real << d->id;
-        } else if (d->sim == 1) {
-            sim << d->id;
+        } else if (d->sim >= 1) {
+            sim << d->id;   // SITL/HITL or built-in demo
         }
     }
     if (_opMode == QLatin1String("sim") && !real.isEmpty()) {
@@ -2792,7 +2807,7 @@ void MLAcactRuntime::_writeMeta(bool final)
         {QStringLiteral("version"), 1},
         {QStringLiteral("app"), QStringLiteral("%1 (QGC %2)").arg(QStringLiteral(ML_GCS_VERSION), QCoreApplication::applicationVersion())},
         {QStringLiteral("start"), _startedAt.toString(Qt::ISODate)},
-        {QStringLiteral("opMode"), _opMode},
+        {QStringLiteral("opMode"), (MLDemo::instance() && MLDemo::instance()->active()) ? QStringLiteral("demo") : _opMode},
         {QStringLiteral("plan"), planTitle()},
         {QStringLiteral("planSignature"), planSignature()},
         {QStringLiteral("profile"), _profile},

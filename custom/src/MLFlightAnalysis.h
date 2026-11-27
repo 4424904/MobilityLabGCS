@@ -68,9 +68,10 @@ private:
     struct Track {
         QString id;
         int sysid = 0;
+        int battCol = -1;
         bool controlled = true;
         int sim = -1;
-        QVector<float> f, r, alt;
+        QVector<float> f, r, alt, spd, batt;
         QVector<quint8> own, fresh;
         QVector<QString> mode;
     };

@@ -1,0 +1,77 @@
+diff --git a/src/AutoPilotPlugins/AutoPilotPlugin.cc b/src/AutoPilotPlugins/AutoPilotPlugin.cc
+index c2ef436..2abc19e 100644
+--- a/src/AutoPilotPlugins/AutoPilotPlugin.cc
++++ b/src/AutoPilotPlugins/AutoPilotPlugin.cc
+@@ -57,7 +57,9 @@ void AutoPilotPlugin::parametersReadyPreChecks()
+     }
+ 
+     if (!_setupComplete) {
+-        QGC::showAppMessage(tr("Configuration tasks remain before this vehicle is ready to fly. See Vehicle Configuration for details."));
++        // MobilityLab: no blocking dialog; the console's alert centre and pre-flight check show
++        // "setup incomplete" for this vehicle (autopilotPlugin.setupComplete).
++        qCWarning(AutoPilotPluginLog) << "Configuration tasks remain before this vehicle is ready to fly";
+     }
+ }
+ 
+diff --git a/src/Comms/LinkManager.cc b/src/Comms/LinkManager.cc
+index 0fd65c3..054fc32 100644
+--- a/src/Comms/LinkManager.cc
++++ b/src/Comms/LinkManager.cc
+@@ -131,6 +131,10 @@ void LinkManager::disconnectLinkConfiguration(LinkConfiguration *config)
+ 
+ bool LinkManager::createConnectedLink(SharedLinkConfigurationPtr &config)
+ {
++    if (_linkGate && !_linkGate(config)) {
++        qCWarning(LinkManagerLog) << "link blocked (demo mode):" << config->name();
++        return false;
++    }
+     config->setSuppressAutoReconnect(false);
+ 
+     SharedLinkInterfacePtr link = nullptr;
+@@ -160,6 +164,9 @@ bool LinkManager::createConnectedLink(SharedLinkConfigurationPtr &config)
+ #endif
+     case LinkConfiguration::TypeLast:
+     default:
++        if (_customLinkFactory) {
++            link = _customLinkFactory(config);
++        }
+         break;
+     }
+ 
+diff --git a/src/Comms/LinkManager.h b/src/Comms/LinkManager.h
+index 739b2a5..4441d09 100644
+--- a/src/Comms/LinkManager.h
++++ b/src/Comms/LinkManager.h
+@@ -1,5 +1,7 @@
+ #pragma once
+ 
++#include <functional>
++
+ #include <QtCore/QList>
+ #include <QtCore/QMutex>
+ #include <QtCore/QMutexLocker>
+@@ -84,6 +86,15 @@ class LinkManager : public QObject
+     /// Creates, connects (and adds) a link  based on the given configuration instance.
+     bool createConnectedLink(SharedLinkConfigurationPtr &config);
+ 
++    /// MobilityLab: links of types QGC does not build itself (in-process demo vehicles). The factory is
++    /// asked for any configuration whose type() is TypeLast.
++    using CustomLinkFactory = std::function<SharedLinkInterfacePtr(SharedLinkConfigurationPtr &)>;
++    static void setCustomLinkFactory(CustomLinkFactory factory) { _customLinkFactory = std::move(factory); }
++    /// MobilityLab: while set, a link is only created when the gate returns true (demo mode keeps every
++    /// real link — UDP, serial, TCP, Bluetooth, auto-connect — closed, so no command can reach an aircraft).
++    using LinkGate = std::function<bool(const SharedLinkConfigurationPtr &)>;
++    static void setLinkGate(LinkGate gate) { _linkGate = std::move(gate); }
++
+     /// Returns pointer to the mavlink forwarding link, or nullptr if it does not exist
+     SharedLinkInterfacePtr mavlinkForwardingLink();
+ 
+@@ -148,6 +159,8 @@ private slots:
+     QList<SharedLinkInterfacePtr> _rgLinks;
+     QList<SharedLinkConfigurationPtr> _rgLinkConfigs;
+ 
++    static inline CustomLinkFactory _customLinkFactory;
++    static inline LinkGate _linkGate;
+     static constexpr const char *_defaultUDPLinkName = "UDP Link (AutoConnect)";
+     static constexpr const char *_mavlinkForwardingLinkName = "MAVLink Forwarding Link";
+     static constexpr const char *_mavlinkForwardingSupportLinkName = "MAVLink Support Forwarding Link";

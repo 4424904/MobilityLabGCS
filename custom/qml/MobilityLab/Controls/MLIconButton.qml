@@ -1,12 +1,20 @@
 import QtQuick
 import QtQuick.Controls
 
+import QGroundControl.Controls
+
 // Small square button with a glyph (or an svg icon) and a tooltip, for panel headers and
 // map tools. checked: lit in the accent colour.
 Rectangle {
     id: root
     property string glyph
     property url    icon
+    // glyphs used across the console map to the MOBILITY LAB line-icon set (res/icons/ui)
+    readonly property var _iconOf: ({ "⤢": "fit", "◎": "target", "⌖": "follow", "★": "star", "↔": "ruler", "▱": "area", "◫": "layers",
+        "+": "plus", "−": "minus", "✕": "close", "‹": "left", "›": "right", "⧉": "detach", "↻": "refresh", "⇩": "download", "↶": "undo",
+        "⌫": "trash", "✓": "check", "▣": "console", "≡": "timeline", "◭": "cube", "⟲": "refresh", "🔔": "bell", "☑": "checklist",
+        "☀": "sun", "☾": "moon", "▦": "layout", "⌕": "search", "⚠": "bell" })
+    readonly property string _svg: icon.toString() !== "" ? icon.toString() : (_iconOf[glyph] ? "/MobilityLab/ui/" + _iconOf[glyph] + ".svg" : "")
     property string tip
     property bool   checked:    false
     property bool   enabledState: true
@@ -27,15 +35,18 @@ Rectangle {
         id: row
         anchors.centerIn: parent
         spacing: 6 * MLTheme.u
-        Image {
-            visible:            root.icon.toString() !== ""
+        QGCColoredImage {
+            visible:            root._svg !== ""
             anchors.verticalCenter: parent.verticalCenter
-            source:             root.icon
-            sourceSize.height:  root.size * 0.55
+            source:             root._svg
+            width:              root.size * 0.56
+            height:             width
+            sourceSize.height:  height * 2
             fillMode:           Image.PreserveAspectFit
+            color:              root.checked ? root.tone : MLTheme.label
         }
         Text {
-            visible:        root.glyph !== ""
+            visible:        root.glyph !== "" && root._svg === ""
             anchors.verticalCenter: parent.verticalCenter
             text:           root.glyph
             color:          root.checked ? root.tone : MLTheme.label
