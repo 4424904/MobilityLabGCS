@@ -323,7 +323,7 @@ Item {
     }
 
     // keyboard shortcuts (no flight commands — see MLShortcuts)
-    MLShortcuts { id: shortcuts; window: typeof mainWindow !== "undefined" ? mainWindow : null }
+    MLShortcuts { id: mlShortcuts; window: typeof mainWindow !== "undefined" ? mainWindow : null }
 
     // SITL test hook (ML_TEST_UI_MODES=1): switch the screen mode every few seconds during a flight;
     // the flight result must be unaffected (tools/ci_sitl.sh case "modes")
@@ -780,10 +780,12 @@ Item {
 
         // STANDARD: ACACT at a glance, below the search bar
         MLAcactStrip {
+            // top-left of the map: clear of the search bar and of QGC's centred confirm slider
             anchors.top:                parent.top
             anchors.topMargin:          58 * _u
-            anchors.horizontalCenter:   parent.horizontalCenter
-            width:                      Math.min(implicitWidth, parent.width - 160 * _u)
+            anchors.left:               parent.left
+            anchors.leftMargin:         78 * _u
+            width:                      Math.min(implicitWidth, parent.width * 0.62)
             z:                          QGroundControl.zOrderWidgets + 3
             visible:                    _consoleVisible && MLState.isStandard && (QGroundControl.multiVehicleManager.vehicles.count > 1 || (typeof mlGuard !== "undefined" && mlGuard.active))
         }
@@ -842,7 +844,7 @@ Item {
             active:           MLState.prefsOpen
             sourceComponent:  Component {
                 MLPrefsMenu {
-                    shortcuts:        shortcuts
+                    shortcuts:        mlShortcuts
                     onCloseRequested: MLState.prefsOpen = false
                     MouseArea { anchors.fill: parent; z: -1 }
                 }
@@ -867,7 +869,7 @@ Item {
         sourceComponent: Component {
             MLShowcaseView {
                 onExitRequested:       MLState.leaveShowcase()
-                onFullscreenRequested: shortcuts.run("view.full")
+                onFullscreenRequested: mlShortcuts.run("view.full")
             }
         }
     }

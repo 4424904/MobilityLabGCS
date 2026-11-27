@@ -260,7 +260,7 @@ Rectangle {
                             }
                         }
                     }
-                    MLText { visible: root.pairRows.length === 0; text: root.source === "demo" ? qsTr("ACACT 가드 시작 대기 — 자동 시연이 곧 시작합니다") : qsTr("이 기록에는 기체 쌍이 없습니다"); color: MLTheme.dim; font.pixelSize: MLTheme.fsSmall; width: parent.width; wrapMode: Text.WordWrap }
+                    MLText { visible: root.pairRows.length === 0; text: root.source === "demo" ? (root._g && mlGuard.active ? qsTr("공중에 있는 기체 쌍이 없습니다 — 이륙하면 표시됩니다") : qsTr("ACACT 가드 시작 대기 — 자동 시연이 곧 시작합니다")) : qsTr("이 기록에는 기체 쌍이 없습니다"); color: MLTheme.dim; font.pixelSize: MLTheme.fsSmall; width: parent.width; wrapMode: Text.WordWrap }
 
                     // events
                     MLSectionTitle { text: qsTr("ACACT 이벤트") }
