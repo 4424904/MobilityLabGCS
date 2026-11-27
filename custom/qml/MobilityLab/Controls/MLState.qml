@@ -39,6 +39,9 @@ QtObject {
     property bool   alertCenterOpen: false
     property bool   preflightOpen:  false
     property bool   demoOpen:       false
+    property bool   demoAutoRequested: false   // start the automatic demonstration (demo panel / tour)
+    property bool   alertPanelOpen: false
+    property bool   layoutMenuOpen: false
     // side panels in their own windows (second monitor)
     property bool   leftDetached:   false
     property bool   rightDetached:  false

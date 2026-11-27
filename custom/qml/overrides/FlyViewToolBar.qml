@@ -377,7 +377,12 @@ Item {
                             NumberAnimation { to: 0.4; duration: 400 } NumberAnimation { to: 1; duration: 400 }
                         }
                     }
-                    MLAlertCenterPanel { id: alertPop; y: parent.height + 10 * u; x: parent.width - width }
+                    MLAlertCenterPanel {
+                        id: alertPop; y: parent.height + 10 * u; x: parent.width - width
+                        onOpened: MLState.alertPanelOpen = true
+                        onClosed: MLState.alertPanelOpen = false
+                    }
+                    Connections { target: MLState; function onAlertPanelOpenChanged() { if (MLState.alertPanelOpen && !alertPop.opened) alertPop.open(); else if (!MLState.alertPanelOpen && alertPop.opened) alertPop.close() } }
                 }
                 MLIconButton {
                     size:       34 * u
@@ -399,7 +404,12 @@ Item {
                     tip:        qsTr("화면 구성 · 레이아웃")
                     checked:    layoutMenu.opened
                     onClicked:  layoutMenu.opened ? layoutMenu.close() : layoutMenu.open()
-                    MLLayoutMenu { id: layoutMenu; y: parent.height + 10 * u; x: parent.width - width }
+                    MLLayoutMenu {
+                        id: layoutMenu; y: parent.height + 10 * u; x: parent.width - width
+                        onOpened: MLState.layoutMenuOpen = true
+                        onClosed: MLState.layoutMenuOpen = false
+                    }
+                    Connections { target: MLState; function onLayoutMenuOpenChanged() { if (MLState.layoutMenuOpen && !layoutMenu.opened) layoutMenu.open(); else if (!MLState.layoutMenuOpen && layoutMenu.opened) layoutMenu.close() } }
                 }
             }
         }

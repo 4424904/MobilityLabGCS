@@ -328,6 +328,12 @@ Item {
         }
     }
 
+    // screen-capture tour (ML_TOUR=1, tools/ui_tour.sh)
+    Loader {
+        active: typeof mlTour !== "undefined" && mlTour
+        sourceComponent: Component { MLTourDriver { } }
+    }
+
     // SITL tests (ML_TEST_ACACT=1): operator-workflow driver, see MLAcactTestDriver.qml
     Loader {
         active: typeof mlTestAcact !== "undefined" && mlTestAcact

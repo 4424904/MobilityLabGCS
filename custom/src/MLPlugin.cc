@@ -255,6 +255,7 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
             QTimer::singleShot(4000 + secs * 1000, demo, [demo]() { demo->stop(); });
         }
     }
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTour"), qEnvironmentVariable("ML_TOUR") == QStringLiteral("1"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlDemoAuto"), qEnvironmentVariable("MLGCS_DEMO_AUTO") == QStringLiteral("1"));
     // Korean / English for the MobilityLab UI (custom/i18n/en.json)
     auto *ui = new MLUi(this);

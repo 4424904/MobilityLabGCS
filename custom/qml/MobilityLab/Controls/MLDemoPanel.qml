@@ -33,6 +33,13 @@ Rectangle {
             if (!mlDemo.active) root.autoStage = 0
         }
     }
+    Connections {
+        target: MLState
+        function onDemoAutoRequestedChanged() {
+            if (MLState.demoAutoRequested && root._on) { root.autoStage = 1; root.autoText = qsTr("시작…") }
+            MLState.demoAutoRequested = false
+        }
+    }
     // progress into the log (CI)
     onAutoTextChanged: if (typeof mlTestAcact !== "undefined" && mlTestAcact && autoText !== "") console.log("MLDEMO auto | " + autoText)
 
