@@ -15,6 +15,7 @@ import QGroundControl.FactControls
 import QGroundControl.FlyView
 import QGroundControl.Geo
 import QGroundControl.Toolbar
+import QGroundControl.PlanView
 
 import MobilityLab.Controls
 
