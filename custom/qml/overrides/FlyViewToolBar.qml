@@ -183,7 +183,7 @@ Item {
                 required property var object
                 readonly property bool _active: object === control._activeVehicle
                 readonly property bool _lost:   object && object.vehicleLinkManager.communicationLost
-                width:  196 * u
+                width:  (MLState.isStandard ? 168 : 196) * u
                 height: leftRow.height
                 Rectangle { anchors.fill: parent; color: tab._active ? String(MLTheme.hover) : (tabMouse.containsMouse ? String(MLTheme.tile) : "transparent") }
                 Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
@@ -236,7 +236,7 @@ Item {
 
         // fleet commands (2+ vehicles)
         Item {
-            visible:    control._vehicles.count > 1
+            visible:    control._vehicles.count > 1 && MLState.isAdvanced
             width:      fleetText.implicitWidth + 32 * u
             height:     leftRow.height
             Rectangle { anchors.fill: parent; color: MLState.fleetOpen ? String(MLTheme.hover) : (fleetMouse.containsMouse ? String(MLTheme.tile) : "transparent") }
@@ -306,6 +306,14 @@ Item {
                 Text { text: value; color: valueColor; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody; font.weight: Font.Medium }
                 Text { text: sub; visible: sub !== ""; color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel }
             }
+        }
+
+        // operating mode: STANDARD / ADVANCED / SHOWCASE
+        Item {
+            width:  modeSwitch.implicitWidth + 20 * u
+            height: parent.height
+            Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: MLTheme.line }
+            MLModeSwitch { id: modeSwitch; anchors.centerIn: parent }
         }
 
         readonly property bool _has:   !!control._activeVehicle
@@ -392,6 +400,7 @@ Item {
                     onClicked:  MLState.preflightOpen = !MLState.preflightOpen
                 }
                 MLIconButton {
+                    visible:    MLState.isAdvanced
                     size:       34 * u
                     glyph:      MLTheme.day ? "☀" : "☾"
                     tip:        MLTheme.day ? qsTr("주간 테마 — 눌러서 야간으로") : qsTr("야간 테마 — 눌러서 주간으로")
@@ -399,6 +408,7 @@ Item {
                 }
                 MLIconButton {
                     id:         layoutBtn
+                    visible:    MLState.isAdvanced
                     size:       34 * u
                     glyph:      "▦"
                     tip:        qsTr("화면 구성 · 레이아웃")
@@ -411,11 +421,26 @@ Item {
                     }
                     Connections { target: MLState; function onLayoutMenuOpenChanged() { if (MLState.layoutMenuOpen && !layoutMenu.opened) layoutMenu.open(); else if (!MLState.layoutMenuOpen && layoutMenu.opened) layoutMenu.close() } }
                 }
+                MLIconButton {
+                    size:       34 * u
+                    glyph:      "?"
+                    tip:        qsTr("시작 안내 · 도움말 (Shift+F1)")
+                    checked:    MLState.onboardingOpen
+                    onClicked:  MLState.onboardingOpen = !MLState.onboardingOpen
+                }
+                MLIconButton {
+                    size:       34 * u
+                    glyph:      "⚙"
+                    tip:        qsTr("환경 설정 — 테마·고대비·UI 배율·언어·단축키 (Ctrl+,)")
+                    checked:    MLState.prefsOpen
+                    onClicked:  MLState.prefsOpen = !MLState.prefsOpen
+                }
             }
         }
 
         // QGC's own indicators (RTK, gimbal, remote ID, …) in a drop-down
         Item {
+            visible: MLState.isAdvanced
             width:  moreText.implicitWidth + 28 * u
             height: parent.height
             Rectangle { anchors.fill: parent; color: control._indicatorsOpen ? MLTheme.panelRaised : (moreMouse.containsMouse ? String(MLTheme.tile) : "transparent") }
@@ -435,6 +460,7 @@ Item {
                 anchors.centerIn:       parent
                 spacing:                22 * u
                 Column {
+                    visible: control.width > 2000 * u || MLState.isAdvanced
                     anchors.verticalCenter: parent.verticalCenter
                     MLText { text: "UTC"; color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel; font.letterSpacing: 0.7 * u }
                     Text { text: Qt.formatTime(new Date(clock.now.getTime() + clock.now.getTimezoneOffset() * 60000), "hh:mm:ss"); color: MLTheme.text; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody }

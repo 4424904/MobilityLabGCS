@@ -198,16 +198,60 @@ Rectangle {
         }
     }
 
-    MLText {
+    // command target: which aircraft the buttons act on (v1.1 — no confusion with several vehicles)
+    Item {
+        id:                     tgtHost
         anchors.left:           buttons.right
         anchors.leftMargin:     20 * u
         anchors.right:          killBlock.left
         anchors.rightMargin:    20 * u
-        anchors.verticalCenter: parent.verticalCenter
-        text:                   qsTr("명령은 두 번 눌러 실행 · 비상정지는 2초 누름")
-        color:                  MLTheme.faint
-        font.pixelSize:         MLTheme.fsLabel
-        font.letterSpacing:     0.5 * u
+        anchors.top:            parent.top
+        anchors.bottom:         parent.bottom
+        readonly property int  _n:      QGroundControl.multiVehicleManager.vehicles.count
+        readonly property color _vc:    root._connected ? MLTheme.vehicleColor(root._vehicle.id) : MLTheme.faint
+        Rectangle {
+            id: target
+            visible: root._connected
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.min(parent.width, tgtRow.implicitWidth + 28 * u)
+            height: 56 * u
+            radius: 8 * u
+            color: parent._n > 1 ? MLTheme.alpha(parent._vc, 0.12) : "transparent"
+            border.color: parent._n > 1 ? MLTheme.alpha(parent._vc, 0.85) : MLTheme.line
+            border.width: parent._n > 1 ? 2 : 1
+            Rectangle { x: 0; width: 5 * u; height: parent.height; radius: 2 * u; color: tgtHost._vc }
+            Row {
+                id: tgtRow
+                x: 16 * u; anchors.verticalCenter: parent.verticalCenter
+                spacing: 12 * u
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    MLText { text: qsTr("명령 대상"); color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel; font.letterSpacing: 0.6 * u }
+                    Row {
+                        spacing: 8 * u
+                        Text { text: root._connected ? MLTheme.uavName(root._vehicle.id) : ""; color: tgtHost._vc; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsTitle; font.weight: Font.DemiBold }
+                        MLText { anchors.verticalCenter: parent.verticalCenter; text: root._connected ? MLTheme.vehicleTypeName(root._vehicle) + " · " + root._mode : ""; color: MLTheme.label; font.pixelSize: MLTheme.fsSmall }
+                    }
+                }
+                MLText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: tgtHost._n > 1
+                    text: qsTr("다른 기체: 위쪽 탭 · Ctrl+Tab")
+                    color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel
+                }
+            }
+        }
+        MLText {
+            anchors.left: target.visible ? target.right : parent.left
+            anchors.leftMargin: target.visible ? 16 * u : 0
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: qsTr("명령은 두 번 눌러 실행 · 비상정지는 2초 누름")
+            wrapMode: Text.WordWrap
+            color: MLTheme.faint
+            font.pixelSize: MLTheme.fsLabel
+            font.letterSpacing: 0.5 * u
+        }
     }
 
     // ---- emergency stop ------------------------------------------------------

@@ -13,7 +13,8 @@ Rectangle {
     readonly property var _iconOf: ({ "⤢": "fit", "◎": "target", "⌖": "follow", "★": "star", "↔": "ruler", "▱": "area", "◫": "layers",
         "+": "plus", "−": "minus", "✕": "close", "‹": "left", "›": "right", "⧉": "detach", "↻": "refresh", "⇩": "download", "↶": "undo",
         "⌫": "trash", "✓": "check", "▣": "console", "≡": "timeline", "◭": "cube", "⟲": "refresh", "🔔": "bell", "☑": "checklist",
-        "☀": "sun", "☾": "moon", "▦": "layout", "⌕": "search", "⚠": "bell" })
+        "☀": "sun", "☾": "moon", "▦": "layout", "⌕": "search", "⚠": "bell",
+        "⚙": "gear", "?": "help", "⌨": "keyboard", "▶": "play", "⛶": "fullscreen", "⤡": "exitfull", "⛨": "shield", "∿": "pulse" })
     readonly property string _svg: icon.toString() !== "" ? icon.toString() : (_iconOf[glyph] ? "/MobilityLab/ui/" + _iconOf[glyph] + ".svg" : "")
     property string tip
     property bool   checked:    false
@@ -69,7 +70,7 @@ Rectangle {
         cursorShape:    root.enabledState ? Qt.PointingHandCursor : Qt.ArrowCursor
         onClicked:      if (root.enabledState) root.clicked()
     }
-    ToolTip.visible:    root.tip !== "" && ma.containsMouse
+    ToolTip.visible:    MLState.helpTips && root.tip !== "" && ma.containsMouse
     ToolTip.delay:      500
     ToolTip.text:       root.tip
 }

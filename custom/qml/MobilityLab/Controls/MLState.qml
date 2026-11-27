@@ -49,6 +49,52 @@ QtObject {
     property bool   acact3dOpen:    false
     property bool   acact3dDetached: false
     property bool   bootDone:       false
+
+    // ---- operating mode (v1.1) ----------------------------------------------
+    // standard  기본 운용: map first, flight-critical information and readiness only, details on demand
+    // advanced  전문 관제: every panel of v1.0 (QGC functions, ACACT console, telemetry, analysis)
+    // showcase  기술 시연: full-window presentation of the built-in demo or of a recorded flight
+    // Changing the mode only changes what the screen shows. It never touches a vehicle, a link,
+    // a mission, the ACACT guard or any safety function (verified in SITL: tools/ci_sitl.sh "modes").
+    property string uiMode:         "standard"
+    property string _modeBeforeShowcase: "standard"
+    property string showcaseSource: ""          // "demo" · "replay" — what the showcase screen presents
+    property bool   onboardingDone: false
+    property bool   onboardingOpen: false
+    property bool   prefsOpen:      false
+    property bool   helpTips:       true        // hover help on buttons
+    property string shortcutsJson:  ""          // operator's own key bindings (MLShortcuts)
+    property bool   acactDetailOpen: false      // STANDARD: the ACACT details opened from the status strip
+    property string gfxQuality:     "auto"      // 3D: auto · high · low
+    readonly property bool isStandard: uiMode === "standard"
+    readonly property bool isAdvanced: uiMode === "advanced"
+    readonly property bool isShowcase: uiMode === "showcase"
+    signal modeRefused(string mode, string reason)
+
+    // Real (non-demo) vehicles connected: SHOWCASE hides the flight controls, so it is only
+    // available when nothing real is connected. Returns "" when allowed.
+    function showcaseBlockReason() {
+        var vs = QGroundControl.multiVehicleManager.vehicles
+        var demo = typeof mlDemo !== "undefined" ? mlDemo : null
+        var real = 0
+        for (var i = 0; i < vs.count; i++) {
+            var v = vs.get(i)
+            if (!(demo && demo.active && demo.isDemoSysid(v.id))) real++
+        }
+        return real > 0 ? qsTr("실기체 %1대가 연결되어 있어 시연 모드로 바꿀 수 없습니다 — 비행 조작 화면을 숨기지 않기 위해서입니다").arg(real) : ""
+    }
+    function setUiMode(m) {
+        if (m !== "standard" && m !== "advanced" && m !== "showcase") return false
+        if (m === uiMode) return true
+        if (m === "showcase") {
+            var why = showcaseBlockReason()
+            if (why !== "") { modeRefused(m, why); return false }
+            _modeBeforeShowcase = uiMode
+        }
+        uiMode = m
+        return true
+    }
+    function leaveShowcase() { if (uiMode === "showcase") uiMode = _modeBeforeShowcase === "showcase" ? "standard" : _modeBeforeShowcase }
     property var    alertCenter:    null      // MLAlertCenter (created by the fly view)
 
     property Settings _layout: Settings {
@@ -67,6 +113,20 @@ QtObject {
         property alias showPredictions: root.showPredictions
         property alias profileOpen: root.profileOpen
     }
+    property Settings _prefs: Settings {
+        category:                       "MLPrefs"
+        property alias uiMode:          root._savedMode
+        property alias onboardingDone:  root.onboardingDone
+        property alias helpTips:        root.helpTips
+        property alias shortcutsJson:   root.shortcutsJson
+        property alias modeBeforeShowcase: root._modeBeforeShowcase
+        property alias gfxQuality:      root.gfxQuality
+    }
+    // the saved mode: SHOWCASE is never restored at start (it needs the operator to pick a source)
+    property string _savedMode: "standard"
+    on_SavedModeChanged: if (!_modeRestored) { _modeRestored = true; uiMode = (_savedMode === "advanced") ? "advanced" : "standard" }
+    property bool _modeRestored: false
+    onUiModeChanged: { _modeRestored = true; if (uiMode !== "showcase") _savedMode = uiMode }
 
     // ---- ACACT timeline (filled by MLAcactRecorder from the guard's own events and evaluations) ----
     // kind: start · stop · predict · clear · takeover · release · lost · operator · info

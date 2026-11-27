@@ -120,11 +120,12 @@ Item {
         anchors.leftMargin: _m
         open:               _consoleVisible && MLState.leftOpen && !MLState.leftDetached
         openWidth:          _leftW
-        detachable:         true
+        detachable:         MLState.isAdvanced
         onDetachRequested:  MLState.leftDetached = true
-        tabs:               [{ key: "flight", label: qsTr("비행 계기") }, { key: "fleet", label: qsTr("편대 · 기체") }]
-        current:            MLState.leftTab
-        onTabSelected:      (k) => { MLState.leftTab = k; MLState.markCustom() }
+        tabs:               MLState.isStandard ? [{ key: "ready", label: qsTr("비행 준비") }, { key: "flight", label: qsTr("비행 계기") }]
+                                               : [{ key: "flight", label: qsTr("비행 계기") }, { key: "fleet", label: qsTr("편대 · 기체") }]
+        current:            MLState.isStandard ? _stdLeftTab : MLState.leftTab
+        onTabSelected:      (k) => { if (MLState.isStandard) _stdLeftTab = k; else { MLState.leftTab = k; MLState.markCustom() } }
         onCloseRequested:   { MLState.leftOpen = false; MLState.markCustom() }
         onWidthDragged:     (px) => { MLState.leftWidth = px / _u; MLState.markCustom() }
 
@@ -136,7 +137,11 @@ Item {
         MLFleetCards {
             property string pageKey: "fleet"
         }
+        MLReadyPanel {
+            property string pageKey: "ready"
+        }
     }
+    property string _stdLeftTab: "ready"
 
     MLSideDock {
         id:                 systemsColumn
@@ -147,14 +152,14 @@ Item {
         anchors.bottomMargin: _m
         anchors.right:      parent.right
         anchors.rightMargin: _m
-        open:               _consoleVisible && MLState.rightOpen && !MLState.rightDetached
+        open:               _consoleVisible && !MLState.rightDetached && (MLState.isStandard ? MLState.acactDetailOpen : MLState.rightOpen)
         openWidth:          _rightW
-        detachable:         true
+        detachable:         MLState.isAdvanced
         onDetachRequested:  MLState.rightDetached = true
         tabs:               [{ key: "systems", label: qsTr("기체 시스템") }, { key: "acact", label: "ACACT" }]
-        current:            MLState.rightTab
-        onTabSelected:      (k) => { MLState.rightTab = k; MLState.markCustom() }
-        onCloseRequested:   { MLState.rightOpen = false; MLState.markCustom() }
+        current:            MLState.isStandard ? _stdRightTab : MLState.rightTab
+        onTabSelected:      (k) => { if (MLState.isStandard) _stdRightTab = k; else { MLState.rightTab = k; MLState.markCustom() } }
+        onCloseRequested:   { if (MLState.isStandard) MLState.acactDetailOpen = false; else { MLState.rightOpen = false; MLState.markCustom() } }
         onWidthDragged:     (px) => { MLState.rightWidth = px / _u; MLState.markCustom() }
 
         MLSystemsColumn {
@@ -166,6 +171,8 @@ Item {
             property string pageKey: "acact"
         }
     }
+
+    property string _stdRightTab: "acact"
 
     // side panels in their own windows (dual monitor); closing the window docks the panel again
     Loader {
@@ -230,7 +237,7 @@ Item {
     MLEdgeTab {
         anchors.right:          parent.right
         anchors.verticalCenter: systemsColumn.verticalCenter
-        visible:                _consoleVisible && !MLState.rightOpen && !MLState.rightDetached
+        visible:                _consoleVisible && MLState.isAdvanced && !MLState.rightOpen && !MLState.rightDetached
         side:                   "right"
         text:                   qsTr("시스템 · ACACT")
         onClicked:              { MLState.rightOpen = true; MLState.markCustom() }
@@ -250,7 +257,7 @@ Item {
             id:      fleetLanes
             width:   parent.width
             height:  implicitHeight
-            visible: MLState.dockOpen
+            visible: MLState.dockOpen && MLState.isAdvanced
         }
         MLCommandBar {
             id:             commandBar
@@ -288,6 +295,11 @@ Item {
         target: QGroundControl.multiVehicleManager
         function onVehicleAdded(vehicle) {
             if (typeof mlTestAcact !== "undefined" && mlTestAcact) console.log("MLVEHICLE added " + vehicle.id)
+            // a real aircraft appeared: the presentation screen has no flight controls, so leave it
+            if (MLState.isShowcase && !(typeof mlDemo !== "undefined" && mlDemo.active && mlDemo.isDemoSysid(vehicle.id))) {
+                MLState.leaveShowcase()
+                toast.show(qsTr("실기체 UAV %1 연결 — 시연 화면을 닫고 관제 화면으로 돌아왔습니다").arg(("0" + vehicle.id).slice(-2)), MLTheme.caution)
+            }
             if (QGroundControl.multiVehicleManager.vehicles.count > 1) {
                 toast.show(qsTr("UAV %1 연결됨 · 위쪽 탭에서 선택하세요").arg(("0" + vehicle.id).slice(-2)), MLTheme.ok)
             }
@@ -295,6 +307,31 @@ Item {
         function onVehicleRemoved(vehicle) {
             toast.show(qsTr("UAV %1 연결 끊김").arg(("0" + vehicle.id).slice(-2)), MLTheme.caution)
         }
+    }
+
+    // operating mode changes: logged, and a refused change is explained
+    Connections {
+        target: MLState
+        function onModeRefused(mode, reason) {
+            toast.show(reason, MLTheme.caution)
+            if (typeof mlTestAcact !== "undefined" && mlTestAcact) console.log("MLMODE refused " + mode)
+        }
+        function onUiModeChanged() {
+            MLState.log(qsTr("화면 모드 → %1").arg(MLState.uiMode.toUpperCase()), 0, 0, "GCS")
+            if (typeof mlTestAcact !== "undefined" && mlTestAcact) console.log("MLMODE " + MLState.uiMode)
+        }
+    }
+
+    // keyboard shortcuts (no flight commands — see MLShortcuts)
+    MLShortcuts { id: shortcuts; window: typeof mainWindow !== "undefined" ? mainWindow : null }
+
+    // SITL test hook (ML_TEST_UI_MODES=1): switch the screen mode every few seconds during a flight;
+    // the flight result must be unaffected (tools/ci_sitl.sh case "modes")
+    Timer {
+        interval: 4000; repeat: true
+        running: typeof mlTestUiModes !== "undefined" && mlTestUiModes
+        property int n: 0
+        onTriggered: { var seq = ["advanced", "showcase", "standard"]; MLState.setUiMode(seq[n % 3]); n++ }
     }
 
     // ---- Event log feed: FC messages, mode / arming changes -----------------
@@ -741,6 +778,16 @@ Item {
             onCloseRequested:   MLState.demoOpen = false
         }
 
+        // STANDARD: ACACT at a glance, below the search bar
+        MLAcactStrip {
+            anchors.top:                parent.top
+            anchors.topMargin:          58 * _u
+            anchors.horizontalCenter:   parent.horizontalCenter
+            width:                      Math.min(implicitWidth, parent.width - 160 * _u)
+            z:                          QGroundControl.zOrderWidgets + 3
+            visible:                    _consoleVisible && MLState.isStandard && QGroundControl.multiVehicleManager.vehicles.count > 0
+        }
+
         // map tools: search, favourites, measurement, provider, fit / centre / follow, server state
         MLMapTools {
             anchors.fill:   parent
@@ -771,6 +818,54 @@ Item {
                 } else if (!_keepSceneAlive) {
                     viewer3DLoader.source = ""
                 }
+            }
+        }
+    }
+
+    // first-run guide, preferences: centred over everything, with a scrim
+    Rectangle {
+        anchors.fill:   parent
+        z:              QGroundControl.zOrderTopMost + 50
+        visible:        MLState.onboardingOpen || MLState.prefsOpen
+        color:          MLTheme.scrim
+        MouseArea { anchors.fill: parent; onClicked: { MLState.prefsOpen = false; MLState.onboardingOpen = false } }
+        MLOnboarding {
+            anchors.centerIn: parent
+            visible:          MLState.onboardingOpen
+            onCloseRequested: MLState.onboardingOpen = false
+            MouseArea { anchors.fill: parent; z: -1 }
+        }
+        Loader {
+            anchors.centerIn: parent
+            active:           MLState.prefsOpen
+            sourceComponent:  Component {
+                MLPrefsMenu {
+                    shortcuts:        shortcuts
+                    onCloseRequested: MLState.prefsOpen = false
+                    MouseArea { anchors.fill: parent; z: -1 }
+                }
+            }
+        }
+    }
+    // first start: open the guide once the start screen is gone (STANDARD, nothing connected yet)
+    Connections {
+        target: MLState
+        function onBootDoneChanged() {
+            if (MLState.bootDone && !MLState.onboardingDone && MLState.isStandard && QGroundControl.multiVehicleManager.vehicles.count === 0
+                    && !(typeof mlTour !== "undefined" && mlTour) && !(typeof mlTestAcact !== "undefined" && mlTestAcact) && !(typeof mlDemoAuto !== "undefined" && mlDemoAuto))
+                MLState.onboardingOpen = true
+        }
+    }
+
+    // SHOWCASE: the presentation screen over the whole window (the console underneath keeps running)
+    Loader {
+        anchors.fill:   parent
+        z:              QGroundControl.zOrderTopMost + 40
+        active:         MLState.isShowcase
+        sourceComponent: Component {
+            MLShowcaseView {
+                onExitRequested:       MLState.leaveShowcase()
+                onFullscreenRequested: shortcuts.run("view.full")
             }
         }
     }

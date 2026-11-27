@@ -1,11 +1,12 @@
 pragma Singleton
 
 import QtQuick
+import QtCore
 
 import QGroundControl
 import QGroundControl.Controls
 
-// MOBILITY LAB design system (v1.0)
+// MOBILITY LAB design system (v1.1)
 //
 //  Two themes, chosen in Settings or from the top bar:
 //    night  graphite surfaces, for the operations room and dusk/night flying
@@ -25,9 +26,15 @@ QtObject {
 
     // ---- theme ----------------------------------------------------------------
     readonly property var  _indoor: QGroundControl.settingsManager.appSettings.indoorPalette
-    readonly property bool day:     _indoor ? !_indoor.rawValue : false
-    function setDay(on) { if (_indoor) _indoor.rawValue = !on }
+    // contrast: high-contrast day palette for direct sunlight on the flight line (v1.1) — pure
+    // black text, strong rules, opaque panels; always light
+    property bool contrast: false
+    property Settings _display: Settings { category: "MLDisplay"; property alias contrast: t.contrast }
+    readonly property bool day:     contrast || (_indoor ? !_indoor.rawValue : false)
+    function setDay(on) { if (_indoor) _indoor.rawValue = !on; if (!on) contrast = false }
+    function setContrast(on) { contrast = on }
     function pick(night, dayValue) { return day ? dayValue : night }
+    function hc(normal, high) { return contrast ? high : normal }
 
     // ---- scale: 1 design px at the default font size ----------------------------
     // ScreenTools follows Settings › 화면 배율 (uiScalePercent) and the OS DPI.
@@ -59,37 +66,37 @@ QtObject {
     readonly property int easing:     Easing.OutCubic
 
     // ---- surfaces -----------------------------------------------------------------
-    readonly property color bg:             pick("#07090C", "#E9ECEF")
+    readonly property color bg:             hc(pick("#07090C", "#E9ECEF"), "#FFFFFF")
     readonly property color panelSolid:     pick("#0C1014", "#FFFFFF")
-    readonly property color panel:          pick("#F20C1014", "#F7FFFFFF")
+    readonly property color panel:          hc(pick("#F20C1014", "#F7FFFFFF"), "#FFFFFF")
     readonly property color panelHeader:    pick("#10151A", "#F3F5F7")
     readonly property color panelRaised:    pick("#141A20", "#F0F2F5")
-    readonly property color tile:           pick("#10151A", "#F3F5F7")
+    readonly property color tile:           hc(pick("#10151A", "#F3F5F7"), "#F2F2F2")
     readonly property color hover:          pick("#1A2129", "#E4E8EC")
     readonly property color pressed:        pick("#222B34", "#D6DCE2")
-    readonly property color line:           pick("#222931", "#D3D9DF")
+    readonly property color line:           hc(pick("#222931", "#D3D9DF"), "#6B7680")
     readonly property color hair:           pick("#171D23", "#E3E7EB")
-    readonly property color lineStrong:     pick("#36404A", "#AAB4BE")
+    readonly property color lineStrong:     hc(pick("#36404A", "#AAB4BE"), "#1F262C")
     readonly property color shadow:         pick("#99000000", "#33000000")
     readonly property color scrim:          pick("#B3050709", "#80202830")
 
     // ---- text ---------------------------------------------------------------------
-    readonly property color text:           pick("#ECEBE7", "#14181C")
+    readonly property color text:           hc(pick("#ECEBE7", "#14181C"), "#000000")
     readonly property color bright:         pick("#FFFFFF", "#000000")
-    readonly property color label:          pick("#C2C8CF", "#3A434C")
-    readonly property color dim:            pick("#9AA3AD", "#56616C")
-    readonly property color faint:          pick("#66707A", "#8A949E")
+    readonly property color label:          hc(pick("#C2C8CF", "#3A434C"), "#111417")
+    readonly property color dim:            hc(pick("#9AA3AD", "#56616C"), "#2A3036")
+    readonly property color faint:          hc(pick("#66707A", "#8A949E"), "#4A535B")
     readonly property color onAccent:       pick("#04121A", "#FFFFFF")
 
     // ---- meaning ----------------------------------------------------------------------
-    readonly property color accent:         pick("#5CC4F0", "#0067A8")
+    readonly property color accent:         hc(pick("#5CC4F0", "#0067A8"), "#004F82")
     readonly property color accentSoft:     pick("#1A5CC4F0", "#1A0067A8")
     readonly property color target:         pick("#EA72DC", "#A3168F")
-    readonly property color active:         pick("#6FD394", "#0B7A3B")
+    readonly property color active:         hc(pick("#6FD394", "#0B7A3B"), "#00612C")
     readonly property color ok:             active
-    readonly property color caution:        pick("#F5B83A", "#9A5B00")
+    readonly property color caution:        hc(pick("#F5B83A", "#9A5B00"), "#7A4600")
     readonly property color cautionFill:    pick("#2E2208", "#FFF1D1")
-    readonly property color warning:        pick("#FF5F55", "#C8141C")
+    readonly property color warning:        hc(pick("#FF5F55", "#C8141C"), "#A80008")
     readonly property color warningFill:    pick("#3A0F0E", "#FFE1DF")
     readonly property color info:           pick("#8FB8FF", "#2D54A8")
     readonly property color demo:           pick("#C7A2FF", "#6A35B8")     // demo-mode marks
@@ -98,9 +105,9 @@ QtObject {
     readonly property real  radius:         6 * u
 
     // ---- floating panels over the map ----------------------------------------------------
-    readonly property color glass:          pick("#EE0C1014", "#F5FFFFFF")
-    readonly property color glassStrong:    pick("#F70B0F13", "#FBFFFFFF")
-    readonly property color glassEdge:      pick("#2A323B", "#C9D1D9")
+    readonly property color glass:          hc(pick("#EE0C1014", "#F5FFFFFF"), "#FFFFFF")
+    readonly property color glassStrong:    hc(pick("#F70B0F13", "#FBFFFFFF"), "#FFFFFF")
+    readonly property color glassEdge:      hc(pick("#2A323B", "#C9D1D9"), "#1F262C")
     readonly property color glassEdgeHi:    pick("#3E4B57", "#9FAAB5")
     readonly property real  panelRadius:    10 * u
 

@@ -37,6 +37,14 @@
         <file alias="icons/collapse.svg">res/icons/collapse.svg</file>
         <file alias="ui/area.svg">res/icons/ui/area.svg</file>
         <file alias="ui/bell.svg">res/icons/ui/bell.svg</file>
+        <file alias="ui/gear.svg">res/icons/ui/gear.svg</file>
+        <file alias="ui/help.svg">res/icons/ui/help.svg</file>
+        <file alias="ui/keyboard.svg">res/icons/ui/keyboard.svg</file>
+        <file alias="ui/play.svg">res/icons/ui/play.svg</file>
+        <file alias="ui/fullscreen.svg">res/icons/ui/fullscreen.svg</file>
+        <file alias="ui/exitfull.svg">res/icons/ui/exitfull.svg</file>
+        <file alias="ui/shield.svg">res/icons/ui/shield.svg</file>
+        <file alias="ui/pulse.svg">res/icons/ui/pulse.svg</file>
         <file alias="ui/check.svg">res/icons/ui/check.svg</file>
         <file alias="ui/checklist.svg">res/icons/ui/checklist.svg</file>
         <file alias="ui/close.svg">res/icons/ui/close.svg</file>
