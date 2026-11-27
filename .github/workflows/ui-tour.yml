@@ -1,0 +1,71 @@
+name: UI tour (released build)
+
+# Runs a released AppImage (no build) against two PX4 SIH vehicles and records screenshots + a video of the UI.
+# Results → ui-tour-results branch. Tooling only: the product is the release asset, verified by SHA256SUMS.
+
+on:
+  push:
+    branches: [dev]
+    paths: ['tools/ui_tour.sh', '.github/workflows/ui-tour.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  PX4_REF: v1.16.2
+  RELEASE_TAG: v0.9.0-build.67
+
+jobs:
+  tour:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Released AppImage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/rel" && cd "${RUNNER_TEMP}/rel"
+          gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" -p '*AppImage' -p SHA256SUMS
+          grep AppImage SHA256SUMS | sha256sum -c -
+          mv *.AppImage app.AppImage && chmod +x app.AppImage
+
+      - name: PX4 SITL binary (cache)
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/px4sitl
+          key: px4-sitl-bin-${{ env.PX4_REF }}-v1
+          fail-on-cache-miss: true
+
+      - name: Packages
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends \
+            xvfb xauth xdotool imagemagick ffmpeg poppler-utils libegl1 libgl1 libgl1-mesa-dri libglx-mesa0 \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-xinerama0 libxcb-xkb1 libfontconfig1 libpulse0 libspeechd2 libasound2t64 iptables
+
+      - name: Tour
+        timeout-minutes: 45
+        run: bash tools/ui_tour.sh "${RUNNER_TEMP}/rel/app.AppImage" "${RUNNER_TEMP}/px4sitl" "${RUNNER_TEMP}/tour"
+
+      - name: Publish → ui-tour-results
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "${RUNNER_TEMP}/tour"
+          rm -rf plans
+          if [ -f tour.mp4 ] && [ "$(stat -c%s tour.mp4)" -gt 90000000 ]; then
+            ffmpeg -loglevel error -i tour.mp4 -vf scale=1600:-2 -c:v libx264 -preset veryfast -crf 38 small.mp4 && mv small.mp4 tour.mp4
+          fi
+          ls -la
+          git init -q -b ui-tour-results
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "UI tour of ${RELEASE_TAG} (run ${GITHUB_RUN_ID})"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ui-tour-results

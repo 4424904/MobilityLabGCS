@@ -9,9 +9,9 @@ name: Build MobilityLab GCS
 
 on:
   push:
-    branches: ['**', '!ci-screens', '!ci-windows']
+    branches: ['**', '!ci-screens', '!ci-windows', '!ui-tour-results']
     tags: ['v*']
-    paths-ignore: ['**.md', 'docs/**']
+    paths-ignore: ['**.md', 'docs/**', 'tools/ui_tour.sh', '.github/workflows/ui-tour.yml']
   workflow_dispatch:
 
 concurrency:
