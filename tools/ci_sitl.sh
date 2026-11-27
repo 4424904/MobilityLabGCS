@@ -2,7 +2,7 @@
 # SITL checks against MobilityLab GCS.
 #   usage: ci_sitl.sh <build-dir | MobilityLabGCS*.AppImage> <output-dir> <px4-build-dir or ""> [case]
 #   case: targets (default: 목표 조정 commands on ArduPilot + PX4)
-#         s7duo | preflight | user | gcskill | linkloss | operator  (ACACT, two PX4 SIH, see acact_sitl.py)
+#         s7duo | preflight | user | gcskill | linkloss | operator | modes  (ACACT, two PX4 SIH, see acact_sitl.py)
 # Writes sitl-*.json, screenshots and logs to <output-dir>.
 set -uo pipefail
 
@@ -104,8 +104,10 @@ run_fw () {
 status=0
 
 # ---- ACACT cases: two PX4 SIH quadcopters (oregon layout, D2 15 m east of D1, facing north) ------
-start_app () {   # start_app <case> <log>
-    sg dialout -c "ML_TEST_ACACT=1 ML_TEST_ACACT_N=2 ML_TEST_ACACT_CASE='$1' ML_TEST_PLAN_DIR='$OUT/plans' DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 LP_NUM_THREADS=1 nice -n 19 taskset -c $GCS_CPUS '$BIN' > '$2' 2>&1" &
+start_app () {   # start_app <case> <log>   (case "modes" = the "user" flight with ML_TEST_UI_MODES=1)
+    local drv="$1" modes=0
+    if [[ "$1" == "modes" ]]; then drv="user"; modes=1; fi
+    sg dialout -c "ML_TEST_UI_MODES=$modes ML_TEST_ACACT=1 ML_TEST_ACACT_N=2 ML_TEST_ACACT_CASE='$drv' ML_TEST_PLAN_DIR='$OUT/plans' DISPLAY='$disp' QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 LP_NUM_THREADS=1 nice -n 19 taskset -c $GCS_CPUS '$BIN' > '$2' 2>&1" &
     sleep 10
     DISPLAY="$disp" xdotool search --onlyvisible --name ".*" 2>/dev/null | while read -r w; do
         DISPLAY="$disp" xdotool windowmove "$w" 0 0 windowsize "$w" 100% 100% || true

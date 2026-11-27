@@ -8,6 +8,8 @@ marker files written by tools/ci_sitl.sh, and judges the outcome.
 
   --make-plans DIR   write the user-mission .plan files (D1, D2, D2_bad) for the spawn points and exit
 
+Case "modes" = case "user" with the screen mode switched every 4 s during the flight (STANDARD ·
+ADVANCED · SHOWCASE request); the flight checks must pass unchanged and SHOWCASE must be refused.
 Cases and checks (all cases: no two airborne vehicles at the same layer closer than D_EMERG 5.5 m)
   s7duo      mission_loaded, both_airborne, advanced (sync points), takeover, returned, completed
   preflight  load_refused_without_site, heading_issue, start_blocked, never_armed
@@ -245,13 +247,21 @@ def main():
         C.update({"load_refused_without_site": tl(r"load without site refused=true"),
                   "heading_issue": tl(r"heading issue=true"), "start_blocked": tl(r"start with wrong bearing=false"),
                   "never_armed": not any(v.ever_armed for v in vs)})
-    elif a.case == "user":
+    elif a.case in ("user", "modes"):
         m = re.search(r"bad mission errors=(\d+) \[([^\]]*)\] start=(\w+)", app)
         k = re.search(r"mission check errors=(\d+) warnings=(\d+) \[([^\]]*)\]", app)
         C.update({"bad_mission_blocked": bool(m) and int(m.group(1)) > 0 and "TAKEOFF_FAR" in m.group(2) and m.group(3) == "false",
                   "check_warns_crossing": bool(k) and k.group(1) == "0" and "PATH_NEAR" in k.group(3),
                   "both_airborne": len(airborne) == 2, "takeover": len(took) >= 1, "separation": sep_ok,
                   "returned": len(took) >= 1 and took == returned, "completed": completed})
+        if a.case == "modes":
+            # the screen mode was switched every 4 s through the whole flight (ML_TEST_UI_MODES=1):
+            # STANDARD and ADVANCED both used, SHOWCASE refused (real SITL vehicles connected), never entered
+            n_adv = len(re.findall(r"MLMODE advanced", app)); n_std = len(re.findall(r"MLMODE standard", app))
+            res["metrics"]["mode_switches"] = {"advanced": n_adv, "standard": n_std, "showcase_refused": len(re.findall(r"MLMODE refused showcase", app))}
+            C.update({"modes_switched_in_flight": n_adv >= 5 and n_std >= 5,
+                      "showcase_refused_with_real_vehicles": tl(r"MLMODE refused showcase"),
+                      "showcase_never_entered": not tl(r"MLMODE showcase\b")})
     elif a.case == "gcskill":
         tk, tr = marker(a.out, "gcs_killed_at"), marker(a.out, "gcs_restarted_at")
         res["metrics"]["killed_at_s"] = round(tk - t0, 1) if tk else None

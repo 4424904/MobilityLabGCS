@@ -333,5 +333,8 @@ Rectangle {
             }
         }
     }
-    Component.onCompleted: if (_an) mlAnalysis.refresh()
+    Component.onCompleted: {
+        if (_an) mlAnalysis.refresh()
+        if (source === "replay") { cursor = 0; speed = 8; playing = true }   // opened on a loaded record: play it
+    }
 }

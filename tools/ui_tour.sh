@@ -50,7 +50,7 @@ while (( SECONDS < end )); do
     while read -r name; do
         [[ " $seen " == *" $name "* ]] && continue
         seen="$seen $name"
-        if [[ "$name" == "24_dual_monitor" ]]; then
+        if [[ "$name" == "26_dual_monitor" ]]; then
             for w in $(DISPLAY=:55 xdotool search --onlyvisible --name "비행 계기" 2>/dev/null); do DISPLAY=:55 xdotool windowmove "$w" 1920 0 windowsize "$w" 640 1080; done
             for w in $(DISPLAY=:55 xdotool search --onlyvisible --name "기체 시스템" 2>/dev/null); do DISPLAY=:55 xdotool windowmove "$w" 2580 0 windowsize "$w" 640 1080; done
             sleep 2
@@ -75,7 +75,7 @@ kill -INT $FF; sleep 3
 pdf="$(grep -o 'MLTOUR pdf .*' "$LOG" | head -1 | sed -e 's/MLTOUR pdf //' -e 's/ - qml - .*//')"
 if [[ -n "$pdf" && -f "$pdf" ]]; then
     cp "$pdf" "$OUT/ACACT_report_demo.pdf"
-    pdftoppm -r 100 -png "$OUT/ACACT_report_demo.pdf" "$OUT/29_pdf_page"
+    pdftoppm -r 100 -png "$OUT/ACACT_report_demo.pdf" "$OUT/32_pdf_page"
 fi
 stop_app
 grep -E "MLTOUR|MLDEMO|MLACACT|MLVEHICLE" "$LOG" > "$OUT/tour-events.txt"
@@ -91,12 +91,12 @@ for res in 2560x1440 3840x2160; do
     while (( SECONDS < end )); do
         sleep 1
         maximise :56 "${res%x*}" "${res#*x}"
-        for n in 02_main_no_vehicle 08_single_vehicle_mission 09_map_layout_hud; do
+        for n in 03_standard_no_vehicle 09_standard_single_flying 12_advanced_single; do
             if grep -q "MLTOUR shot $n" "$L" && [[ " $got " != *" $n "* ]]; then
                 sleep 1; DISPLAY=:56 import -window root "$OUT/scale_${res}_$n.png"; got="$got $n"
             fi
         done
-        [[ "$got" == *09_map_layout_hud* ]] && break
+        [[ "$got" == *12_advanced_single* ]] && break
     done
     stop_app; kill $XV 2>/dev/null; sleep 1
 done

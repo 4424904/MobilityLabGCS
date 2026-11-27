@@ -127,7 +127,10 @@ Item {
                     _avoidIdx = (_avoidIdx + 1) % avoidTrails.length
                     avoidTrails[_avoidIdx].path = []
                 }
-                if (own) avoidTrails[_avoidIdx].addCoordinate(c)
+                if (own) {
+                    avoidTrails[_avoidIdx].addCoordinate(c)
+                    if (avoidTrails[_avoidIdx].pathLength() > 600) avoidTrails[_avoidIdx].removeCoordinate(0)   // long-session memory bound
+                }
                 _wasOwn = own
                 for (var i = 0; i < avoidTrails.length; i++) {
                     avoidTrails[i].visible = MLState.showTrails

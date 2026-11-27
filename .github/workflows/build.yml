@@ -200,7 +200,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        case: [targets, s7duo, preflight, user, gcskill, linkloss, operator, demo]
+        case: [targets, s7duo, preflight, user, gcskill, linkloss, operator, modes, demo]
     defaults:
       run:
         shell: bash

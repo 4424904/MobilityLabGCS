@@ -577,33 +577,67 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
         f.setBold(bold);
         p.setFont(f);
     };
-    const QColor ink(QStringLiteral("#15191E")), sub(QStringLiteral("#5A626B")), brand(QStringLiteral("#D80E18")), rule(QStringLiteral("#D5DAE0"));
+    // MOBILITY LAB R&D technical-document style (v1.1): A4, conclusion first and back-data after,
+    // letterhead with a white logo plate and a navy title bar, grey table headers with medium
+    // rules, dark text only (no light grey, no red — the office printer turns red into purple).
+    const QColor ink(QStringLiteral("#111417")), sub(QStringLiteral("#3A4148")), navy(QStringLiteral("#1F2A44")),
+                 rule(QStringLiteral("#4A525A")), hair(QStringLiteral("#9AA2AA")), headFill(QStringLiteral("#E4E7EA"));
     double y = 0;
     int pageNo = 1;
     QSvgRenderer logo(QStringLiteral(":/MobilityLab/logo.svg"));
     const bool demoLog = _info.value(QStringLiteral("opMode")).toString() == QLatin1String("demo");
+    const QString docNo = QStringLiteral("ML-ACACT-%1").arg(_stamp);
     auto header = [&]() {
-        p.fillRect(QRectF(0, 0, page.width(), 4), brand);
-        if (logo.isValid()) {
-            logo.render(&p, QRectF(0, 8, 30, 30));
+        if (pageNo == 1) {
+            // letterhead: white logo plate (left) · navy title bar (right)
+            const QRectF plate(0, 0, page.width() * 0.32, 64), bar(page.width() * 0.32, 0, page.width() * 0.68, 64);
+            p.setPen(QPen(rule, 1));
+            p.setBrush(Qt::white);
+            p.drawRect(plate);
+            if (logo.isValid()) {
+                logo.render(&p, QRectF(plate.left() + 12, 14, 36, 36));
+            }
+            font(11, true);
+            p.setPen(ink);
+            p.drawText(QRectF(plate.left() + 56, 8, plate.width() - 60, 30), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("MOBILITY LAB"));
+            font(7.5);
+            p.setPen(sub);
+            p.drawText(QRectF(plate.left() + 56, 34, plate.width() - 60, 22), Qt::AlignLeft | Qt::AlignVCenter, tr("연구개발팀"));
+            p.setPen(Qt::NoPen);
+            p.setBrush(navy);
+            p.drawRect(bar);
+            font(15, true);
+            p.setPen(Qt::white);
+            p.drawText(bar.adjusted(20, 6, -16, -26), Qt::AlignLeft | Qt::AlignVCenter, tr("ACACT 비행시험 결과 보고서"));
+            font(7.5);
+            p.drawText(bar.adjusted(20, 36, -16, -6), Qt::AlignLeft | Qt::AlignVCenter, tr("다중기체 충돌 회피 · GCS 가드 기록 자동 생성"));
+            p.setBrush(Qt::NoBrush);
+            y = 78;
+        } else {
+            if (logo.isValid()) {
+                logo.render(&p, QRectF(0, 4, 20, 20));
+            }
+            font(7.5, true);
+            p.setPen(ink);
+            p.drawText(QRectF(26, 2, page.width(), 24), Qt::AlignLeft | Qt::AlignVCenter, tr("MOBILITY LAB · ACACT 비행시험 결과 보고서"));
+            font(7.5);
+            p.setPen(sub);
+            p.drawText(QRectF(0, 2, page.width(), 24), Qt::AlignRight | Qt::AlignVCenter, docNo);
+            p.setPen(QPen(navy, 1.6));
+            p.drawLine(QPointF(0, 30), QPointF(page.width(), 30));
+            y = 44;
         }
-        font(8.5, true);
-        p.setPen(ink);
-        p.drawText(QRectF(36, 10, page.width(), 26), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("MOBILITY LAB  ·  GCS"));
-        font(7.5);
-        p.setPen(sub);
-        p.drawText(QRectF(0, 10, page.width(), 26), Qt::AlignRight | Qt::AlignVCenter, tr("ACACT 비행 시험 보고서 · %1 · %2쪽").arg(_stamp).arg(pageNo));
         // footer
         p.setPen(QPen(rule, 0.8));
         p.drawLine(QPointF(0, page.height() - 22), QPointF(page.width(), page.height() - 22));
         font(6.8);
         p.setPen(sub);
         p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignLeft | Qt::AlignVCenter,
-                   tr("MOBILITY LAB Co., Ltd. · MobilityLab GCS %1 · ACACT 가드 로그에서 자동 생성").arg(QStringLiteral(ML_GCS_VERSION)));
-        p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignRight | Qt::AlignVCenter,
-                   tr("시뮬레이션 결과는 실제 비행 안전성을 보증하지 않음"));
+                   tr("MOBILITY LAB 연구개발팀 · MobilityLab GCS %1 · %2").arg(QStringLiteral(ML_GCS_VERSION), docNo));
+        p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignHCenter | Qt::AlignVCenter, tr("시뮬레이션 결과는 실제 비행 안전성을 보증하지 않음"));
+        p.drawText(QRectF(0, page.height() - 20, page.width(), 18), Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("- %1 -").arg(pageNo));
         if (demoLog) {
-            // demo runs are never test evidence: watermark every page
+            // demo runs are never test evidence: watermark every page (grey: prints on any printer)
             p.save();
             p.translate(page.center());
             p.rotate(-30);
@@ -611,11 +645,10 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
             wf.setPointSizeF(54);
             wf.setBold(true);
             p.setFont(wf);
-            p.setPen(QColor(106, 53, 184, 40));
+            p.setPen(QColor(0, 0, 0, 34));
             p.drawText(QRectF(-page.width(), -60, page.width() * 2, 120), Qt::AlignCenter, tr("데모 · 시험 기록 아님"));
             p.restore();
         }
-        y = 50;
     };
     auto newPage = [&]() {
         w.newPage();
@@ -627,80 +660,113 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
             newPage();
         }
     };
+    int secNo = 0;
     auto section = [&](const QString &t) {
-        need(40);
-        y += 8;
+        need(44);
+        y += 10;
+        secNo++;
         font(10.5, true);
         p.setPen(ink);
-        p.drawText(QRectF(0, y, page.width(), 30), Qt::AlignLeft | Qt::AlignVCenter, t);
-        y += 32;
-        p.setPen(QPen(rule, 1));
+        p.drawText(QRectF(0, y, page.width(), 28), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("%1. %2").arg(secNo).arg(t));
+        y += 30;
+        p.setPen(QPen(navy, 1.2));
         p.drawLine(QPointF(0, y), QPointF(page.width(), y));
         y += 8;
     };
+    // bordered table: grey header row, medium outer rule, hairline grid
     auto table = [&](const QStringList &heads, const QList<QStringList> &rows, const QList<double> &widths) {
-        const double rh = 25;
+        const double rh = 24;
         need(rh * 2);
+        auto rowRect = [&](double rowTop, double h, bool head) {
+            double x = 0;
+            for (int c = 0; c < widths.size(); c++) {
+                const QRectF cell(x, rowTop, widths[c] * page.width(), h);
+                if (head) {
+                    p.fillRect(cell, headFill);
+                }
+                p.setPen(QPen(hair, 0.6));
+                p.setBrush(Qt::NoBrush);
+                p.drawRect(cell);
+                x += widths[c] * page.width();
+            }
+        };
+        rowRect(y, rh, true);
         double x = 0;
-        font(7.5, true);
-        p.setPen(sub);
+        font(7.6, true);
+        p.setPen(ink);
         for (int c = 0; c < heads.size(); c++) {
-            p.drawText(QRectF(x + 2, y, widths[c] * page.width() - 4, rh), Qt::AlignLeft | Qt::AlignVCenter, heads[c]);
+            p.drawText(QRectF(x + 5, y, widths[c] * page.width() - 10, rh), Qt::AlignLeft | Qt::AlignVCenter, heads[c]);
             x += widths[c] * page.width();
         }
+        double top = y;
         y += rh;
-        p.setPen(QPen(rule, 0.8));
-        p.drawLine(QPointF(0, y), QPointF(page.width(), y));
         for (const QStringList &r : rows) {
-            need(rh);
+            if (y + rh > page.height() - 30) {
+                p.setPen(QPen(rule, 1.2));
+                p.drawRect(QRectF(0, top, page.width(), y - top));
+                newPage();
+                top = y;
+                rowRect(y, rh, true);
+                x = 0;
+                font(7.6, true);
+                p.setPen(ink);
+                for (int c = 0; c < heads.size(); c++) {
+                    p.drawText(QRectF(x + 5, y, widths[c] * page.width() - 10, rh), Qt::AlignLeft | Qt::AlignVCenter, heads[c]);
+                    x += widths[c] * page.width();
+                }
+                y += rh;
+            }
+            rowRect(y, rh, false);
             x = 0;
             font(8);
             p.setPen(ink);
             for (int c = 0; c < r.size() && c < widths.size(); c++) {
-                p.drawText(QRectF(x + 2, y, widths[c] * page.width() - 4, rh), Qt::AlignLeft | Qt::AlignVCenter, r[c]);
+                p.drawText(QRectF(x + 5, y, widths[c] * page.width() - 10, rh), Qt::AlignLeft | Qt::AlignVCenter, r[c]);
                 x += widths[c] * page.width();
             }
             y += rh;
-            p.setPen(QPen(QColor(QStringLiteral("#EDF0F3")), 0.6));
-            p.drawLine(QPointF(0, y), QPointF(page.width(), y));
         }
-        y += 6;
+        p.setPen(QPen(rule, 1.2));
+        p.setBrush(Qt::NoBrush);
+        p.drawRect(QRectF(0, top, page.width(), y - top));
+        y += 8;
     };
     auto m1 = [](const QVariant &v) { return v.isValid() && !v.isNull() ? QString::number(v.toDouble(), 'f', 1) + QStringLiteral(" m") : QStringLiteral("—"); };
-
-    // ---- page 1: title, verdict, conditions, results ----
+    // ---- page 1: document control, conclusion, conditions, results ----
     header();
-    font(19, true);
-    p.setPen(ink);
-    p.drawText(QRectF(0, y, page.width(), 50), Qt::AlignLeft | Qt::AlignVCenter, tr("ACACT 충돌 회피 비행 시험 보고서"));
-    y += 54;
-    font(9.5);
-    p.setPen(sub);
     const QString plan = _info.value(QStringLiteral("plan")).toString();
     const QString mode = _info.value(QStringLiteral("opMode")).toString();
     const QDateTime dt = QDateTime::fromString(_stamp, QStringLiteral("yyyyMMdd_HHmmss"));
-    p.drawText(QRectF(0, y, page.width(), 24), Qt::AlignLeft | Qt::AlignVCenter,
-               QStringLiteral("%1 · %2 · %3").arg(dt.isValid() ? dt.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")) : _stamp,
-                                                  plan.isEmpty() ? tr("계획 정보 없음") : plan,
-                                                  mode == QLatin1String("field") ? tr("실비행") : (mode == QLatin1String("sim") ? tr("시뮬레이션(SITL)") : (mode == QLatin1String("demo") ? tr("데모 (GCS 내장 시뮬레이션 · 시험 기록 아님)") : tr("운용 모드 기록 없음")))));
-    y += 30;
-    // verdict box
+    const QString modeText = mode == QLatin1String("field") ? tr("실비행") : (mode == QLatin1String("sim") ? tr("시뮬레이션(SITL)") : (mode == QLatin1String("demo") ? tr("데모 (GCS 내장 시뮬레이션 · 시험 기록 아님)") : tr("운용 모드 기록 없음")));
+    table({tr("문서 번호"), tr("시험 일시"), tr("운용 구분"), tr("작성일")},
+          {QStringList{docNo, dt.isValid() ? dt.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")) : _stamp, modeText, QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd"))}},
+          {0.27, 0.22, 0.33, 0.18});
+    if (!plan.isEmpty()) {
+        font(8);
+        p.setPen(sub);
+        p.drawText(QRectF(0, y - 4, page.width(), 18), Qt::AlignLeft | Qt::AlignVCenter, tr("비행 계획: %1").arg(plan));
+        y += 16;
+    }
+
+    // conclusion first (R&D report rule): verdict, then the numbers behind it
+    section(tr("결론"));
     const bool pass = _verdict.value(QStringLiteral("pass")).toBool();
-    const QRectF vb(0, y, page.width(), 78);
-    p.setPen(QPen(pass ? QColor(QStringLiteral("#1E8E4E")) : brand, 1.6));
-    p.setBrush(pass ? QColor(30, 142, 78, 18) : QColor(216, 14, 24, 18));
-    p.drawRoundedRect(vb, 4, 4);
+    const QRectF vb(0, y, page.width(), 84);
+    p.setPen(QPen(ink, 1.4));
+    p.setBrush(pass ? QColor(QStringLiteral("#F1F3F5")) : QColor(QStringLiteral("#E2E5E8")));
+    p.drawRect(vb);
+    p.fillRect(QRectF(vb.left(), vb.top(), 8, vb.height()), ink);
     font(13, true);
-    p.setPen(pass ? QColor(QStringLiteral("#1E8E4E")) : brand);
-    p.drawText(vb.adjusted(16, 8, -16, -38), Qt::AlignLeft | Qt::AlignVCenter, pass ? tr("자동 판정: 이격 기준 충족") : tr("자동 판정: 기준 미충족"));
-    font(8.5);
     p.setPen(ink);
+    p.drawText(vb.adjusted(22, 8, -16, -42), Qt::AlignLeft | Qt::AlignVCenter, pass ? tr("■ 자동 판정: 이격 기준 충족") : tr("■ 자동 판정: 기준 미충족"));
+    font(8.6);
     const QStringList reasons = _verdict.value(QStringLiteral("reasons")).toStringList();
-    p.drawText(vb.adjusted(16, 40, -16, -6), Qt::AlignLeft | Qt::AlignVCenter,
+    p.drawText(vb.adjusted(22, 42, -16, -6), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap,
                reasons.isEmpty() ? tr("같은 층(고도차 %1 m 이내) 최소 수평 이격 %2 — 긴급 거리 %3 m 이상, 가드 내부 오류 없음. 시험 책임자 검토 필요.")
                                        .arg(_vSep, 0, 'f', 0).arg(m1(_verdict.value(QStringLiteral("minSame")))).arg(_dEmerg, 0, 'f', 1)
                                  : reasons.join(QStringLiteral(" · ")));
-    y += 92;
+    p.setBrush(Qt::NoBrush);
+    y += 96;
 
     section(tr("시험 조건"));
     QList<QStringList> cond;
@@ -778,15 +844,30 @@ QString MLFlightAnalysis::exportPdf(const QString &pathIn)
     }
     table({tr("시각"), tr("대상"), tr("내용")}, er, {0.1, 0.1, 0.8});
 
-    need(90);
-    y += 20;
-    font(8.5);
-    p.setPen(ink);
-    p.drawText(QRectF(0, y, page.width() / 2, 18), Qt::AlignLeft, tr("시험 책임자:                         (서명)"));
-    p.drawText(QRectF(page.width() / 2, y, page.width() / 2, 18), Qt::AlignLeft, tr("검토자:                         (서명)"));
-    y += 30;
-    font(7);
+    section(tr("검토 및 승인"));
+    need(120);
+    {
+        const double cw = page.width() / 3, hh = 24, bh = 70;
+        const QStringList who{tr("작성 (시험 책임자)"), tr("검토"), tr("승인")};
+        for (int c = 0; c < 3; c++) {
+            const QRectF h(cw * c, y, cw, hh), b(cw * c, y + hh, cw, bh);
+            p.fillRect(h, headFill);
+            p.setPen(QPen(rule, 1));
+            p.setBrush(Qt::NoBrush);
+            p.drawRect(h);
+            p.drawRect(b);
+            font(8, true);
+            p.setPen(ink);
+            p.drawText(h, Qt::AlignCenter, who[c]);
+            font(7.2);
+            p.setPen(sub);
+            p.drawText(b.adjusted(8, 0, -8, -6), Qt::AlignLeft | Qt::AlignBottom, tr("성명 / 서명 / 일자"));
+        }
+        y += hh + bh + 10;
+    }
+    font(7.4);
     p.setPen(sub);
+    need(30);
     p.drawText(QRectF(0, y, page.width(), 30), Qt::AlignLeft | Qt::TextWordWrap,
                tr("이 보고서는 GCS 가드 기록(20 Hz)에서 자동으로 만들었습니다. 판정은 기록 기준이며, 실비행 적용 여부는 시험 책임자가 결정합니다."));
     p.end();
