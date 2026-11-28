@@ -107,13 +107,17 @@ if demo:
     c["rec_load_export"] = ("MLREC export pdf FAIL" not in log and os.path.exists(pdf) and os.path.getsize(pdf) > 10000
                             and os.path.exists(scsv) and os.path.getsize(scsv) > 50)
     m["pdf_bytes"] = os.path.getsize(pdf) if os.path.exists(pdf) else 0
-    g = [float(r["agl"]) for r in rows if r.get("agl") not in ("", None) and r.get("alt_rel") not in ("", None)
-         and abs(float(r["alt_rel"])) < 0.5]
+    # on the ground = disarmed rows (the demo's ground follows the terrain database, so a vehicle that
+    # lands away from home has alt_rel = terrain there − home); tolerance 2 m: the demo samples the
+    # terrain on a 40 m grid, the AGL readout asks for the exact point (DEM ~30 m)
+    g = [float(r["agl"]) for r in rows if r.get("agl") not in ("", None) and r.get("armed") == "0"]
+    m["agl_rows"] = sum(1 for r in rows if r.get("agl") not in ("", None))
     if g:
         m["agl_ground_min"], m["agl_ground_max"] = round(min(g), 2), round(max(g), 2)
-        c["agl_on_ground_near_zero"] = min(g) > -1.5 and max(g) < 1.5
+        c["agl_on_ground_near_zero"] = min(g) > -2.0 and max(g) < 2.0
     for e in ("events.csv",):
         m["events_rows"] = sum(1 for _ in open(os.path.join(d, e), encoding="utf-8-sig")) - 1
+m["ground_line"] = next((l.split("MLDEMO ground",1)[1].strip()[:60] for l in log.splitlines() if "MLDEMO ground" in l), "")
 m["terrain_line"] = next((l.split("MLDEMO terrain",1)[1].strip()[:80] for l in log.splitlines() if "MLDEMO terrain" in l), "")
 print(json.dumps({"c": c, "m": m}))
 PY

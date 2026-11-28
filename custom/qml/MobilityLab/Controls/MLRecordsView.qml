@@ -444,6 +444,7 @@ Rectangle {
                                         var L = 40, W = width - L - 8, H = height - 18
                                         c.strokeStyle = MLTheme.line; c.lineWidth = 1; c.fillStyle = MLTheme.dim; c.font = Math.round(11 * root.u) + "px sans-serif"
                                         for (var g = 0; g <= 4; g++) { var y = H - H * g / 4 + 4; c.beginPath(); c.moveTo(L, y); c.lineTo(L + W, y); c.stroke(); c.fillText((mx * g / 4).toFixed(mx < 20 ? 1 : 0), 2, y + 4) }
+                                        for (var tg = 0; tg <= 5; tg++) { var tx = L + W * tg / 5; c.fillText(MLTheme.duration(dur * tg / 5), Math.min(tx - 10, L + W - 34), H + 16) }
                                         for (var a = 0; a < lines.length; a++) {
                                             c.strokeStyle = lines[a].c; c.lineWidth = 1.6; c.beginPath()
                                             for (var b = 0; b < lines[a].p.length; b++) { var px = L + W * lines[a].p[b][0] / dur, py = H - H * Math.min(1, lines[a].p[b][1] / mx) + 4; if (b === 0) c.moveTo(px, py); else c.lineTo(px, py) }

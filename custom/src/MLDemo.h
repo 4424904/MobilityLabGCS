@@ -21,6 +21,7 @@
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QObject>
+#include <QtCore/QVector>
 #include <QtCore/QPointer>
 #include <QtCore/QTimer>
 #include <QtCore/QVariantList>
@@ -196,6 +197,10 @@ private:
 
     bool _active = false;
     QString _altRef;
+    // ground under the demo area from QGC's terrain database (same source as AGL): a grid of
+    // heights around the demo origin, kGroundN × kGroundN points kGroundStep metres apart
+    QVector<double> _ground;            // empty while unknown
+    double _groundRel(const MLDemoVehicle &v) const;   // ground height under v relative to its home (0 if unknown)
     void _queryTerrain();
     QString _scenario;
     QString _planDir;

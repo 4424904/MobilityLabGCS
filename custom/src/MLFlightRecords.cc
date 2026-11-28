@@ -68,6 +68,9 @@ double haversine(double lat1, double lon1, double lat2, double lon2)
     const double a = std::sin(dp / 2) * std::sin(dp / 2) + std::cos(p1) * std::cos(p2) * std::sin(dl / 2) * std::sin(dl / 2);
     return 2 * R * std::asin(std::min(1.0, std::sqrt(a)));
 }
+// PDF: drawing is in points (72 per inch, painter scaled ×2 onto the 144 dpi writer); a font's point
+// size is applied at the writer's 144 dpi before that scale, so it is halved to come out at its size
+constexpr double kPdfPt = 0.5;
 const char *kHeader = "t,sysid,lat,lon,alt_rel,alt_amsl,agl,gs,vs,hdg,roll,pitch,batt_pct,batt_v,gps_fix,sats,hdop,link_lost,armed,acact_own,mode";
 } // namespace
 
@@ -833,9 +836,12 @@ void MLFlightRecords::_drawMap(QPainter &p, const QRectF &rc) const
                 p.setPen(Qt::NoPen);
                 p.setBrush(cols[i % 6]);
                 p.drawEllipse(pt(r.lat, r.lon), 3, 3);
-                QFont f = p.font(); f.setPointSizeF(7); f.setBold(true); p.setFont(f);
+                QFont f = p.font(); f.setPointSizeF(7 * kPdfPt); f.setBold(true); p.setFont(f);
                 p.setPen(cols[i % 6]);
-                p.drawText(pt(r.lat, r.lon) + QPointF(5, -4), QStringLiteral("UAV %1").arg(v.sysid, 2, 10, QLatin1Char('0')));
+                // start label: alternate right / left of the take-off point so neighbouring vehicles do not overlap
+                const QString lb = QStringLiteral("UAV %1").arg(v.sysid, 2, 10, QLatin1Char('0'));
+                const double tw = p.fontMetrics().horizontalAdvance(lb);
+                p.drawText(pt(r.lat, r.lon) + (i % 2 == 0 ? QPointF(5, -4) : QPointF(-5 - tw, 12)), lb);
                 break;
             }
         }
@@ -845,7 +851,7 @@ void MLFlightRecords::_drawMap(QPainter &p, const QRectF &rc) const
     p.setPen(QPen(QColor(QStringLiteral("#3A4148")), 1.2));
     const QPointF b0(rc.left() + 14, rc.bottom() - 14);
     p.drawLine(b0, b0 + QPointF(bar * s, 0));
-    QFont f = p.font(); f.setPointSizeF(6.8); f.setBold(false); p.setFont(f);
+    QFont f = p.font(); f.setPointSizeF(6.8 * kPdfPt); f.setBold(false); p.setFont(f);
     p.drawText(b0 + QPointF(0, -4), QStringLiteral("%1 m").arg(bar, 0, 'f', 0));
     p.drawText(QRectF(rc.right() - 30, rc.top() + 6, 24, 14), Qt::AlignCenter, QStringLiteral("N ↑"));
     p.restore();
@@ -888,7 +894,7 @@ void MLFlightRecords::_drawChart(QPainter &p, const QRectF &rc, int what) const
     }
     yMax = what == 2 ? 100.0 : std::ceil(yMax * 1.15);
     const QRectF pl = rc.adjusted(34, 8, -8, -18);
-    QFont f = p.font(); f.setPointSizeF(6.5); f.setBold(false); p.setFont(f);
+    QFont f = p.font(); f.setPointSizeF(6.5 * kPdfPt); f.setBold(false); p.setFont(f);
     for (int g = 0; g <= 4; g++) {
         const double y = pl.bottom() - pl.height() * g / 4;
         p.setPen(QPen(QColor(QStringLiteral("#E3E6E9")), 0.6));
@@ -934,7 +940,7 @@ QString MLFlightRecords::exportPdf(const QString &path)
     const QColor ink(QStringLiteral("#14171A")), sub(QStringLiteral("#3E464E")), red(QStringLiteral("#D80E18")), charcoal(QStringLiteral("#22272C")),
                  hair(QStringLiteral("#C9CED4")), fill(QStringLiteral("#F1F3F5"));
     const QString sans = QStringLiteral("IBM Plex Sans KR");
-    auto font = [&](double pt, bool bold = false) { QFont f(sans); f.setPointSizeF(pt); f.setBold(bold); p.setFont(f); };
+    auto font = [&](double pt, bool bold = false) { QFont f(sans); f.setPointSizeF(pt * kPdfPt); f.setBold(bold); p.setFont(f); };
     const bool demo = _meta.value(QStringLiteral("kind")).toString() == QLatin1String("demo");
     const QString docNo = QStringLiteral("ML-FT-%1").arg(_stamp);
     QSvgRenderer logo(QStringLiteral(":/MobilityLab/logo.svg"));
@@ -960,7 +966,7 @@ QString MLFlightRecords::exportPdf(const QString &path)
             p.save();
             p.translate(page.center());
             p.rotate(-30);
-            QFont wf(sans); wf.setPointSizeF(50); wf.setBold(true); p.setFont(wf);
+            QFont wf(sans); wf.setPointSizeF(40 * kPdfPt); wf.setBold(true); p.setFont(wf);
             p.setPen(QColor(0, 0, 0, 30));
             p.drawText(QRectF(-page.width(), -60, page.width() * 2, 120), Qt::AlignCenter, tr("데모 · 실제 시험 기록 아님"));
             p.restore();
@@ -970,8 +976,8 @@ QString MLFlightRecords::exportPdf(const QString &path)
     auto newPage = [&]() { w.newPage(); pageNo++; chrome(); };
     auto need = [&](double h) { if (y + h > page.height() - 26) newPage(); };
     int sec = 0;
-    auto section = [&](const QString &t) {
-        need(40);
+    auto section = [&](const QString &t, double keepWith = 0) {   // keepWith: height of the block that must follow on the same page
+        need(40 + keepWith);
         y += 8; sec++;
         font(8, true); p.setPen(red);
         p.drawText(QRectF(0, y, 24, 20), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("%1").arg(sec, 2, 10, QLatin1Char('0')));
@@ -1124,7 +1130,7 @@ QString MLFlightRecords::exportPdf(const QString &path)
     }
 
     // ---- 05 flight path, charts --------------------------------------------------------------------
-    section(tr("비행 경로"));
+    section(tr("비행 경로"), 268);
     {
         const double h = 250;
         need(h + 18);
@@ -1142,12 +1148,12 @@ QString MLFlightRecords::exportPdf(const QString &path)
         _drawChart(p, QRectF(0, y, page.width(), 120), what);
         y += 128;
     };
-    section(tr("고도 · 속도 · 배터리"));
+    section(tr("고도 · 속도 · 배터리"), 150);
     chart(tr("상대 고도 (m, 이륙점 기준)"), 0);
     chart(tr("지면 속도 (m/s)"), 1);
     chart(tr("배터리 잔량 (%)"), 2);
     if (!_pairV.isEmpty()) {
-        section(tr("기체 간 이격 및 ACACT"));
+        section(tr("기체 간 이격 및 ACACT"), 150);
         chart(tr("기체 쌍 수평 이격 (m)"), 3);
         QList<QStringList> rows;
         for (const QVariant &x : std::as_const(_pairV)) {

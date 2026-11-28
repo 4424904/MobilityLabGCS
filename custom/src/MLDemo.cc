@@ -44,6 +44,8 @@ void fromNe(double lat0, double lon0, double n, double e, double &lat, double &l
     lon = lon0 + qRadiansToDegrees(e / (kR * std::cos(qDegreesToRadians(lat0))));
 }
 double clamp(double v, double lo, double hi) { return std::max(lo, std::min(hi, v)); }
+constexpr int kGroundN = 31;            // 31 × 31 heights
+constexpr double kGroundStep = 40.0;    // 40 m apart → ±600 m around the demo origin
 bool isNavCmd(int c) { return c == MAV_CMD_NAV_WAYPOINT || c == MAV_CMD_NAV_TAKEOFF || c == MAV_CMD_NAV_LAND || c == MAV_CMD_NAV_LOITER_UNLIM
                               || c == MAV_CMD_NAV_LOITER_TIME || c == MAV_CMD_NAV_RETURN_TO_LAUNCH; }
 
@@ -269,11 +271,59 @@ void MLDemo::_queryTerrain()
     bool err = false;
     if (TerrainAtCoordinateQuery::getAltitudesForCoordinates(coords, cached, err)) {
         apply(!err, cached);
-        return;
+    } else {
+        auto *q = new TerrainAtCoordinateQuery(true /* autoDelete */);
+        connect(q, &TerrainAtCoordinateQuery::terrainDataReceived, this, apply);
+        q->requestData(coords);
     }
-    auto *q = new TerrainAtCoordinateQuery(true /* autoDelete */);
-    connect(q, &TerrainAtCoordinateQuery::terrainDataReceived, this, apply);
-    q->requestData(coords);
+
+    // the ground of the whole demo area: a vehicle that lands away from home touches down on the
+    // terrain there (relative altitude = terrain − home), as a real vehicle would report
+    _ground.clear();
+    QList<QGeoCoordinate> grid;
+    const double half = (kGroundN - 1) / 2.0 * kGroundStep;
+    for (int r = 0; r < kGroundN; r++) {
+        for (int k = 0; k < kGroundN; k++) {
+            double la, lo;
+            fromNe(kLat0, kLon0, half - r * kGroundStep, -half + k * kGroundStep, la, lo);
+            grid.append(QGeoCoordinate(la, lo));
+        }
+    }
+    auto applyGrid = [this](bool ok, const QList<double> &h) {
+        if (ok && h.size() == kGroundN * kGroundN) {
+            _ground = QVector<double>(h.begin(), h.end());
+            qCWarning(MLDemoLog).noquote() << "MLDEMO ground grid" << kGroundN << "x" << kGroundN << "step" << kGroundStep << "m";
+        } else {
+            qCWarning(MLDemoLog).noquote() << "MLDEMO ground grid unavailable — flat ground at home altitude";
+        }
+    };
+    QList<double> gc;
+    bool gerr = false;
+    if (TerrainAtCoordinateQuery::getAltitudesForCoordinates(grid, gc, gerr)) {
+        applyGrid(!gerr, gc);
+    } else {
+        auto *gq = new TerrainAtCoordinateQuery(true /* autoDelete */);
+        connect(gq, &TerrainAtCoordinateQuery::terrainDataReceived, this, applyGrid);
+        gq->requestData(grid);
+    }
+}
+
+double MLDemo::_groundRel(const MLDemoVehicle &v) const
+{
+    if (_ground.size() != kGroundN * kGroundN) {
+        return 0.0;
+    }
+    const NE p = toNe(kLat0, kLon0, v.lat, v.lon);
+    const double half = (kGroundN - 1) / 2.0 * kGroundStep;
+    const double fr = (half - p.n) / kGroundStep, fk = (p.e + half) / kGroundStep;
+    if (fr < 0 || fk < 0 || fr > kGroundN - 1 || fk > kGroundN - 1) {
+        return 0.0;                                        // outside the grid: flat at home
+    }
+    const int r0 = std::min(kGroundN - 2, int(fr)), k0 = std::min(kGroundN - 2, int(fk));
+    const double ar = fr - r0, ak = fk - k0;
+    auto at = [&](int r, int k) { return _ground[r * kGroundN + k]; };
+    const double g = (at(r0, k0) * (1 - ak) + at(r0, k0 + 1) * ak) * (1 - ar) + (at(r0 + 1, k0) * (1 - ak) + at(r0 + 1, k0 + 1) * ak) * ar;
+    return std::isnan(g) ? 0.0 : g - v.homeAmsl;
 }
 
 QString MLDemo::startBlockReason() const
@@ -722,7 +772,7 @@ void MLDemo::_command(MLDemoVehicle &v, int cmd, const float p[7], double x, dou
             } else {
                 v.armed = false;
                 v.inAir = false;
-                v.alt = 0;
+                v.alt = _groundRel(v);
                 v.vn = v.ve = v.vd = 0;
                 _sendText(v, MAV_SEVERITY_INFO, QStringLiteral("Disarmed by external command"));
                 _ack(v, cmd, MAV_RESULT_ACCEPTED, sysid, compid);
@@ -1069,7 +1119,7 @@ void MLDemo::_stepVehicle(MLDemoVehicle &v, double dt)
     if (!v.armed) {
         v.vn = v.ve = v.vd = 0;
         v.inAir = false;
-        v.alt = 0;
+        v.alt = _groundRel(v);
         v.roll = v.pitch = 0;
     } else {
         // auto-disarm on the ground (PX4 COM_DISARM_PRFLT)
@@ -1233,9 +1283,10 @@ void MLDemo::_stepVehicle(MLDemoVehicle &v, double dt)
         v.lat = lat;
         v.lon = lon;
         v.alt -= v.vd * dt;
-        if (v.alt <= 0.0 && v.vd >= 0.0) {
-            // touchdown
-            v.alt = 0;
+        const double gnd = _groundRel(v);
+        if (v.alt <= gnd && v.vd >= 0.0) {
+            // touchdown on the terrain under the vehicle
+            v.alt = gnd;
             v.vn = v.ve = v.vd = 0;
             v.inAir = false;
             v.landedAt = t;
