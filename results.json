@@ -1,0 +1,42 @@
+{
+  "os": "Microsoft Windows Server 2022 Datacenter 10.0.20348",
+  "checks": {
+    "prev_installed": true,
+    "installed": true,
+    "desktop_shortcut": true,
+    "start_menu_shortcut": true,
+    "uninstall_registered": true,
+    "runtime_bundled": true,
+    "upgrade_keeps_settings": true,
+    "upgrade_keeps_missions": true,
+    "upgrade_keeps_logs": true,
+    "boot_test": true,
+    "gui_runs": true,
+    "video_udp_h264_decoding_moving_picture": false,
+    "video_udp_h264_decoding": false,
+    "video_udp_h264_decoding_software_moving_picture": false,
+    "video_udp_h264_decoding_software": false,
+    "portable_boot": true,
+    "portable_gui_runs": true,
+    "portable_settings_local": true,
+    "uninstall_removes_files": true,
+    "uninstall_removes_shortcuts": true,
+    "uninstall_removes_start_menu": true,
+    "start_menu_intact": true,
+    "uninstall_removes_registry": true
+  },
+  "notes": [
+    "previous release installed and used: D:\\a\\_temp\\prev\\MobilityLabGCS-1.1.0-Windows-Setup.exe",
+    "install took 17 s",
+    "installed size 417 MB, 459 files",
+    "installed boot exit code 0",
+    "video test encoder: x264enc tune=zerolatency speed-preset=ultrafast key-int-max=30",
+    "bundled H.264-path plugins: gstd3d11-1.0-0.dll, gstrtp-1.0-0.dll, gstd3d11.dll, gstlibav.dll, gstnvcodec.dll, gstopenh264.dll, gstplayback.dll, gstrtp.dll, gstrtpmanager.dll, gstudp.dll, gstvideoparsersbad.dll",
+    "video: changed pixels in video area 0",
+    "video: stream errors 20",
+    "video-sw: changed pixels in video area 26",
+    "video-sw: stream errors 0",
+    "portable zip 181 MB",
+    "portable boot exit code 0"
+  ]
+}

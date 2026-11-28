@@ -1,0 +1,4 @@
+     0.034 Using Qt multimedia with FFmpeg version 7.1.3 LGPL version 2.1 or later - qt.multimedia.ffmpeg - (unknown:0)
+     0.490 Warning: Member enabled of the object QQuickPinchArea overrides a member of the base object. Consider renaming it or adding final or override specifier - qt.qml.propertyCache.append - (unknown:0)
+     1.403 Warning: void __cdecl QGCPositionManager::_positionError(enum QGeoPositionInfoSource::Error) Positioning error: QGeoPositionInfoSource::AccessError - PositionManager.QGCPositionManager - (QGCPositionManager::_positionError:171)
+     1.404 Warning: Location access failed. - default - (unknown:0)
