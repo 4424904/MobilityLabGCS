@@ -1,0 +1,49 @@
+[09:20:41] waiting for heartbeat on udpin:0.0.0.0:14540
+[09:20:42] heartbeat from system 1 type 2
+[09:20:52] position 37.2099995 126.8300024
+[09:20:53]   mission item 0 requested
+[09:20:53]   mission item 1 requested
+[09:20:53]   mission item 2 requested
+[09:20:53]   mission item 3 requested
+[09:20:53]   mission item 4 requested
+[09:20:53]   mission item 5 requested
+[09:20:53] mission ack 0
+[09:20:55] armed
+[09:20:55] mission started, mode LOITER
+[09:20:55] mode=MISSION    alt=  -0.1 gs=  0.1 hdg=  360 seq=0 armed=True
+[09:21:00] mode=MISSION    alt=   1.2 gs=  0.1 hdg=  359 seq=0 armed=True
+[09:21:05] mode=MISSION    alt=   7.1 gs=  0.2 hdg=    1 seq=0 armed=True
+[09:21:10] mode=MISSION    alt=  15.5 gs=  0.3 hdg=    0 seq=0 armed=True
+[09:21:15] mode=MISSION    alt=  19.6 gs=  1.6 hdg=   51 seq=1 armed=True
+[09:21:20] mode=MISSION    alt=  19.9 gs=  4.0 hdg=   90 seq=1 armed=True
+[09:21:25] mode=MISSION    alt=  19.9 gs=  4.4 hdg=   90 seq=1 armed=True
+[09:21:30] mode=MISSION    alt=  19.8 gs=  2.6 hdg=   90 seq=1 armed=True
+[09:21:35] mode=MISSION    alt=  19.6 gs=  2.4 hdg=   90 seq=1 armed=True
+[09:21:36] CHECK speed_in_mission OK (gs 2.4 m/s, mode MISSION, alt 19.6)
+[09:21:40] mode=MISSION    alt=  19.8 gs=  2.4 hdg=   90 seq=1 armed=True
+[09:21:45] mode=MISSION    alt=  19.7 gs=  2.5 hdg=   90 seq=1 armed=True
+[09:21:50] mode=MISSION    alt=  19.9 gs=  2.4 hdg=   90 seq=1 armed=True
+[09:21:55] mode=MISSION    alt=  20.2 gs=  1.0 hdg=  109 seq=1 armed=True
+[09:22:00] mode=MISSION    alt=  20.5 gs=  2.2 hdg=   90 seq=1 armed=True
+[09:22:05] mode=MISSION    alt=  21.4 gs=  2.4 hdg=   90 seq=1 armed=True
+[09:22:10] mode=MISSION    alt=  22.4 gs=  2.5 hdg=   90 seq=1 armed=True
+[09:22:15] mode=MISSION    alt=  23.1 gs=  2.5 hdg=   90 seq=1 armed=True
+[09:22:19] CHECK altitude_in_mission climbing (19.6 -> 23.7 m, mode MISSION, seq 1)
+[09:22:20] mode=MISSION    alt=  23.9 gs=  2.5 hdg=   90 seq=1 armed=True
+[09:22:25] mode=MISSION    alt=  25.0 gs=  2.5 hdg=   90 seq=1 armed=True
+[09:22:30] mode=MISSION    alt=  26.0 gs=  2.5 hdg=   90 seq=1 armed=True
+[09:22:35] mode=MISSION    alt=  26.6 gs=  2.4 hdg=   90 seq=1 armed=True
+[09:22:40] mode=MISSION    alt=  27.6 gs=  2.5 hdg=   90 seq=1 armed=True
+[09:22:45] mode=MISSION    alt=  28.5 gs=  2.5 hdg=   90 seq=1 armed=True
+[09:22:50] mode=MISSION    alt=  29.4 gs=  2.4 hdg=   90 seq=1 armed=True
+[09:22:55] mode=MISSION    alt=  30.3 gs=  2.3 hdg=  173 seq=1 armed=True
+[09:22:59] CHECK heading_in_mission OK (heading 227°, mode MISSION)
+[09:23:00] mode=MISSION    alt=  31.4 gs=  2.5 hdg=  225 seq=1 armed=True
+[09:23:05] mode=MISSION    alt=  32.4 gs=  2.6 hdg=  225 seq=1 armed=True
+[09:23:10] mode=MISSION    alt=  32.9 gs=  2.4 hdg=  225 seq=1 armed=True
+[09:23:15] mode=MISSION    alt=  33.9 gs=  2.6 hdg=  226 seq=1 armed=True
+[09:23:20] mode=MISSION    alt=  34.6 gs=  2.4 hdg=  226 seq=1 armed=True
+[09:23:24] mission paused by GCS: mode LOITER at 35.0 m
+[09:23:25] mode=LOITER     alt=  36.7 gs=  0.4 hdg=  218 seq=2 armed=True
+[09:23:28] CHECK altitude_paused OK (35.0 -> 42.2 m)
+[09:23:28] RESULT {"speed_in_mission": true, "altitude_in_mission": true, "heading_in_mission": true, "altitude_paused": true}

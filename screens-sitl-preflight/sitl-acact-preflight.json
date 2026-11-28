@@ -1,0 +1,39 @@
+{
+  "case": "preflight",
+  "checks": {
+    "load_refused_without_site": true,
+    "heading_issue": true,
+    "start_blocked": true,
+    "never_armed": true
+  },
+  "notes": [],
+  "metrics": {
+    "spawn_separation_m": 14.8,
+    "min_horizontal_same_layer_m": null,
+    "min_at_s": null,
+    "takeovers": [],
+    "returned": [],
+    "mission_total": {
+      "D1": 47,
+      "D2": 47
+    },
+    "max_alt": {
+      "D1": 0.1,
+      "D2": 0.8
+    },
+    "modes": {
+      "D1": [
+        [
+          0.8,
+          "HOLD"
+        ]
+      ],
+      "D2": [
+        [
+          0.8,
+          "HOLD"
+        ]
+      ]
+    }
+  }
+}

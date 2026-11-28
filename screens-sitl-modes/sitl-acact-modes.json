@@ -1,0 +1,81 @@
+{
+  "case": "modes",
+  "checks": {
+    "bad_mission_blocked": true,
+    "check_warns_crossing": true,
+    "both_airborne": true,
+    "takeover": true,
+    "separation": true,
+    "returned": true,
+    "completed": true,
+    "modes_switched_in_flight": true,
+    "showcase_refused_with_real_vehicles": true,
+    "never_showcase_with_real_vehicle": true
+  },
+  "notes": [],
+  "metrics": {
+    "spawn_separation_m": 14.9,
+    "min_horizontal_same_layer_m": 8.39,
+    "min_at_s": 46.8,
+    "takeovers": [
+      "D1",
+      "D2"
+    ],
+    "returned": [
+      "D1",
+      "D2"
+    ],
+    "mission_total": {
+      "D1": 3,
+      "D2": 4
+    },
+    "max_alt": {
+      "D1": 10.1,
+      "D2": 10.2
+    },
+    "modes": {
+      "D1": [
+        [
+          -0.1,
+          "HOLD"
+        ],
+        [
+          19.2,
+          "MISSION"
+        ],
+        [
+          37.5,
+          "OFFBOARD"
+        ],
+        [
+          53.8,
+          "MISSION"
+        ]
+      ],
+      "D2": [
+        [
+          0.9,
+          "HOLD"
+        ],
+        [
+          14.2,
+          "MISSION"
+        ],
+        [
+          37.5,
+          "OFFBOARD"
+        ],
+        [
+          54.8,
+          "MISSION"
+        ]
+      ]
+    },
+    "mode_switches": {
+      "advanced": 7,
+      "standard": 7,
+      "showcase_refused": 7,
+      "left_showcase_when_vehicle_connected": null
+    }
+  }
+}

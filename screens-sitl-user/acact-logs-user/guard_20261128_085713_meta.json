@@ -1,0 +1,34 @@
+{
+    "app": "1.2.0 (QGC v5.1.5)",
+    "cfg": {
+        "dEmerg": 5.5,
+        "dSafe": 12,
+        "maxHSpeed": 4.5,
+        "rs": 14,
+        "staleT": 1.5,
+        "tLook": 6,
+        "vSep": 4
+    },
+    "opMode": "sim",
+    "plan": "사용자 미션 (D1, D2)",
+    "planSignature": "MS|e905bfd504e952ca",
+    "profile": "oregon",
+    "start": "2026-11-28T08:57:13",
+    "vehicles": [
+        {
+            "firmware": "PX4",
+            "id": "D1",
+            "sim": 1,
+            "supported": true,
+            "sysid": 1
+        },
+        {
+            "firmware": "PX4",
+            "id": "D2",
+            "sim": 1,
+            "supported": true,
+            "sysid": 2
+        }
+    ],
+    "version": 1
+}

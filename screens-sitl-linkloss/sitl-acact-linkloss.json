@@ -1,0 +1,80 @@
+{
+  "case": "linkloss",
+  "checks": {
+    "link_cut_during_avoidance": true,
+    "gcs_marked_lost": true,
+    "cut_vehicle_safe": true,
+    "separation": true,
+    "completed": true
+  },
+  "notes": [],
+  "metrics": {
+    "spawn_separation_m": 15.1,
+    "min_horizontal_same_layer_m": 6.83,
+    "min_at_s": 51.3,
+    "takeovers": [
+      "D1",
+      "D2"
+    ],
+    "returned": [
+      "D1",
+      "D2"
+    ],
+    "mission_total": {
+      "D1": 3,
+      "D2": 4
+    },
+    "max_alt": {
+      "D1": 10.0,
+      "D2": 10.3
+    },
+    "modes": {
+      "D1": [
+        [
+          -0.1,
+          "HOLD"
+        ],
+        [
+          15.1,
+          "MISSION"
+        ],
+        [
+          33.5,
+          "OFFBOARD"
+        ],
+        [
+          60.9,
+          "MISSION"
+        ]
+      ],
+      "D2": [
+        [
+          0.9,
+          "HOLD"
+        ],
+        [
+          10.1,
+          "MISSION"
+        ],
+        [
+          33.5,
+          "OFFBOARD"
+        ],
+        [
+          35.5,
+          "HOLD"
+        ],
+        [
+          58.9,
+          "MISSION"
+        ]
+      ]
+    },
+    "d2_failsafe": [
+      1.21,
+      "HOLD"
+    ],
+    "cut_at_s": 34.3,
+    "d2_flown_at_cut": true
+  }
+}

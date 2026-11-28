@@ -1,0 +1,74 @@
+{
+  "case": "operator",
+  "checks": {
+    "operator_hold": true,
+    "not_retaken": true,
+    "resumed": true,
+    "separation": true,
+    "completed": true
+  },
+  "notes": [],
+  "metrics": {
+    "spawn_separation_m": 15.1,
+    "min_horizontal_same_layer_m": 9.65,
+    "min_at_s": 40.9,
+    "takeovers": [
+      "D1",
+      "D2"
+    ],
+    "returned": [
+      "D1",
+      "D2"
+    ],
+    "mission_total": {
+      "D1": 3,
+      "D2": 4
+    },
+    "max_alt": {
+      "D1": 10.7,
+      "D2": 10.4
+    },
+    "modes": {
+      "D1": [
+        [
+          0.9,
+          "HOLD"
+        ],
+        [
+          18.2,
+          "MISSION"
+        ],
+        [
+          37.5,
+          "OFFBOARD"
+        ],
+        [
+          39.5,
+          "HOLD"
+        ],
+        [
+          62.9,
+          "MISSION"
+        ]
+      ],
+      "D2": [
+        [
+          0.9,
+          "HOLD"
+        ],
+        [
+          12.1,
+          "MISSION"
+        ],
+        [
+          37.5,
+          "OFFBOARD"
+        ],
+        [
+          47.6,
+          "MISSION"
+        ]
+      ]
+    }
+  }
+}

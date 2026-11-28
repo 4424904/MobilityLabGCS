@@ -1,0 +1,13 @@
+[08:56:59] waiting for D1
+[08:57:00] waiting for D2
+[08:57:00] the GCS takes it from here, case operator
+[08:57:01] D1 mode → HOLD
+[08:57:01] D2 mode → HOLD
+[08:57:12] D2 mode → MISSION
+[08:57:18] D1 mode → MISSION
+[08:57:38] D1 mode → OFFBOARD
+[08:57:38] D2 mode → OFFBOARD
+[08:57:40] D1 mode → HOLD
+[08:57:48] D2 mode → MISSION
+[08:58:03] D1 mode → MISSION
+[08:58:37] RESULT operator {"operator_hold": true, "not_retaken": true, "resumed": true, "separation": true, "completed": true} {"spawn_separation_m": 15.1, "min_horizontal_same_layer_m": 9.65, "min_at_s": 40.9, "takeovers": ["D1", "D2"], "returned": ["D1", "D2"], "mission_total": {"D1": 3, "D2": 4}, "max_alt": {"D1": 10.7, "D2": 10.4}}

@@ -1,0 +1,12 @@
+[08:57:32] waiting for D1
+[08:57:33] waiting for D2
+[08:57:34] D1 mode → HOLD
+[08:57:34] the GCS takes it from here, case modes
+[08:57:35] D2 mode → HOLD
+[08:57:48] D2 mode → MISSION
+[08:57:53] D1 mode → MISSION
+[08:58:12] D1 mode → OFFBOARD
+[08:58:12] D2 mode → OFFBOARD
+[08:58:28] D1 mode → MISSION
+[08:58:29] D2 mode → MISSION
+[08:58:51] RESULT modes {"bad_mission_blocked": true, "check_warns_crossing": true, "both_airborne": true, "takeover": true, "separation": true, "returned": true, "completed": true, "modes_switched_in_flight": true, "showcase_refused_with_real_vehicles": true, "never_showcase_with_real_vehicle": true} {"spawn_separation_m": 14.9, "min_horizontal_same_layer_m": 8.39, "min_at_s": 46.8, "takeovers": ["D1", "D2"], "returned": ["D1", "D2"], "mission_total": {"D1": 3, "D2": 4}, "max_alt": {"D1": 10.1, "D2": 10.2}, "mode_switches": {"advanced": 7, "standard": 7, "showcase_refused": 7, "left_showcase_when_vehicle_connected": null}}

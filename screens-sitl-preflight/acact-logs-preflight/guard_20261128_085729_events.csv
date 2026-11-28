@@ -1,0 +1,6 @@
+t,who,event
+0.00,SYS,"ACACT 가드 시작 — D1, D2 · 로그 /home/runner/Documents/MobilityLab/ACACT/guard_20261128_085729.csv"
+0.06,D1,"사전 점검: 기수 방향 360° 가 설정 방위 90° 와 90° 다름 — 방위를 잘못 넣었거나 기체 방향이 틀림"
+0.06,D2,"사전 점검: 기수 방향 359° 가 설정 방위 90° 와 91° 다름 — 방위를 잘못 넣었거나 기체 방향이 틀림"
+0.06,CMD,"사전 점검 실패 → 시작 취소"
+1.96,SYS,"ACACT 가드 종료 — 요약 /home/runner/Documents/MobilityLab/ACACT/guard_20261128_085729_summary.txt"

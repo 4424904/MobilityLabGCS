@@ -1,0 +1,21 @@
+/home/runner/Documents/MobilityLab/Records:
+total 12
+drwxr-xr-x 3 runner dialout 4096 Nov 28 08:58 .
+drwxr-xr-x 4 runner dialout 4096 Nov 28 08:58 ..
+drwxr-xr-x 3 runner dialout 4096 Nov 28 08:58 Demo
+
+/home/runner/Documents/MobilityLab/Records/Demo:
+total 12
+drwxr-xr-x 3 runner dialout 4096 Nov 28 08:58 .
+drwxr-xr-x 3 runner dialout 4096 Nov 28 08:58 ..
+drwxr-xr-x 2 runner dialout 4096 Nov 28 08:59 20261128_085810
+
+/home/runner/Documents/MobilityLab/Records/Demo/20261128_085810:
+total 160
+drwxr-xr-x 2 runner dialout  4096 Nov 28 08:59 .
+drwxr-xr-x 3 runner dialout  4096 Nov 28 08:58 ..
+-rw-r--r-- 1 runner dialout   644 Nov 28 08:58 events.csv
+-rw-r--r-- 1 runner dialout 16330 Nov 28 08:59 meta.json
+-rw-r--r-- 1 runner dialout 84353 Nov 28 08:59 report.pdf
+-rw-r--r-- 1 runner dialout  1244 Nov 28 08:59 summary.csv
+-rw-r--r-- 1 runner dialout 41337 Nov 28 08:59 track.csv

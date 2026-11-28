@@ -1,0 +1,15 @@
+qt.svg: Cannot open file ':/MobilityLab/logo.svg', because: No such file or directory
+ok    one session listed
+ok    load
+ok    duration 120 s
+      minSame 5.00 at 46.6 s, below D_SAFE 20.0 s
+ok    minimum same-layer separation where D2 dodged (≈6 m)
+      interventions 1
+ok    one intervention by D2
+ok    intervention ≈10 s
+ok    D2 link gap 3 s
+ok    events
+ok    verdict follows D_EMERG
+ok    replay state at 50 s
+ok    PDF written
+analysis_test: 0 failed

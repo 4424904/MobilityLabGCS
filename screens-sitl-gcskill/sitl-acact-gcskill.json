@@ -1,0 +1,105 @@
+{
+  "case": "gcskill",
+  "checks": {
+    "killed_during_avoidance": true,
+    "offboard_failsafe": true,
+    "restart_no_takeover": true,
+    "separation": true,
+    "completed": true
+  },
+  "notes": [],
+  "metrics": {
+    "spawn_separation_m": 14.9,
+    "min_horizontal_same_layer_m": 8.74,
+    "min_at_s": 88.0,
+    "takeovers": [
+      "D1",
+      "D2"
+    ],
+    "returned": [
+      "D1",
+      "D2"
+    ],
+    "mission_total": {
+      "D1": 3,
+      "D2": 4
+    },
+    "max_alt": {
+      "D1": 10.4,
+      "D2": 10.3
+    },
+    "modes": {
+      "D1": [
+        [
+          0.8,
+          "HOLD"
+        ],
+        [
+          16.1,
+          "MISSION"
+        ],
+        [
+          35.4,
+          "OFFBOARD"
+        ],
+        [
+          37.4,
+          "HOLD"
+        ],
+        [
+          87.2,
+          "MISSION"
+        ],
+        [
+          88.3,
+          "OFFBOARD"
+        ],
+        [
+          100.5,
+          "MISSION"
+        ]
+      ],
+      "D2": [
+        [
+          0.8,
+          "HOLD"
+        ],
+        [
+          11.0,
+          "MISSION"
+        ],
+        [
+          35.4,
+          "OFFBOARD"
+        ],
+        [
+          37.4,
+          "HOLD"
+        ],
+        [
+          87.3,
+          "MISSION"
+        ],
+        [
+          88.3,
+          "OFFBOARD"
+        ],
+        [
+          96.4,
+          "MISSION"
+        ]
+      ]
+    },
+    "killed_at_s": 36.6,
+    "failsafe_after_kill": {
+      "D1": [
+        0.82,
+        "HOLD"
+      ],
+      "D2": [
+        0.82,
+        "HOLD"
+      ]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+[08:57:16] waiting for D1
+[08:57:17] waiting for D2
+[08:57:17] the GCS takes it from here, case preflight
+[08:57:18] D1 mode → HOLD
+[08:57:18] D2 mode → HOLD
+[08:58:17] RESULT preflight {"load_refused_without_site": true, "heading_issue": true, "start_blocked": true, "never_armed": true} {"spawn_separation_m": 14.8, "min_horizontal_same_layer_m": null, "min_at_s": null, "takeovers": [], "returned": [], "mission_total": {"D1": 47, "D2": 47}, "max_alt": {"D1": 0.1, "D2": 0.8}}

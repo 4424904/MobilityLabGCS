@@ -1,0 +1,5 @@
+{"runs": 120, "ok": 120, "steps": 495395, "commands": 64763, "max_velocity_diff": 3.552713678800501e-15, "max_pair_value_diff": 1.4210854715202004e-14, "seconds": 54.2}
+결과: 모두 일치
+{"cases": 270, "items": 16364, "geo": 2000, "mismatch": 0}
+결과: 모두 일치
+mission_check_test: 30 passed, 0 failed

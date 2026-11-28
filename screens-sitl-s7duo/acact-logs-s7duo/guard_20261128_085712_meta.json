@@ -1,0 +1,39 @@
+{
+    "app": "1.2.0 (QGC v5.1.5)",
+    "cfg": {
+        "dEmerg": 5.5,
+        "dSafe": 12,
+        "maxHSpeed": 4.5,
+        "rs": 14,
+        "staleT": 1.5,
+        "tLook": 6,
+        "vSep": 4
+    },
+    "opMode": "sim",
+    "plan": "S7_duo / 본 시연",
+    "planSignature": "SC|S7_duo|demo|oregon|D1,D2",
+    "profile": "oregon",
+    "site": {
+        "bearing": 359.9107314652655,
+        "lat": 37.210401619908055,
+        "lon": 126.83100207522968
+    },
+    "start": "2026-11-28T08:57:12",
+    "vehicles": [
+        {
+            "firmware": "PX4",
+            "id": "D1",
+            "sim": 1,
+            "supported": true,
+            "sysid": 1
+        },
+        {
+            "firmware": "PX4",
+            "id": "D2",
+            "sim": 1,
+            "supported": true,
+            "sysid": 2
+        }
+    ],
+    "version": 1
+}

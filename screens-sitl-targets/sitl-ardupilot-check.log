@@ -1,0 +1,99 @@
+[09:16:52] waiting for heartbeat on udpin:0.0.0.0:14551
+[09:16:53] heartbeat from system 1 type 2
+[09:16:54]   vehicle: Barometer 1 calibration complete
+[09:16:54]   vehicle: Barometer 2 calibration complete
+[09:16:55]   vehicle: ArduPilot Ready
+[09:16:55]   vehicle: AHRS: DCM active
+[09:16:55]   vehicle: RC7: SaveWaypoint LOW
+[09:16:57]   vehicle: EKF3 IMU0 initialised
+[09:16:57]   vehicle: EKF3 IMU1 initialised
+[09:16:57]   vehicle: AHRS: EKF3 active
+[09:16:58]   vehicle: EKF3 IMU0 tilt alignment complete
+[09:16:58]   vehicle: EKF3 IMU1 tilt alignment complete
+[09:16:58]   vehicle: EKF3 IMU0 MAG0 initial yaw alignment complete
+[09:16:58]   vehicle: EKF3 IMU1 MAG0 initial yaw alignment complete
+[09:17:03]   vehicle: GPS 1: probing for u-blox at 230400 baud
+[09:17:03]   vehicle: GPS 1: detected u-blox
+[09:17:09] position 37.21 126.83
+[09:17:09]   mission item 0 requested
+[09:17:09]   mission item 1 requested
+[09:17:09]   mission item 2 requested
+[09:17:09]   mission item 3 requested
+[09:17:09]   mission item 4 requested
+[09:17:09]   mission item 5 requested
+[09:17:09]   mission item 6 requested
+[09:17:09] mission ack 0
+[09:17:09]   vehicle: Flight plan received
+[09:17:10]   vehicle: Arm: Gyros inconsistent
+[09:17:10]   vehicle: Arm: AHRS: waiting for home
+[09:17:12] arm result 4 - retrying
+[09:17:13]   vehicle: EKF3 IMU0 origin set
+[09:17:13]   vehicle: Field Elevation Set: 20m
+[09:17:13]   vehicle: EKF3 IMU1 origin set
+[09:17:15]   vehicle: Arm: Gyros inconsistent
+[09:17:15]   vehicle: Arm: Need Position Estimate
+[09:17:17] arm result 4 - retrying
+[09:17:20]   vehicle: Arm: Need Position Estimate
+[09:17:22] arm result 4 - retrying
+[09:17:24]   vehicle: PreArm: Need Position Estimate
+[09:17:25]   vehicle: Arm: Need Position Estimate
+[09:17:27] arm result 4 - retrying
+[09:17:30]   vehicle: Arm: Need Position Estimate
+[09:17:32] arm result 4 - retrying
+[09:17:35]   vehicle: EKF3 IMU0 is using GPS
+[09:17:35]   vehicle: EKF3 IMU1 is using GPS
+[09:17:36]   vehicle: Arming motors
+[09:17:38] armed
+[09:17:41]   vehicle: EKF3 IMU1 MAG0 in-flight yaw alignment complete
+[09:17:41]   vehicle: EKF3 IMU0 MAG0 in-flight yaw alignment complete
+[09:17:48]   vehicle: Mission: 2 WP
+[09:17:48] mission started, mode AUTO
+[09:17:49] mode=AUTO       alt=  19.6 gs=  0.0 hdg=    0 seq=2 armed=True
+[09:17:54] mode=AUTO       alt=  20.5 gs=  7.8 hdg=   91 seq=2 armed=True
+[09:17:59] mode=AUTO       alt=  20.4 gs=  9.8 hdg=   90 seq=2 armed=True
+[09:18:04] mode=AUTO       alt=  20.3 gs=  7.7 hdg=   90 seq=2 armed=True
+[09:18:09] mode=AUTO       alt=  20.3 gs=  2.3 hdg=   90 seq=2 armed=True
+[09:18:14] CHECK speed_in_mission OK (gs 2.4 m/s, mode AUTO, alt 20.3)
+[09:18:14] mode=AUTO       alt=  20.3 gs=  2.4 hdg=   90 seq=2 armed=True
+[09:18:19] mode=AUTO       alt=  20.3 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:18:24] mode=AUTO       alt=  20.2 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:18:26]   vehicle: Mission: 2 WP
+[09:18:26]   vehicle: Auto mission changed, restarted command
+[09:18:26]   vehicle: Mission: 2 WP
+[09:18:26]   vehicle: Auto mission changed, restarted command
+[09:18:26]   vehicle: Mission: 2 WP
+[09:18:26]   vehicle: Auto mission changed, restarted command
+[09:18:26]   vehicle: Mission: 2 WP
+[09:18:26]   vehicle: Auto mission changed, restarted command
+[09:18:26]   vehicle: Mission: 2 WP
+[09:18:26]   vehicle: Auto mission changed, restarted command
+[09:18:26]   vehicle: Mission: 2 WP
+[09:18:26]   vehicle: Auto mission changed, restarted command
+[09:18:26]   vehicle: Fence Indexed OK
+[09:18:28]   vehicle: Mission: 2 WP
+[09:18:29] mode=AUTO       alt=  20.4 gs=  1.2 hdg=   90 seq=2 armed=True
+[09:18:34] mode=AUTO       alt=  21.6 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:18:39] mode=AUTO       alt=  23.1 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:18:43] CHECK altitude_in_mission climbing (20.3 -> 24.4 m, mode AUTO, seq 2)
+[09:18:44] mode=AUTO       alt=  24.5 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:18:49] mode=AUTO       alt=  26.1 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:18:54] mode=AUTO       alt=  27.6 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:18:59] mode=AUTO       alt=  29.0 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:19:04] mode=AUTO       alt=  30.5 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:19:09] mode=AUTO       alt=  32.0 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:19:14] mode=AUTO       alt=  33.5 gs=  2.5 hdg=   90 seq=2 armed=True
+[09:19:19] mode=AUTO       alt=  34.9 gs=  1.8 hdg=   64 seq=2 armed=True
+[09:19:19]   vehicle: Reached command #2
+[09:19:19]   vehicle: Mission: 3 WP
+[09:19:24] mode=AUTO       alt=  35.0 gs=  2.5 hdg=  360 seq=3 armed=True
+[09:19:29] mode=AUTO       alt=  35.0 gs=  2.5 hdg=  221 seq=3 armed=True
+[09:19:31] CHECK heading_in_mission OK (heading 224°, mode AUTO)
+[09:19:34] mode=AUTO       alt=  35.0 gs=  2.5 hdg=  224 seq=3 armed=True
+[09:19:39] mode=AUTO       alt=  35.0 gs=  2.5 hdg=  224 seq=3 armed=True
+[09:19:44] mode=AUTO       alt=  35.0 gs=  2.5 hdg=  224 seq=3 armed=True
+[09:19:49] mode=AUTO       alt=  35.0 gs=  2.5 hdg=  224 seq=3 armed=True
+[09:19:54] mode=AUTO       alt=  35.0 gs=  2.5 hdg=  224 seq=3 armed=True
+[09:19:56] mission paused by GCS: mode GUIDED at 35.0 m
+[09:19:59] mode=GUIDED     alt=  37.8 gs=  0.3 hdg=  295 seq=3 armed=True
+[09:20:01] CHECK altitude_paused OK (35.0 -> 42.3 m)
+[09:20:01] RESULT {"speed_in_mission": true, "altitude_in_mission": true, "heading_in_mission": true, "altitude_paused": true}

@@ -1,0 +1,25 @@
+{
+  "fw": "ardupilot",
+  "checks": {
+    "speed_in_mission": true,
+    "altitude_in_mission": true,
+    "heading_in_mission": true,
+    "altitude_paused": true
+  },
+  "notes": [],
+  "mission_wp_alts": [
+    20.1,
+    35.0,
+    35.0,
+    35.0,
+    35.0
+  ],
+  "final": {
+    "mode": "GUIDED",
+    "alt": 42.3,
+    "gs": 0.5,
+    "hdg": 212.0,
+    "seq": 3
+  },
+  "elapsed_s": 188.3
+}

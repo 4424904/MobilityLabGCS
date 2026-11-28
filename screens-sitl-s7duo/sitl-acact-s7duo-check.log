@@ -1,0 +1,32 @@
+[08:56:56] waiting for D1
+[08:56:57] waiting for D2
+[08:56:57] the GCS takes it from here, case s7duo
+[08:56:58] D1 mode → HOLD
+[08:56:58] D2 mode → HOLD
+[08:57:14] D2 mode → MISSION
+[08:57:19] D1 mode → MISSION
+[08:58:45] D1 mode → OFFBOARD
+[08:58:45] D2 mode → OFFBOARD
+[08:58:54] D1 mode → MISSION
+[08:58:54] D2 mode → MISSION
+[08:59:31] D1 mode → OFFBOARD
+[08:59:31] D2 mode → OFFBOARD
+[08:59:41] D1 mode → MISSION
+[08:59:41] D2 mode → MISSION
+[09:00:24] D1 mode → OFFBOARD
+[09:00:25] D2 mode → OFFBOARD
+[09:00:34] D1 mode → MISSION
+[09:00:35] D1 mode → OFFBOARD
+[09:00:41] D1 mode → MISSION
+[09:00:41] D2 mode → MISSION
+[09:00:57] D1 mode → OFFBOARD
+[09:00:57] D2 mode → OFFBOARD
+[09:01:01] D1 mode → MISSION
+[09:01:02] D1 mode → OFFBOARD
+[09:01:06] D2 mode → MISSION
+[09:01:08] D1 mode → MISSION
+[09:01:46] D1 mode → OFFBOARD
+[09:01:46] D2 mode → OFFBOARD
+[09:01:57] D1 mode → MISSION
+[09:01:57] D2 mode → MISSION
+[09:03:15] RESULT s7duo {"mission_loaded": true, "both_airborne": true, "advanced": true, "takeover": true, "separation": true, "returned": true, "completed": true} {"spawn_separation_m": 14.9, "min_horizontal_same_layer_m": 9.9, "min_at_s": 158.1, "takeovers": ["D1", "D2"], "returned": ["D1", "D2"], "mission_total": {"D1": 47, "D2": 47}, "max_alt": {"D1": 20.1, "D2": 26.2}}

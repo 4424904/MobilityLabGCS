@@ -1,0 +1,1 @@
+{"version": 1, "app": "test", "opMode": "sim", "plan": "S7_duo / \ubcf8 \uc2dc\uc5f0", "vehicles": [{"id": "D1", "sysid": 1, "supported": true, "sim": 1}, {"id": "D2", "sysid": 2, "supported": true, "sim": 1}], "cfg": {"dSafe": 12, "dEmerg": 5.5, "vSep": 4}, "site": {"lat": 37.21, "lon": 126.83, "bearing": 0}}
