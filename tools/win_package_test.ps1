@@ -129,7 +129,11 @@ if ($exe) {
         $runs = @(@{ tag = 'video'; key = 'video_udp_h264_decoding'; extra = '' },
                   @{ tag = 'video-sw'; key = 'video_udp_h264_decoding_software'; extra = "forceVideoDecoder=1`r`n" })
         foreach ($r in $runs) {
-            Add-Content -Path $markerIni -Value "`r`n[Video]`r`nvideoSource=UDP h.264 Video Stream`r`nudpUrl=0.0.0.0:5600`r`n$($r.extra)"
+            # one [Video] group only (the program rewrites the file on exit; a second group would be ignored)
+            $ini = if (Test-Path $markerIni) { Get-Content $markerIni -Raw } else { '' }
+            $ini = [regex]::Replace($ini, '(?ms)^\[Video\]\r?\n.*?(?=^\[|\z)', '')
+            Set-Content -Path $markerIni -Value ($ini.TrimEnd() + "`r`n`r`n[Video]`r`nvideoSource=UDP h.264 Video Stream`r`nudpUrl=0.0.0.0:5600`r`n$($r.extra)")
+            Copy-Item $markerIni (Join-Path $Out "$($r.tag)-settings.ini")
             $env:QT_FORCE_STDERR_LOGGING = '1'
             $env:QT_LOGGING_RULES = 'Video.*.debug=true'
             $env:MLGCS_NO_ONBOARDING = '1'
