@@ -9,9 +9,9 @@ name: Build MobilityLab GCS
 
 on:
   push:
-    branches: ['**', '!ci-screens', '!ci-windows', '!ui-tour-results', '!ci-appimage', '!ui-tour-run', '!perf-results']
+    branches: ['**', '!ci-screens', '!ci-windows', '!ui-tour-results', '!ci-appimage', '!ui-tour-run', '!perf-results', '!soak-results', '!perf-run']
     tags: ['v*']
-    paths-ignore: ['**.md', 'docs/**', 'tools/ui_tour.sh', '.github/workflows/ui-tour.yml', '.github/workflows/perf.yml', 'tools/perf_run.py']
+    paths-ignore: ['**.md', 'docs/**', 'tools/ui_tour.sh', '.github/workflows/ui-tour.yml', '.github/workflows/perf.yml', 'tools/perf_run.py', 'tools/perf_packages.sh', 'tools/perf_soak.txt']
   workflow_dispatch:
 
 concurrency:

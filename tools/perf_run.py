@@ -83,7 +83,7 @@ def wait_log(log, pat, t0, timeout):
     return None
 
 
-def measure(pid, seconds, every=2.0):
+def measure(pid, seconds, every=2.0, partial=None):
     rows = []
     c0, _ = sample(pid)
     t0 = time.time()
@@ -94,6 +94,9 @@ def measure(pid, seconds, every=2.0):
         t = time.time()
         rows.append({"t": round(t - t0, 1), "cpu_pct": round(100.0 * (c - cp) / HZ / (t - tp), 1), "rss_mb": round(r / 2**20, 1)})
         tp, cp = t, c
+        if partial:                       # long runs: keep what was measured even if the job is cut off
+            with open(partial, "w") as f:
+                json.dump(rows, f)
     return rows
 
 
@@ -136,10 +139,14 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--soak", type=int, default=0)
     ap.add_argument("--demo", type=int, default=240)
+    ap.add_argument("--only-soak", action="store_true")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     res = {"label": a.label, "env": "GitHub ubuntu-24.04 runner, Xvfb 1920x1080, Mesa llvmpipe (no GPU)", "phases": {}}
     base_env = {"ML_PERF": "1", "MLGCS_NO_ONBOARDING": "1"}
+
+    if a.only_soak:
+        return soak(a, res, base_env)
 
     # startup ×3 (the first is a cold start of the AppImage: squashfs mount + first QML compile)
     st = []
@@ -174,22 +181,27 @@ def main():
                              "acact_interventions": len(re.findall(r"회피 개입", open(log, errors="ignore").read()))}
     json.dump(rows, open(f"{a.out}/{a.label}-demo-samples.json", "w"))
 
-    # soak: the demo repeated
     if a.soak > 0:
-        log = f"{a.out}/{a.label}-soak.log"
-        p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", MLGCS_DEMO_REPEAT="1"), log)
-        wait_window(time.time())
-        t0 = time.time()
-        rows = measure(p.pid, a.soak, every=30)
-        alive = p.poll() is None
-        stop(p)
-        txt = open(log, errors="ignore").read()
-        res["phases"]["soak"] = {"seconds_planned": a.soak, "seconds_run": round(time.time() - t0), "alive_at_end": alive,
-                                 "cpu_pct": stats(rows, "cpu_pct"), "rss_mb": stats(rows, "rss_mb"),
-                                 "demo_runs": len(re.findall(r"MLDEMO run \d+", txt)), "acact_interventions": len(re.findall(r"회피 개입", txt)),
-                                 "perf": perf_lines(log)}
-        json.dump(rows, open(f"{a.out}/{a.label}-soak-samples.json", "w"))
+        return soak(a, res, base_env)
+    json.dump(res, open(f"{a.out}/{a.label}.json", "w"), ensure_ascii=False, indent=1)
+    print(json.dumps(res, ensure_ascii=False, indent=1))
 
+
+def soak(a, res, base_env):
+    """the demo (3 vehicles, ACACT) repeated for --soak seconds: RSS / CPU every 30 s"""
+    log = f"{a.out}/{a.label}-soak.log"
+    part = f"{a.out}/{a.label}-soak-samples.json"
+    p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", MLGCS_DEMO_REPEAT="1"), log)
+    wait_window(time.time())
+    t0 = time.time()
+    rows = measure(p.pid, a.soak, every=30, partial=part)
+    alive = p.poll() is None
+    stop(p)
+    txt = open(log, errors="ignore").read()
+    res["phases"]["soak"] = {"seconds_planned": a.soak, "seconds_run": round(time.time() - t0), "alive_at_end": alive,
+                             "cpu_pct": stats(rows, "cpu_pct"), "rss_mb": stats(rows, "rss_mb"),
+                             "demo_runs": len(re.findall(r"MLDEMO run \d+", txt)), "acact_interventions": len(re.findall(r"회피 개입", txt)),
+                             "perf": perf_lines(log)}
     json.dump(res, open(f"{a.out}/{a.label}.json", "w"), ensure_ascii=False, indent=1)
     print(json.dumps(res, ensure_ascii=False, indent=1))
 
