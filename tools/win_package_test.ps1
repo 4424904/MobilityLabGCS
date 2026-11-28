@@ -124,13 +124,20 @@ if ($exe) {
         Add-Content -Path $markerIni -Value "`r`n[Video]`r`nvideoSource=UDP h.264 Video Stream`r`nudpUrl=0.0.0.0:5600`r`n"
         $env:QT_FORCE_STDERR_LOGGING = '1'
         $env:QT_LOGGING_RULES = 'Video.*.debug=true'
+        $env:MLGCS_NO_ONBOARDING = '1'
+        $env:GST_DEBUG = '2,GST_CAPS:3'
+        $env:GST_DEBUG_FILE = (Join-Path $Out 'video-gst.log')
+        $env:GST_DEBUG_NO_COLOR = '1'
+        # which GStreamer plugins the installed program carries (H.264 path: rtph264depay, h264parse, a decoder)
+        $gp = Get-ChildItem -Path $InstDir -Recurse -Filter 'gst*.dll' -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'libav|openh264|d3d11|rtp|udp|videoparsers|qml|playback|nvcodec|mediafoundation' } | Select-Object -ExpandProperty Name
+        $notes += "bundled H.264-path plugins: $($gp -join ', ')"
         $vp = Start-Process -FilePath $exe.FullName -PassThru `
             -RedirectStandardOutput (Join-Path $Out 'video-app.out.log') -RedirectStandardError (Join-Path $Out 'video-app.err.log')
         Start-Sleep -Seconds 40
         Shot 'installed-video.png'   # the test pattern (moving ball) shows when the stream is decoded
         Stop-Process -Id $vp.Id -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3
         Stop-Process -Id $src.Id -Force -ErrorAction SilentlyContinue
-        Remove-Item Env:QT_FORCE_STDERR_LOGGING, Env:QT_LOGGING_RULES -ErrorAction SilentlyContinue
+        Remove-Item Env:QT_FORCE_STDERR_LOGGING, Env:QT_LOGGING_RULES, Env:MLGCS_NO_ONBOARDING, Env:GST_DEBUG, Env:GST_DEBUG_FILE, Env:GST_DEBUG_NO_COLOR -ErrorAction SilentlyContinue
         $vlog = Get-Content (Join-Path $Out 'video-app.err.log') -Raw -ErrorAction SilentlyContinue
         $results.video_udp_h264_decoding = [bool]($vlog -match 'Decoding started')
     } else {
