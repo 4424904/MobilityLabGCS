@@ -1,0 +1,102 @@
+{
+ "label": "new",
+ "env": "GitHub ubuntu-24.04 runner, Xvfb 1920x1080, Mesa llvmpipe (no GPU)",
+ "phases": {
+  "startup": [
+   {
+    "window_s": 1.43,
+    "ready_s": 3.24
+   },
+   {
+    "window_s": 0.93,
+    "ready_s": 3.13
+   },
+   {
+    "window_s": 0.93,
+    "ready_s": 3.13
+   }
+  ],
+  "idle": {
+   "seconds": 90,
+   "cpu_pct": {
+    "mean": 177.7,
+    "p95": 179.0,
+    "max": 179.5,
+    "first": 178.5,
+    "last": 176.5
+   },
+   "rss_mb": {
+    "mean": 387.0,
+    "p95": 388.4,
+    "max": 388.7,
+    "first": 386.2,
+    "last": 386.6
+   },
+   "perf": {
+    "fps": {
+     "mean": 60.0,
+     "min": 59.8,
+     "samples": 21
+    }
+   }
+  },
+  "demo": {
+   "seconds": 240,
+   "demo_started": true,
+   "cpu_pct": {
+    "mean": 96.3,
+    "p95": 243.0,
+    "max": 255.0,
+    "first": 194.3,
+    "last": 43.5
+   },
+   "rss_mb": {
+    "mean": 506.2,
+    "p95": 517.0,
+    "max": 517.8,
+    "first": 464.4,
+    "last": 503.9
+   },
+   "perf": {
+    "fps": {
+     "mean": 25.2,
+     "min": 10.0,
+     "samples": 52
+    },
+    "acact_tick_ms": {
+     "mean": 1.716,
+     "max": 19.915,
+     "samples": 24
+    }
+   },
+   "acact_interventions": 2
+  },
+  "modes": {
+   "seconds": 120,
+   "cpu_pct": {
+    "mean": 197.5,
+    "p95": 285.0,
+    "max": 294.5,
+    "first": 189.5,
+    "last": 158.4
+   },
+   "perf": {
+    "fps": {
+     "mean": 44.8,
+     "min": 13.0,
+     "samples": 28
+    },
+    "mode_switch_ms": {
+     "mean": 18.9,
+     "max": 39.0,
+     "samples": 14
+    },
+    "acact_tick_ms": {
+     "mean": 2.001,
+     "max": 20.513,
+     "samples": 12
+    }
+   }
+  }
+ }
+}

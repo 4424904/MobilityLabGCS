@@ -1,0 +1,21 @@
+Warning: Using non-standard binary: MobilityLabGCS
+Warning: bundled GStreamer plugin directory missing: /tmp/.mount_new.ApPkEMDc/usr/lib/gstreamer-1.0
+Warning: bundled gst-plugin-scanner missing or not executable: /tmp/.mount_new.ApPkEMDc/usr/lib/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner
+Warning: bundled gst-ptp-helper missing or not executable: /tmp/.mount_new.ApPkEMDc/usr/lib/gstreamer1.0/gstreamer-1.0/gst-ptp-helper
+qt.multimedia.symbolsresolver: Couldn't load pipewire-0.3 library
+qt.multimedia.symbolsresolver: Couldn't resolve pipewire-0.3 symbols
+     0.095 Warning: Couldn't load va-x11 library - qt.multimedia.symbolsresolver - (unknown:0)
+     0.095 Warning: Couldn't resolve va-x11 symbols - qt.multimedia.symbolsresolver - (unknown:0)
+     0.095 Warning: Couldn't load va-drm library - qt.multimedia.symbolsresolver - (unknown:0)
+     0.095 Warning: Couldn't resolve va-drm symbols - qt.multimedia.symbolsresolver - (unknown:0)
+     0.095 Warning: Couldn't load va library - qt.multimedia.symbolsresolver - (unknown:0)
+     0.095 Warning: Couldn't resolve va symbols - qt.multimedia.symbolsresolver - (unknown:0)
+     0.097 Warning: Couldn't load va(in plugin) library - qt.multimedia.symbolsresolver - (unknown:0)
+     0.097 Warning: Couldn't resolve va(in plugin) symbols - qt.multimedia.symbolsresolver - (unknown:0)
+     0.098 Using Qt multimedia with FFmpeg version 7.1.3 LGPL version 2.1 or later - qt.multimedia.ffmpeg - (unknown:0)
+     0.628 Warning: Member enabled of the object QQuickPinchArea overrides a member of the base object. Consider renaming it or adding final or override specifier - qt.qml.propertyCache.append - (unknown:0)
+     1.214 Critical: Error loading text-to-speech plug-in "speechd" - default - (unknown:0)
+     1.462 Warning: Unable to obtain the client: "org.freedesktop.DBus.Error.ServiceUnknown" "The name org.freedesktop.GeoClue2 was not provided by any .service files" - qt.positioning.geoclue2 - (unknown:0)
+     1.462 Warning: void QGCPositionManager::_positionError(QGeoPositionInfoSource::Error) Positioning error: QGeoPositionInfoSource::AccessError - PositionManager.QGCPositionManager - (QGCPositionManager::_positionError:171)
+     3.066 MLPERF ready - qml - (onBootDoneChanged:352)
+     5.994 MLPERF fps 62.0 - qml - (expression for onTriggered:342)
