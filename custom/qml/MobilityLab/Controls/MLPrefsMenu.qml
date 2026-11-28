@@ -164,7 +164,7 @@ Rectangle {
                         spacing: 8 * MLTheme.u
                         Rectangle { width: 6 * MLTheme.u; height: 26 * MLTheme.u; radius: 2; color: MLTheme.vehicleColor(v.id); anchors.verticalCenter: parent.verticalCenter }
                         Text { text: "UAV " + ("0" + v.id).slice(-2); color: MLTheme.text; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody; anchors.verticalCenter: parent.verticalCenter }
-                        TextField { width: 180 * MLTheme.u; placeholderText: qsTr("이름 (예: X500-1)"); text: parent.parent.pf.name || ""; font.pixelSize: MLTheme.fsSmall; onEditingFinished: MLProfiles.set(parent.parent.v.id, { name: text.trim() }) }
+                        MLTextField { width: 180 * MLTheme.u; placeholderText: qsTr("이름 (예: X500-1)"); text: parent.parent.pf.name || ""; font.pixelSize: MLTheme.fsSmall; onEditingFinished: MLProfiles.set(parent.parent.v.id, { name: text.trim() }) }
                     }
                     Seg {
                         value: parent.pf.type || "auto"

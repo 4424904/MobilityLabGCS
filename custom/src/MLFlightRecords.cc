@@ -7,6 +7,7 @@
 #include "FactGroup.h"
 #include "MultiVehicleManager.h"
 #include "QmlObjectListModel.h"
+#include "TerrainQuery.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
 
@@ -154,8 +155,77 @@ QVariantMap MLFlightRecords::_vehicleInfo() const
     return out;
 }
 
+// ---- terrain height under each vehicle (QGC terrain database) ---------------------------------------
+// AGL = vehicle AMSL − terrain height. Unlike QGC's altitudeAboveTerr fact (0 until the first answer,
+// then the last value even if later queries fail) this keeps track of whether the height is known and
+// fresh: no answer → no AGL ("미기록" / "—"), never 0.
+void MLFlightRecords::_terrainTick()
+{
+    QmlObjectListModel *vs = MultiVehicleManager::instance()->vehicles();
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    for (int i = 0; i < vs->count(); i++) {
+        Vehicle *v = qobject_cast<Vehicle *>(vs->get(i));
+        if (!v) continue;
+        const QGeoCoordinate c = v->coordinate();
+        if (!c.isValid()) continue;
+        Terr &tr = _terr[v->id()];
+        if (tr.pending || now - tr.askMs < 1000) continue;
+        const bool need = tr.okMs == 0 ? now - tr.askMs > 5000
+                                       : (tr.at.distanceTo(c) > 15.0 || now - tr.okMs > 10000);
+        if (!need) continue;
+        tr.askMs = now;
+        const int id = v->id();
+        auto apply = [this, id, c](bool ok, const QList<double> &h) {
+            Terr &t = _terr[id];
+            t.pending = false;
+            if (ok && !h.isEmpty() && !std::isnan(h.first())) {
+                t.h = h.first();
+                t.at = c;
+                t.okMs = QDateTime::currentMSecsSinceEpoch();
+            }
+        };
+        QList<double> cached;
+        bool err = false;
+        if (TerrainAtCoordinateQuery::getAltitudesForCoordinates({c}, cached, err)) {
+            apply(!err, cached);
+            continue;
+        }
+        tr.pending = true;
+        auto *q = new TerrainAtCoordinateQuery(true /* autoDelete */);
+        connect(q, &TerrainAtCoordinateQuery::terrainDataReceived, this, apply);
+        q->requestData({c});
+    }
+    emit aglChanged();
+}
+
+double MLFlightRecords::_aglOf(int sysid, double amsl, const QGeoCoordinate &pos) const
+{
+    const auto it = _terr.constFind(sysid);
+    if (it == _terr.constEnd() || it->okMs == 0 || std::isnan(amsl) || std::isnan(it->h)) return kNaN;
+    if (!pos.isValid() || it->at.distanceTo(pos) > 50.0) return kNaN;          // height of another place
+    if (QDateTime::currentMSecsSinceEpoch() - it->okMs > 30000) return kNaN;
+    return amsl - it->h;
+}
+
+QVariantMap MLFlightRecords::agl() const
+{
+    QVariantMap out;
+    QmlObjectListModel *vs = MultiVehicleManager::instance()->vehicles();
+    for (int i = 0; i < vs->count(); i++) {
+        Vehicle *v = qobject_cast<Vehicle *>(vs->get(i));
+        if (!v) continue;
+        const auto it = _terr.constFind(v->id());
+        const double a = _aglOf(v->id(), factVal(v, "altitudeAMSL"), v->coordinate());
+        if (std::isnan(a)) continue;
+        out[QString::number(v->id())] = QVariantMap{{QStringLiteral("agl"), a}, {QStringLiteral("terrain"), it->h},
+                                                    {QStringLiteral("age"), (QDateTime::currentMSecsSinceEpoch() - it->okMs) / 1000.0}};
+    }
+    return out;
+}
+
 void MLFlightRecords::_tick()
 {
+    _terrainTick();
     QmlObjectListModel *vs = MultiVehicleManager::instance()->vehicles();
     const double now = _clock.elapsed() / 1000.0;
     bool anyArmed = false;
@@ -222,7 +292,7 @@ void MLFlightRecords::_tick()
            << (c.isValid() ? QString::number(c.latitude(), 'f', 7) : QString()) << ','
            << (c.isValid() ? QString::number(c.longitude(), 'f', 7) : QString()) << ','
            << num(factVal(v, "altitudeRelative"), 2) << ',' << num(factVal(v, "altitudeAMSL"), 2) << ','
-           << num(factVal(v, "altitudeAboveTerr"), 2) << ',' << num(factVal(v, "groundSpeed"), 2) << ','
+           << num(_aglOf(v->id(), factVal(v, "altitudeAMSL"), c), 2) << ',' << num(factVal(v, "groundSpeed"), 2) << ','
            << num(factVal(v, "climbRate"), 2) << ',' << num(factVal(v, "heading"), 1) << ','
            << num(factVal(v, "roll"), 1) << ',' << num(factVal(v, "pitch"), 1) << ','
            << num(pct, 0) << ',' << num(volt, 2) << ','
@@ -563,8 +633,9 @@ void MLFlightRecords::_compute()
                 lastMode = r.mode;
             }
             if (i % 2 == 0) {   // 1 Hz series for charts
-                series << QVariantList{r.t, std::isnan(r.alt) ? QVariant() : QVariant(r.alt), std::isnan(r.gs) ? QVariant() : QVariant(r.gs),
-                                       std::isnan(r.pct) ? QVariant() : QVariant(r.pct), std::isnan(r.volt) ? QVariant() : QVariant(r.volt), int(r.lost), int(r.own)};
+                // one row = one element (QList << QList would append the row's items one by one)
+                series << QVariant(QVariantList{r.t, std::isnan(r.alt) ? QVariant() : QVariant(r.alt), std::isnan(r.gs) ? QVariant() : QVariant(r.gs),
+                                       std::isnan(r.pct) ? QVariant() : QVariant(r.pct), std::isnan(r.volt) ? QVariant() : QVariant(r.volt), int(r.lost), int(r.own)});
             }
         }
         interventions += avoidN;
@@ -611,7 +682,7 @@ void MLFlightRecords::_compute()
                 const double d3 = std::sqrt(dh * dh + dz * dz);
                 if (std::isnan(minH) || dh < minH) { minH = dh; tMin = r.t; }
                 if (std::isnan(min3) || d3 < min3) min3 = d3;
-                if (k++ % 2 == 0) series << QVariantList{r.t, dh, dz};
+                if (k++ % 2 == 0) series << QVariant(QVariantList{r.t, dh, dz});
             }
             QVariantMap p;
             p[QStringLiteral("a")] = _veh[a].sysid;
@@ -645,8 +716,7 @@ QVariantList MLFlightRecords::stateAt(double t) const
     for (const Veh &v : _veh) {
         if (v.rows.isEmpty()) continue;
         auto it = std::upper_bound(v.rows.begin(), v.rows.end(), t, [](double x, const Row &r) { return x < r.t; });
-        if (it == v.rows.begin()) continue;
-        const Row &r = *(it - 1);
+        const Row &r = it == v.rows.begin() ? v.rows.first() : *(it - 1);   // before the first sample: the first
         if (std::isnan(r.lat)) continue;
         QVariantMap m;
         m[QStringLiteral("sysid")] = v.sysid;
@@ -665,18 +735,28 @@ QVariantList MLFlightRecords::geoTracks() const
 {
     QVariantList out;
     for (const Veh &v : _veh) {
-        QVariantList pts, path;
+        QVariantList pts, path, ownPaths, cur;
         for (int i = 0; i < v.rows.size(); i++) {
             const Row &r = v.rows[i];
             if (std::isnan(r.lat)) continue;
             if (i % 2 == 0) pts << QVariant(QVariantList{r.t, r.lat, r.lon, std::isnan(r.alt) ? 0.0 : double(r.alt), int(r.own)});
             if (r.armed && i % 2 == 0) path << QVariant::fromValue(QGeoCoordinate(r.lat, r.lon));
+            // ACACT-controlled stretches (every sample, so short avoidances are not lost)
+            if (r.own) {
+                cur << QVariant::fromValue(QGeoCoordinate(r.lat, r.lon));
+            } else if (!cur.isEmpty()) {
+                cur << QVariant::fromValue(QGeoCoordinate(r.lat, r.lon));
+                ownPaths << QVariant(cur);
+                cur.clear();
+            }
         }
+        if (cur.size() > 1) ownPaths << QVariant(cur);
         QVariantMap m;
         m[QStringLiteral("sysid")] = v.sysid;
         m[QStringLiteral("id")] = QStringLiteral("D%1").arg(v.sysid);
         m[QStringLiteral("points")] = pts;
         m[QStringLiteral("path")] = path;
+        m[QStringLiteral("ownPaths")] = ownPaths;
         out << m;
     }
     return out;
@@ -786,6 +866,7 @@ void MLFlightRecords::_drawChart(QPainter &p, const QRectF &rc, int what) const
             QVector<QPointF> l;
             for (const QVariant &s : x.toMap().value(QStringLiteral("series")).toList()) {
                 const QVariantList r = s.toList();
+                if (r.size() < 2) continue;
                 l << QPointF(r[0].toDouble(), r[1].toDouble());
                 yMax = std::max(yMax, r[1].toDouble());
             }
@@ -796,6 +877,7 @@ void MLFlightRecords::_drawChart(QPainter &p, const QRectF &rc, int what) const
             QVector<QPointF> l;
             for (const QVariant &s : x.toMap().value(QStringLiteral("series")).toList()) {
                 const QVariantList r = s.toList();
+                if (r.size() < 4) continue;
                 const QVariant v = r[what == 0 ? 1 : (what == 1 ? 2 : 3)];
                 if (!v.isValid() || v.isNull()) continue;
                 l << QPointF(r[0].toDouble(), v.toDouble());

@@ -134,7 +134,10 @@ Rectangle {
         }
 
         readonly property real _vs:   root._has ? root.fv(root.vehicle.climbRate) : NaN
-        readonly property real _agl:  root._has ? root.fv(root.vehicle.altitudeAboveTerr) : NaN
+        // AGL from the recorder's terrain tracking: shown only while the terrain height under the vehicle is
+        // known and fresh (QGC's own fact reads 0 before the first answer and keeps old values on failure)
+        readonly property var  _aglE: root._has && typeof mlRecords !== "undefined" ? mlRecords.agl[String(root.vehicle.id)] : undefined
+        readonly property real _agl:  _aglE !== undefined ? _aglE.agl : NaN
         readonly property real _trk:  root._has ? root.fv(root.vehicle.gps.courseOverGround) : NaN
         readonly property var  _home: MLTheme.distance(root._has ? root.fv(root.vehicle.distanceToHome) : NaN)
         readonly property real _next: root._has ? root.fv(root.vehicle.distanceToNextWP) : NaN

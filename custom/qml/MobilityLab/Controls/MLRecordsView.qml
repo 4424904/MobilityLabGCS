@@ -26,6 +26,31 @@ Rectangle {
     property real speed: 4
     readonly property var replay: _has && mlRecords.loaded ? mlRecords.stateAt(cursor) : []
     readonly property var geo: _has && mlRecords.loaded ? mlRecords.geoTracks() : []
+    readonly property var ownSegs: {
+        var out = []
+        for (var k = 0; k < geo.length; k++) { var op = geo[k].ownPaths || []; for (var i = 0; i < op.length; i++) out.push(op[i]) }
+        return out
+    }
+    // [{t0, t1, own}] — ACACT control (own) and link-loss stretches from the 1 Hz series of every vehicle
+    readonly property var spans: {
+        var out = []
+        if (!_has || !mlRecords.loaded) return out
+        var vv = mlRecords.vehicles
+        for (var k = 0; k < vv.length; k++) {
+            var se = vv[k].series, open = [null, null]
+            for (var i = 0; i < se.length; i++) {
+                var t = Number(se[i][0])
+                for (var j = 0; j < 2; j++) {
+                    var on = Number(j === 0 ? se[i][6] : se[i][5]) === 1
+                    if (on && open[j] === null) open[j] = t
+                    if (!on && open[j] !== null) { out.push({ t0: open[j], t1: t, own: j === 0 }); open[j] = null }
+                }
+            }
+            var tl = se.length ? Number(se[se.length - 1][0]) : 0
+            for (var m = 0; m < 2; m++) if (open[m] !== null) out.push({ t0: open[m], t1: tl, own: m === 0 })
+        }
+        return out
+    }
     readonly property bool _realArmed: {
         var vs = QGroundControl.multiVehicleManager.vehicles
         for (var i = 0; i < vs.count; i++) { var v = vs.get(i); if (v.armed && !(typeof mlDemo !== "undefined" && mlDemo.active && mlDemo.isDemoSysid(v.id))) return true }
@@ -93,7 +118,7 @@ Rectangle {
                 MLIconButton { size: 30 * u; label: qsTr("실비행 · SITL"); checked: root.filter === ""; onClicked: { root.filter = ""; mlRecords.refresh("", search.text) } }
                 MLIconButton { size: 30 * u; label: qsTr("데모"); checked: root.filter === "demo"; tone: MLTheme.demo; onClicked: { root.filter = "demo"; mlRecords.refresh("demo", search.text) } }
             }
-            TextField {
+            MLTextField {
                 id: search
                 width: parent.width
                 placeholderText: qsTr("검색 — 시험명·목적·장소·운용자·메모·기체")
@@ -288,6 +313,11 @@ Rectangle {
                                 path: modelData.path
                             }
                         }
+                        // ACACT-controlled stretches on top of the tracks
+                        MapItemView {
+                            model: root.ownSegs
+                            delegate: MapPolyline { line.width: 5; line.color: MLTheme.warning; path: modelData }
+                        }
                         MapItemView {
                             model: root.replay
                             delegate: MapQuickItem {
@@ -342,17 +372,13 @@ Rectangle {
                             x: 16 * u; y: 54 * u; width: parent.width - 32 * u; height: 22 * u
                             readonly property real dur: Math.max(1, root._has ? mlRecords.duration : 1)
                             Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 4 * u; radius: 2 * u; color: MLTheme.line }
-                            // ACACT and link-loss stretches of every vehicle
+                            // ACACT and link-loss stretches of every vehicle (merged spans)
                             Repeater {
-                                model: root._has ? mlRecords.vehicles : []
-                                Repeater {
-                                    model: modelData.series
-                                    Rectangle {
-                                        visible: modelData[5] === 1 || modelData[6] === 1
-                                        x: track.width * modelData[0] / track.dur; y: modelData[6] === 1 ? 2 * u : 14 * u
-                                        width: Math.max(2, track.width / track.dur); height: 6 * u
-                                        color: modelData[6] === 1 ? MLTheme.warning : MLTheme.caution
-                                    }
+                                model: root.spans
+                                Rectangle {
+                                    x: track.width * modelData.t0 / track.dur; y: modelData.own ? 2 * u : 14 * u
+                                    width: Math.max(3, track.width * (modelData.t1 - modelData.t0) / track.dur); height: 6 * u
+                                    color: modelData.own ? MLTheme.warning : MLTheme.caution
                                 }
                             }
                             Repeater {
@@ -475,7 +501,7 @@ Rectangle {
                                 width: fCol.width
                                 property alias value: tf.text
                                 MLText { text: modelData.t; color: MLTheme.label; font.pixelSize: MLTheme.fsSmall }
-                                TextField { id: tf; width: parent.width; font.pixelSize: MLTheme.fsBody; text: root._has && mlRecords.meta[modelData.k] ? mlRecords.meta[modelData.k] : "" }
+                                MLTextField { id: tf; width: parent.width; font.pixelSize: MLTheme.fsBody; text: root._has && mlRecords.meta[modelData.k] ? mlRecords.meta[modelData.k] : "" }
                             }
                         }
                         MLSectionTitle { text: qsTr("시험 책임자 판단 (자동 집계와 별개)"); width: parent.width }
@@ -488,7 +514,7 @@ Rectangle {
                                 MLIconButton { size: 34 * u; label: modelData.t; checked: judge.pick === modelData.k; onClicked: judge.pick = modelData.k }
                             }
                         }
-                        TextField { id: jnote; width: parent.width; placeholderText: qsTr("판단 근거"); font.pixelSize: MLTheme.fsBody; text: root._has && mlRecords.meta.judgementNote ? mlRecords.meta.judgementNote : "" }
+                        MLTextField { id: jnote; width: parent.width; placeholderText: qsTr("판단 근거"); font.pixelSize: MLTheme.fsBody; text: root._has && mlRecords.meta.judgementNote ? mlRecords.meta.judgementNote : "" }
                         Row {
                             spacing: 10 * u
                             MLCommandButton {

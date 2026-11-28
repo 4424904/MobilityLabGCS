@@ -18,6 +18,9 @@
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QFile>
 #include <QtCore/QObject>
+#include <QtCore/QHash>
+#include <QtPositioning/QGeoCoordinate>
+#include <limits>
 #include <QtCore/QPointer>
 #include <QtCore/QString>
 #include <QtCore/QTimer>
@@ -46,6 +49,9 @@ class MLFlightRecords : public QObject
     Q_PROPERTY(QVariantMap  summary     READ summary     NOTIFY loadedChanged)
     Q_PROPERTY(double       duration    READ duration    NOTIFY loadedChanged)
     Q_PROPERTY(QVariantMap  extent      READ extent      NOTIFY loadedChanged)   // latMin latMax lonMin lonMax altMax
+    /// live AGL per vehicle: "sysid" → {agl, terrain, age}; present only while a terrain height for the
+    /// vehicle's current position is known (QGC terrain database, < 30 s old) — never a made-up 0
+    Q_PROPERTY(QVariantMap  agl         READ agl         NOTIFY aglChanged)
 
 public:
     explicit MLFlightRecords(QObject *parent = nullptr);
@@ -65,6 +71,7 @@ public:
     QVariantMap summary() const { return _summary; }
     double duration() const { return _duration; }
     QVariantMap extent() const { return _extent; }
+    QVariantMap agl() const;
 
     /// list records: kind "" = real + SITL, "demo", "all"; text matches name, purpose, site, operator, notes, vehicles
     Q_INVOKABLE void refresh(const QString &kind = QString(), const QString &text = QString());
@@ -87,6 +94,7 @@ signals:
     void baseDirChanged();
     void recordsChanged();
     void loadedChanged();
+    void aglChanged();
 
 private:
     struct Row {
@@ -99,6 +107,17 @@ private:
         int sysid = 0;
         QVector<Row> rows;
     };
+
+    struct Terr {
+        QGeoCoordinate at;          // where the terrain height was asked
+        double h = std::numeric_limits<double>::quiet_NaN();
+        qint64 okMs = 0;            // when it was last received successfully
+        qint64 askMs = 0;
+        bool pending = false;
+    };
+    QHash<int, Terr> _terr;
+    void _terrainTick();
+    double _aglOf(int sysid, double amsl, const QGeoCoordinate &pos) const;
 
     void _tick();
     void _start();
