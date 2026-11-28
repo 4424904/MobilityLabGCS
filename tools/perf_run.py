@@ -177,7 +177,7 @@ def main():
 
     # demo, 3 vehicles + ACACT auto run
     log = f"{a.out}/{a.label}-demo.log"
-    p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", ML_PERF_MODES="1", **TEST_LOG), log)
+    p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", **TEST_LOG), log)
     wait_window(time.time())
     act = wait_log(log, r"MLDEMO (active true|run \d+|auto)|MLACACT", time.time(), 90)
     rows = measure(p.pid, a.demo)
@@ -185,6 +185,15 @@ def main():
     res["phases"]["demo"] = {"seconds": a.demo, "demo_started": act is not None, "cpu_pct": stats(rows, "cpu_pct"), "rss_mb": stats(rows, "rss_mb"), "perf": perf_lines(log),
                              "acact_interventions": len(re.findall(r"회피 개입", open(log, errors="ignore").read()))}
     json.dump(rows, open(f"{a.out}/{a.label}-demo-samples.json", "w"))
+
+    # screen-mode switch time (v1.2+ only: ML_PERF_MODES switches STANDARD/ADVANCED every 10 s) — kept
+    # out of the demo phase above so the CPU comparison with an older build is like for like
+    log = f"{a.out}/{a.label}-modes.log"
+    p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", ML_PERF_MODES="1", **TEST_LOG), log)
+    wait_window(time.time())
+    rows = measure(p.pid, 120)
+    stop(p)
+    res["phases"]["modes"] = {"seconds": 120, "cpu_pct": stats(rows, "cpu_pct"), "perf": perf_lines(log)}
 
     if a.soak > 0:
         return soak(a, res, base_env)
