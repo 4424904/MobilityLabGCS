@@ -127,7 +127,7 @@ if ($exe) {
         $vp = Start-Process -FilePath $exe.FullName -PassThru `
             -RedirectStandardOutput (Join-Path $Out 'video-app.out.log') -RedirectStandardError (Join-Path $Out 'video-app.err.log')
         Start-Sleep -Seconds 40
-        Shot 'installed-video.png'
+        Shot 'installed-video.png'   # the test pattern (moving ball) shows when the stream is decoded
         Stop-Process -Id $vp.Id -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3
         Stop-Process -Id $src.Id -Force -ErrorAction SilentlyContinue
         Remove-Item Env:QT_FORCE_STDERR_LOGGING, Env:QT_LOGGING_RULES -ErrorAction SilentlyContinue
