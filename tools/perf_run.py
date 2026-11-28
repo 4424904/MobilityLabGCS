@@ -18,6 +18,8 @@ Phases
 import argparse, json, os, re, signal, subprocess, sys, time
 
 HZ = os.sysconf("SC_CLK_TCK")
+# the same event lines in both versions (ACACT take-over / release, demo state) as the CI demo check
+TEST_LOG = {"ML_TEST_ACACT": "1", "ML_TEST_ACACT_CASE": "none"}
 PAGE = os.sysconf("SC_PAGE_SIZE")
 
 
@@ -64,10 +66,13 @@ def stop(p):
 
 
 def wait_window(t0, timeout=90):
+    """main window mapped: class MobilityLabGCS and title exactly "MobilityLabGCS" (no window manager on Xvfb)"""
     while time.time() - t0 < timeout:
-        r = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^MobilityLabGCS$"], capture_output=True, text=True)
-        if r.stdout.strip():
-            return time.time() - t0
+        r = subprocess.run(["xdotool", "search", "--class", "MobilityLabGCS"], capture_output=True, text=True)
+        for w in r.stdout.split():
+            n = subprocess.run(["xdotool", "getwindowname", w], capture_output=True, text=True).stdout.strip()
+            if n == "MobilityLabGCS":
+                return time.time() - t0
         time.sleep(0.1)
     return None
 
@@ -172,9 +177,9 @@ def main():
 
     # demo, 3 vehicles + ACACT auto run
     log = f"{a.out}/{a.label}-demo.log"
-    p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", ML_PERF_MODES="1"), log)
+    p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", ML_PERF_MODES="1", **TEST_LOG), log)
     wait_window(time.time())
-    act = wait_log(log, r"MLDEMO active true", time.time(), 60)
+    act = wait_log(log, r"MLDEMO (active true|run \d+|auto)|MLACACT", time.time(), 90)
     rows = measure(p.pid, a.demo)
     stop(p)
     res["phases"]["demo"] = {"seconds": a.demo, "demo_started": act is not None, "cpu_pct": stats(rows, "cpu_pct"), "rss_mb": stats(rows, "rss_mb"), "perf": perf_lines(log),
@@ -191,7 +196,7 @@ def soak(a, res, base_env):
     """the demo (3 vehicles, ACACT) repeated for --soak seconds: RSS / CPU every 30 s"""
     log = f"{a.out}/{a.label}-soak.log"
     part = f"{a.out}/{a.label}-soak-samples.json"
-    p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", MLGCS_DEMO_REPEAT="1"), log)
+    p = launch(a.app, dict(base_env, MLGCS_DEMO="trio", MLGCS_DEMO_AUTO="1", MLGCS_DEMO_REPEAT="1", **TEST_LOG), log)
     wait_window(time.time())
     t0 = time.time()
     rows = measure(p.pid, a.soak, every=30, partial=part)
