@@ -45,6 +45,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLUi.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightAnalysis.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightAnalysis.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightRecords.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightRecords.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLDemo.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLDemo.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLMapService.cc

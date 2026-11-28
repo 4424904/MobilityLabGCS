@@ -5,6 +5,7 @@ import QtQuick.Controls
 Popup {
     id: root
     property var center: MLState.alertCenter
+    property bool showHistory: false
     readonly property real u: MLTheme.u
     width: 440 * u
     padding: 12 * u
@@ -24,7 +25,30 @@ Popup {
             text: qsTr("현재 경고 없음 — 모든 감시 항목 정상")
             color: MLTheme.active; font.pixelSize: MLTheme.fsSmall
         }
+        // v1.2: current alerts and the history of this session (raised / cleared times)
+        Row {
+            spacing: 4 * root.u
+            MLIconButton { size: 26 * root.u; label: qsTr("현재 %1").arg(root.center ? root.center.alerts.length : 0); checked: !root.showHistory; onClicked: root.showHistory = false }
+            MLIconButton { size: 26 * root.u; label: qsTr("이력 %1").arg(root.center ? root.center.history.count : 0); checked: root.showHistory; onClicked: root.showHistory = true }
+        }
         ListView {
+            visible: root.showHistory
+            width: parent.width
+            height: Math.min(contentHeight, 560 * root.u)
+            clip: true
+            model: root.center ? root.center.history : null
+            ScrollBar.vertical: ScrollBar {}
+            delegate: Row {
+                width: ListView.view.width
+                spacing: 8 * root.u
+                Text { text: model.raised; color: MLTheme.dim; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel; width: 58 * root.u }
+                MLText { text: root.center.levelIcons[model.level] + " " + root.center.levelNames[model.level]; color: model.level >= 3 ? MLTheme.warning : (model.level === 2 ? MLTheme.caution : MLTheme.info); font.pixelSize: MLTheme.fsLabel; width: 50 * root.u }
+                MLText { text: model.title; color: MLTheme.text; font.pixelSize: MLTheme.fsLabel; width: parent.width - 220 * root.u; elide: Text.ElideRight }
+                MLText { text: model.cleared === "" ? qsTr("진행 중") : qsTr("해제 %1").arg(model.cleared); color: model.cleared === "" ? MLTheme.caution : MLTheme.dim; font.pixelSize: MLTheme.fsLabel }
+            }
+        }
+        ListView {
+            visible: !root.showHistory
             width: parent.width
             height: Math.min(contentHeight, 560 * root.u)
             spacing: 6 * root.u
@@ -46,7 +70,17 @@ Popup {
                     id: ac
                     x: 14 * root.u; y: 8 * root.u; width: parent.width - 80 * root.u
                     spacing: 2 * root.u
-                    MLText { text: a.title; font.pixelSize: MLTheme.fsSmall; font.weight: Font.DemiBold; color: parent.parent.tone; width: parent.width }
+                    // level is told by icon and word as well as colour
+                    Row {
+                        spacing: 6 * root.u
+                        Rectangle {
+                            width: lvT.implicitWidth + 12 * root.u; height: 18 * root.u; radius: 3 * root.u
+                            color: a.level >= 4 ? parent.parent.parent.tone : "transparent"
+                            border.color: parent.parent.parent.tone
+                            MLText { id: lvT; anchors.centerIn: parent; text: root.center.levelIcons[a.level] + " " + root.center.levelNames[a.level]; color: a.level >= 4 ? "white" : parent.parent.parent.parent.tone; font.pixelSize: MLTheme.fsLabel; font.weight: Font.DemiBold }
+                        }
+                        MLText { text: a.title; font.pixelSize: MLTheme.fsSmall; font.weight: Font.DemiBold; color: parent.parent.parent.tone; width: ac.width - 90 * root.u; elide: Text.ElideRight }
+                    }
                     MLText { text: qsTr("원인: ") + a.cause; width: parent.width; wrapMode: Text.WordWrap; elide: Text.ElideNone; font.pixelSize: MLTheme.fsLabel; color: MLTheme.text }
                     MLText { text: qsTr("확인: ") + a.action; width: parent.width; wrapMode: Text.WordWrap; elide: Text.ElideNone; font.pixelSize: MLTheme.fsLabel; color: MLTheme.label }
                 }

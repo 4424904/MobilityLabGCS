@@ -65,7 +65,9 @@ QtObject {
     property bool   helpTips:       true        // hover help on buttons
     property string shortcutsJson:  ""          // operator's own key bindings (MLShortcuts)
     property bool   acactDetailOpen: false      // STANDARD: the ACACT details opened from the status strip
-    property string gfxQuality:     "auto"      // 3D: auto · high · low
+    property string gfxQuality:     "auto"      // v1.2 performance mode: auto · lite · balanced · high
+    property bool   voiceAlerts:    true        // speak 위험 / 긴급 alerts (QGC voice output, its volume / mute)
+    property int    voiceMinLevel:  3
     readonly property bool isStandard: uiMode === "standard"
     readonly property bool isAdvanced: uiMode === "advanced"
     readonly property bool isShowcase: uiMode === "showcase"
@@ -121,6 +123,8 @@ QtObject {
         property alias shortcutsJson:   root.shortcutsJson
         property alias modeBeforeShowcase: root._modeBeforeShowcase
         property alias gfxQuality:      root.gfxQuality
+        property alias voiceAlerts:     root.voiceAlerts
+        property alias voiceMinLevel:   root.voiceMinLevel
     }
     // the saved mode: SHOWCASE is never restored at start (it needs the operator to pick a source)
     property string _savedMode: "standard"

@@ -60,9 +60,11 @@ QtObject {
     readonly property real   fsHuge:        36 * u       // HUD primary values
 
     // ---- motion -----------------------------------------------------------------
-    readonly property int animFast:   120
-    readonly property int anim:       200
-    readonly property int animSlow:   320
+    // performance mode "경량" (lite): no transitions at all
+    readonly property bool lite:      MLState.gfxQuality === "lite" || MLState.gfxQuality === "low"
+    readonly property int animFast:   lite ? 0 : 120
+    readonly property int anim:       lite ? 0 : 200
+    readonly property int animSlow:   lite ? 0 : 320
     readonly property int easing:     Easing.OutCubic
 
     // ---- surfaces -----------------------------------------------------------------

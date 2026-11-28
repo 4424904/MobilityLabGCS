@@ -59,7 +59,7 @@ Rectangle {
     readonly property var  _pairs:  replay || !_guard ? [] : mlGuard.pairs
     readonly property var  _plans:  replay || !_has || !mlGuard.missionCheck || !mlGuard.missionCheck.vehicles ? [] : mlGuard.missionCheck.vehicles
     readonly property real dSafe: !isNaN(dSafeOverride) ? dSafeOverride : (_has && mlGuard.config.d_safe ? mlGuard.config.d_safe : 10)
-    readonly property bool _lowGfx: MLState.gfxQuality === "low" || (MLState.gfxQuality === "auto" && (_drones.length > 4 || width * height > 2600 * 1400))
+    readonly property bool _lowGfx: MLState.gfxQuality === "lite" || MLState.gfxQuality === "low" || ((MLState.gfxQuality === "auto" || MLState.gfxQuality === "balanced") && (_drones.length > 4 || width * height > 2600 * 1400))
     readonly property int  _trackMax: _lowGfx ? 300 : 1200
 
     function sysidOf(d) { if (d.sysid !== undefined) return Number(d.sysid); var m = /^D(\d+)$/.exec(d.id); return m ? Number(m[1]) : 0 }
@@ -183,7 +183,7 @@ Rectangle {
             clearColor: MLTheme.day ? "#DCE2E8" : "#06090C"
             backgroundMode: SceneEnvironment.Color
             antialiasingMode: root._lowGfx ? SceneEnvironment.NoAA : SceneEnvironment.MSAA
-            antialiasingQuality: MLState.gfxQuality === "high" ? SceneEnvironment.VeryHigh : SceneEnvironment.High
+            antialiasingQuality: MLState.gfxQuality === "high" ? SceneEnvironment.VeryHigh : (MLState.gfxQuality === "balanced" ? SceneEnvironment.Medium : SceneEnvironment.High)
         }
         Node {
             id: originNode

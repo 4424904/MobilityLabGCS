@@ -122,6 +122,10 @@ class MLDemo : public QObject
     Q_PROPERTY(QString      planDir     READ planDir    NOTIFY activeChanged)
     Q_PROPERTY(QVariantList vehicles    READ vehiclesV  NOTIFY tick)
     Q_PROPERTY(double       timeScale   READ timeScale  WRITE setTimeScale NOTIFY timeScaleChanged)
+    // altitude reference of the demo homes: the terrain elevation QGC itself uses for AGL
+    // (TerrainAtCoordinateQuery), so the demo's AMSL, QGC's AGL and the map agree
+    Q_PROPERTY(QString      altRef      READ altRef     NOTIFY altRefChanged)
+    Q_PROPERTY(QVariantList origin      READ origin     NOTIFY originChanged)
 
 public:
     explicit MLDemo(QObject *parent = nullptr);
@@ -141,9 +145,15 @@ public:
     // disconnects a real aircraft on its own (dropping the link of a flying aircraft is itself
     // a hazard); the operator disconnects it first.
     Q_INVOKABLE QString startBlockReason() const;
+    QString altRef() const { return _altRef; }
     Q_INVOKABLE void stop();
     /// simulate a telemetry link loss of one demo vehicle (both directions) / restore it
     Q_INVOKABLE void setLinkCut(int sysid, bool cut);
+    Q_INVOKABLE void setBattery(int sysid, double pct);
+    /// move the demo to another place (e.g. the test site of the day); not while running
+    Q_INVOKABLE bool setOrigin(double lat, double lon);
+    Q_INVOKABLE void resetOrigin();
+    QVariantList origin() const;
     /// is this vehicle one of the demo's (false for anything on a real link)
     Q_INVOKABLE bool isDemoSysid(int sysid) const;
     static bool isDemoLink(const LinkInterface *link);
@@ -153,6 +163,8 @@ public:
     void receive(const mavlink_message_t &msg);
 
 signals:
+    void altRefChanged();
+    void originChanged();
     void activeChanged();
     void tick();
     void timeScaleChanged();
@@ -183,6 +195,8 @@ private:
     void _loadParams();
 
     bool _active = false;
+    QString _altRef;
+    void _queryTerrain();
     QString _scenario;
     QString _planDir;
     std::vector<MLDemoVehicle> _v;

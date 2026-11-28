@@ -30,7 +30,11 @@ Rectangle {
         target: root._has ? mlDemo : null
         function onActiveChanged() {
             if (typeof mlTestAcact !== "undefined" && mlTestAcact) console.log("MLDEMO active " + mlDemo.active + " " + mlDemo.scenario)
-            if (mlDemo.active && typeof mlDemoAuto !== "undefined" && mlDemoAuto) { root.autoStage = 1; root.autoText = qsTr("시작…") }
+            if (mlDemo.active) {
+                root.runCount++
+                console.log("MLDEMO run " + root.runCount + " " + mlDemo.scenario)
+            }
+            if (mlDemo.active && ((typeof mlDemoAuto !== "undefined" && mlDemoAuto) || (root.repeatRuns && root.runCount > 1))) { root.autoStage = 1; root.autoText = qsTr("시작…") }
             if (!mlDemo.active) root.autoStage = 0
         }
     }
@@ -52,6 +56,31 @@ Rectangle {
         return typeof mlGuard !== "undefined" && mlGuard.activeIds.split(",").length >= n
     }
     function nFor(key) { var s = _has ? mlDemo.scenarios : []; for (var i = 0; i < s.length; i++) if (s[i].key === key) return s[i].n; return 1 }
+
+    // repeat (v1.2): when every vehicle has landed and disarmed, end the run and start the same
+    // scenario again — for exhibitions and for the long soak test (MLGCS_DEMO_REPEAT=1)
+    property bool repeatRuns: typeof mlDemoRepeat !== "undefined" && mlDemoRepeat
+    property int  runCount: 0
+    property string _repeatScenario: ""
+    Timer {
+        interval: 2000; repeat: true
+        running: root.repeatRuns && root.autoStage === 4
+        property int calm: 0
+        onTriggered: {
+            var vs = QGroundControl.multiVehicleManager.vehicles, busy = false
+            for (var i = 0; i < vs.count; i++) if (vs.get(i).armed || vs.get(i).flying) busy = true
+            calm = busy ? 0 : calm + 1
+            if (calm >= 3) {
+                calm = 0
+                root.autoStage = 5
+                root._repeatScenario = mlDemo.scenario
+                if (mlGuard.running) mlGuard.stop()
+                mlDemo.stop()
+                restartTimer.start()
+            }
+        }
+    }
+    Timer { id: restartTimer; interval: 4000; onTriggered: if (root.repeatRuns && root._repeatScenario !== "") mlDemo.start(root._repeatScenario) }
 
     // automatic demonstration: the same operator workflow as with real aircraft
     Timer {
@@ -104,6 +133,12 @@ Rectangle {
             MLIconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; glyph: "✕"; tip: qsTr("닫기"); onClicked: root.closeRequested() }
         }
         MLText {
+            visible: root._on && mlDemo.altRef !== ""
+            width: col.width; wrapMode: Text.WordWrap
+            text: mlDemo.altRef
+            color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel
+        }
+        MLText {
             width: parent.width; wrapMode: Text.WordWrap; elide: Text.ElideNone
             color: MLTheme.label; font.pixelSize: MLTheme.fsSmall
             text: qsTr("GCS에 내장된 시뮬레이션 기체로 관제·미션·ACACT 기능을 시연합니다. 기체만 가상이고 GCS와 ACACT 계산은 실제 그대로입니다. 데모 중에는 UDP·시리얼 등 모든 실기체 링크가 닫히고 새 연결도 거부되어, 어떤 명령도 실제 기체로 나가지 않습니다. 데모 비행은 SITL 검증 기록으로 남지 않습니다.")
@@ -124,6 +159,26 @@ Rectangle {
                     MLText { text: modelData.text; font.pixelSize: MLTheme.fsLabel; color: MLTheme.dim; width: parent.width }
                 }
                 MouseArea { id: sm; anchors.fill: parent; enabled: !root._on; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.pick = modelData.key }
+            }
+        }
+
+        // where the demo flies (v1.2): the default site or one of the saved test sites
+        Column {
+            visible: !root._on && root._has
+            width: col.width
+            spacing: 6 * root.u
+            MLText {
+                text: qsTr("시연 위치  %1, %2").arg(root._has ? Number(mlDemo.origin[0]).toFixed(5) : "").arg(root._has ? Number(mlDemo.origin[1]).toFixed(5) : "")
+                color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel
+            }
+            Flow {
+                width: parent.width
+                spacing: 6 * root.u
+                MLIconButton { size: 28 * root.u; label: qsTr("기본 위치"); onClicked: mlDemo.resetOrigin() }
+                Repeater {
+                    model: typeof mlMap !== "undefined" ? mlMap.favorites.slice(0, 5) : []
+                    MLIconButton { size: 28 * root.u; label: modelData.name; tip: qsTr("저장한 시험장으로 시연 위치 옮기기"); onClicked: mlDemo.setOrigin(modelData.lat, modelData.lon) }
+                }
             }
         }
 
@@ -205,6 +260,26 @@ Rectangle {
                         onClicked: mlDemo.setLinkCut(modelData.sysid, !modelData.linkCut)
                     }
                 }
+            }
+            Row {
+                spacing: 6 * root.u
+                MLText { text: qsTr("배터리"); color: MLTheme.dim; font.pixelSize: MLTheme.fsSmall; anchors.verticalCenter: parent.verticalCenter; width: 70 * root.u }
+                Repeater {
+                    model: root._on ? mlDemo.vehicles : []
+                    MLIconButton {
+                        size: 30 * root.u
+                        label: "D" + modelData.sysid + qsTr(" 25%")
+                        tone: MLTheme.caution
+                        tip: qsTr("배터리 부족 훈련: 잔량을 25%로 — 계속 날면 15%에서 PX4식 복귀(RTL)")
+                        onClicked: mlDemo.setBattery(modelData.sysid, 25)
+                    }
+                }
+            }
+            Row {
+                spacing: 6 * root.u
+                MLText { text: qsTr("반복"); color: MLTheme.dim; font.pixelSize: MLTheme.fsSmall; anchors.verticalCenter: parent.verticalCenter; width: 70 * root.u }
+                MLIconButton { size: 30 * root.u; label: root.repeatRuns ? qsTr("반복 재생 켜짐") : qsTr("반복 재생 꺼짐"); checked: root.repeatRuns; tone: MLTheme.demo; onClicked: root.repeatRuns = !root.repeatRuns }
+                MLText { visible: root.runCount > 1; text: qsTr("%1회째").arg(root.runCount); color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel; anchors.verticalCenter: parent.verticalCenter }
             }
             MLText {
                 width: parent.width; wrapMode: Text.WordWrap; elide: Text.ElideNone

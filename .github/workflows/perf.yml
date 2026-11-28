@@ -1,0 +1,70 @@
+name: Performance and soak
+
+# Same-runner comparison of two builds (tools/perf_run.py) and an optional long soak run of the
+# newer one. Results → perf-results branch. Tooling only; nothing here changes the product.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'release tag of the baseline AppImage'
+        required: false
+        default: 'v1.1.0-build.96'
+      soak:
+        description: 'soak seconds for the new build (0 = none; a job may run at most 6 h)'
+        required: false
+        default: '0'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  perf:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AppImages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.inputs.base }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/a" && cd "${RUNNER_TEMP}/a"
+          gh release download "$BASE" -R "$GITHUB_REPOSITORY" -p '*AppImage' -p 'SHA256SUMS*'
+          grep AppImage SHA256SUMS* | sha256sum -c -
+          mv *.AppImage base.AppImage
+          git clone -q --depth 1 -b ci-appimage "https://github.com/${GITHUB_REPOSITORY}.git" cia
+          cat cia/app.part.* > new.AppImage
+          sed 's/MobilityLabGCS-x86_64.AppImage/new.AppImage/' cia/SHA256 | sha256sum -c -
+          echo "NEW_COMMIT=$(cat cia/COMMIT)" >> "$GITHUB_ENV"
+          chmod +x base.AppImage new.AppImage
+
+      - name: Packages
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends \
+            xvfb xauth xdotool libegl1 libgl1 libgl1-mesa-dri libglx-mesa0 \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-xinerama0 libxcb-xkb1 libfontconfig1 libpulse0 libspeechd2 libasound2t64
+          nproc; free -m; lscpu | grep 'Model name'
+
+      - name: Measure (base, then new — same runner)
+        run: |
+          Xvfb :71 -screen 0 1920x1080x24 -nolisten tcp & sleep 2
+          export DISPLAY=:71
+          OUT="${RUNNER_TEMP}/perf"; mkdir -p "$OUT"
+          lscpu > "$OUT/runner-cpu.txt"; free -m > "$OUT/runner-mem.txt"
+          python3 tools/perf_run.py --app "${RUNNER_TEMP}/a/base.AppImage" --label base --out "$OUT"
+          python3 tools/perf_run.py --app "${RUNNER_TEMP}/a/new.AppImage" --label new --out "$OUT" --soak "${{ github.event.inputs.soak }}"
+          echo "base ${{ github.event.inputs.base }} · new ${NEW_COMMIT}" > "$OUT/WHAT.txt"
+
+      - name: Publish → perf-results
+        if: always()
+        run: |
+          cd "${RUNNER_TEMP}/perf" || exit 0
+          git init -q . && git checkout -q -b perf-results
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add -A && git commit -qm "perf ${NEW_COMMIT}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" perf-results

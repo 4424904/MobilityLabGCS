@@ -32,6 +32,8 @@ public:
     QString language() const { return _lang; }
     void setLanguage(const QString &lang);
     void attach(QQmlApplicationEngine *engine);   // install the translator for the saved language
+    /// voice alert through QGC's speech output (QGC volume and mute settings apply)
+    Q_INVOKABLE void say(const QString &text);
 
 signals:
     void languageChanged();

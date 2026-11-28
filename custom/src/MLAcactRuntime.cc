@@ -1776,8 +1776,34 @@ std::pair<int, int> MLAcactRuntime::_goalOf(VS *d) const
     return {-1, -1};
 }
 
+namespace {
+// ML_PERF=1 (performance measurement, tools/perf_run.py): time spent in one guard tick, logged as
+// mean / max every 10 s. Measurement only — the tick itself is unchanged.
+struct MLPerfTick {
+    QElapsedTimer t;
+    bool on;
+    MLPerfTick() : on(qEnvironmentVariable("ML_PERF") == QStringLiteral("1")) { if (on) t.start(); }
+    ~MLPerfTick()
+    {
+        if (!on) return;
+        static double sum = 0, mx = 0;
+        static int n = 0;
+        static QElapsedTimer win;
+        if (!win.isValid()) win.start();
+        const double ms = t.nsecsElapsed() / 1.0e6;
+        sum += ms; mx = std::max(mx, ms); n++;
+        if (win.elapsed() > 10000 && n > 0) {
+            qWarning().noquote() << QStringLiteral("MLPERF acact tick_ms mean %1 max %2").arg(sum / n, 0, 'f', 3).arg(mx, 0, 'f', 3);
+            sum = 0; mx = 0; n = 0;
+            win.restart();
+        }
+    }
+};
+} // namespace
+
 void MLAcactRuntime::_tick()
 {
+    const MLPerfTick perfTick;
     _flightEndCheck();
     const double t = _now();
     try {

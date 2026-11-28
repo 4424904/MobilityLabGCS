@@ -29,7 +29,9 @@ Item {
     }
 
     function fv(f) { if (!f) return NaN; var v = f.rawValue; return (v === undefined || v === null) ? NaN : Number(v) }
-    // level: 3 warning · 2 caution · 1 advisory
+    // level (v1.2): 4 긴급 emergency · 3 위험 warning · 2 주의 caution · 1 정보 advisory
+    // 긴급 = act now or lose the aircraft / a collision: link lost in flight, critical battery in
+    // flight, no position fix in flight, two vehicles inside the emergency distance
     readonly property var alerts: {
         _tick
         var a = []
@@ -39,13 +41,13 @@ Item {
             var v = _vs.get(i), id = v.id, n = MLTheme.uavName(id)
             if (v.flying) flying++
             if (v.vehicleLinkManager.communicationLost)
-                add("link" + id, 3, id, qsTr("%1 통신 두절").arg(n), qsTr("텔레메트리 수신 없음 — FC 페일세이프(RTL/LAND/HOLD)가 동작할 수 있습니다"), qsTr("링크·안테나·모뎀 전원 확인, 기체 육안 확인, 필요 시 조종기 수동 전환"))
+                add("link" + id, v.flying ? 4 : 3, id, qsTr("%1 통신 두절").arg(n), qsTr("텔레메트리 수신 없음 — FC 페일세이프(RTL/LAND/HOLD)가 동작할 수 있습니다"), qsTr("링크·안테나·모뎀 전원 확인, 기체 육안 확인, 필요 시 조종기 수동 전환"))
             var bat = v.batteries.count > 0 ? v.batteries.get(0) : null
             var pct = bat ? fv(bat.percentRemaining) : NaN
-            if (!isNaN(pct) && pct < 15) add("bat" + id, 3, id, qsTr("%1 배터리 위험 %2%").arg(n).arg(pct.toFixed(0)), qsTr("잔량 15% 미만"), qsTr("즉시 귀환(RTL) 또는 착륙"))
+            if (!isNaN(pct) && pct < 15) add("bat" + id, v.flying ? 4 : 3, id, qsTr("%1 배터리 위험 %2%").arg(n).arg(pct.toFixed(0)), qsTr("잔량 15% 미만"), qsTr("즉시 귀환(RTL) 또는 착륙"))
             else if (!isNaN(pct) && pct < 30 && v.flying) add("bat" + id, 2, id, qsTr("%1 배터리 부족 %2%").arg(n).arg(pct.toFixed(0)), qsTr("잔량 30% 미만"), qsTr("남은 미션 시간 확인, 귀환 준비"))
             var lock = fv(v.gps.lock), hdop = fv(v.gps.hdop)
-            if (!isNaN(lock) && lock > 0 && lock < 3) add("gps" + id, v.flying ? 3 : 2, id, qsTr("%1 GNSS 위치 불량").arg(n), qsTr("3D 고정 아님 (fix %1)").arg(lock), qsTr("위치 기반 비행·ACACT 회피 불가 — 수동 조종 대비"))
+            if (!isNaN(lock) && lock > 0 && lock < 3) add("gps" + id, v.flying ? 4 : 2, id, qsTr("%1 GNSS 위치 불량").arg(n), qsTr("3D 고정 아님 (fix %1)").arg(lock), qsTr("위치 기반 비행·ACACT 회피 불가 — 수동 조종 대비"))
             else if (!isNaN(hdop) && hdop > 2.5) add("hdop" + id, 1, id, qsTr("%1 GNSS 정확도 저하").arg(n), qsTr("HDOP %1").arg(hdop.toFixed(1)), qsTr("위성 상태 확인, 주변 차폐물 확인"))
             if (v.sensorsUnhealthyBits !== 0) add("sens" + id, v.flying ? 3 : 2, id, qsTr("%1 센서 이상").arg(n), qsTr("FC가 비정상 센서를 보고함"), qsTr("기체 설정 › 센서 확인, 비행 중이면 착륙 고려"))
         }
@@ -60,7 +62,7 @@ Item {
             var ps = mlGuard.pairs
             for (var j = 0; j < ps.length; j++) {
                 var p = ps[j]
-                if (p.level >= 2) add("pair" + p.a + p.b, 3, 0, qsTr("%1·%2 비상 근접 %3 m").arg(p.a).arg(p.b).arg(p.d.toFixed(1)), qsTr("비상 이격 이내"), qsTr("회피 진행 확인 — 필요 시 전체 HOLD"))
+                if (p.level >= 2) add("pair" + p.a + p.b, 4, 0, qsTr("%1·%2 비상 근접 %3 m").arg(p.a).arg(p.b).arg(p.d.toFixed(1)), qsTr("비상 이격 이내"), qsTr("회피 진행 확인 — 필요 시 전체 HOLD"))
                 else if (p.level === 1) add("pair" + p.a + p.b, 2, 0, qsTr("%1·%2 충돌 예측").arg(p.a).arg(p.b), qsTr("%1초 후 최소 %2 m 예측").arg(p.tcpa.toFixed(1)).arg(p.cpa.toFixed(1)), qsTr("ACACT 회피 개입 확인"))
             }
             if (!mlGuard.active && flying >= 2) add("guardoff", 2, 0, qsTr("다기체 비행 중 ACACT 꺼짐"), qsTr("%1기 비행 중, 충돌 회피 감시 없음").arg(flying), qsTr("ACACT 콘솔에서 가드 시작 또는 고도 분리 확인"))
@@ -76,6 +78,46 @@ Item {
         for (var i = 0; i < alerts.length; i++) if (!(acked[alerts[i].key] >= alerts[i].level)) n++
         return n
     }
+    // ---- v1.2: raise / clear tracking, history, record, voice --------------------------------------
+    property var _open: ({})                         // key → {level, title, vid, raised}
+    property ListModel history: ListModel {}         // newest first: key level title vid raised cleared action
+    readonly property var levelNames: ["", qsTr("정보"), qsTr("주의"), qsTr("위험"), qsTr("긴급")]
+    readonly property var levelIcons: ["", "i", "!", "▲", "⛔"]
+    property var _spoken: ({})                        // key → ms of the last announcement
+    function _now() { return Qt.formatTime(new Date(), "HH:mm:ss") }
+    function _rec(level, text, vid) { if (typeof mlRecords !== "undefined") mlRecords.event(level, "ALERT", text, vid) }
+    function _say(a) {
+        if (!MLState.voiceAlerts || a.level < MLState.voiceMinLevel || typeof mlUi === "undefined") return
+        var t = Date.now()
+        if (_spoken[a.key] && t - _spoken[a.key] < 30000) return     // the same alert at most every 30 s
+        _spoken[a.key] = t
+        mlUi.say(levelNames[a.level] + ". " + a.title)
+    }
+    onAlertsChanged: {
+        var seen = ({}), open = Object.assign({}, _open)
+        for (var i = 0; i < alerts.length; i++) {
+            var a = alerts[i]
+            seen[a.key] = true
+            var o = open[a.key]
+            if (!o || a.level > o.level) {
+                open[a.key] = { level: a.level, title: a.title, vid: a.vid, raised: o ? o.raised : _now() }
+                history.insert(0, { key: a.key, level: a.level, title: a.title, vid: a.vid, raised: _now(), cleared: "", action: a.action })
+                if (history.count > 300) history.remove(300, history.count - 300)
+                _rec(a.level, qsTr("발생 · %1 — %2").arg(a.title).arg(a.cause), a.vid)
+                _say(a)
+            } else if (a.level < o.level) {
+                open[a.key].level = a.level
+            }
+        }
+        for (var k in open) {
+            if (seen[k]) continue
+            for (var j = 0; j < history.count; j++) if (history.get(j).key === k && history.get(j).cleared === "") { history.setProperty(j, "cleared", _now()); break }
+            _rec(0, qsTr("해제 · %1").arg(open[k].title), open[k].vid)
+            delete open[k]
+        }
+        _open = open
+    }
+
     function ack(key, level) { var c = Object.assign({}, acked); c[key] = level; acked = c }
     function ackAll() { var c = ({}); for (var i = 0; i < alerts.length; i++) c[alerts[i].key] = alerts[i].level; acked = c }
 }

@@ -1,6 +1,7 @@
 #include "MLPlugin.h"
 #include "TandemTelemetry.h"
 #include "MLAcactRuntime.h"
+#include "MLFlightRecords.h"
 #include "MLFlightAnalysis.h"
 #include "MLUi.h"
 #include "MLMapService.h"
@@ -245,6 +246,10 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     // built-in demo (simulated vehicles on an in-process link; real links blocked while it runs)
     auto *demo = new MLDemo(this);
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlDemo"), demo);
+    // flight records (v1.2): every flight, real and demo kept apart
+    auto *records = new MLFlightRecords(this);
+    records->attach(_acact, demo);
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlRecords"), records);
     // CI / exhibition: MLGCS_DEMO=single|duo|trio starts the demo at launch
     if (qEnvironmentVariableIsSet("MLGCS_DEMO")) {
         const QString sc = qEnvironmentVariable("MLGCS_DEMO");
@@ -272,6 +277,10 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
                                                   qEnvironmentVariableIsSet("ML_TEST_ACACT_CASE") ? qEnvironmentVariable("ML_TEST_ACACT_CASE") : QStringLiteral("s7duo"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestPlanDir"), qEnvironmentVariable("ML_TEST_PLAN_DIR"));
     // SITL: cycle the screen mode during the flight (case "modes")
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlPerf"), qEnvironmentVariable("ML_PERF") == QStringLiteral("1"));
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlPerfModes"), qEnvironmentVariable("ML_PERF_MODES") == QStringLiteral("1"));
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlNoOnboarding"), qEnvironmentVariable("MLGCS_NO_ONBOARDING") == QStringLiteral("1"));
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlDemoRepeat"), qEnvironmentVariable("MLGCS_DEMO_REPEAT") == QStringLiteral("1"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestUiModes"), qEnvironmentVariable("ML_TEST_UI_MODES") == QStringLiteral("1"));
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlTestAcactN"),
                                                   qEnvironmentVariableIsSet("ML_TEST_ACACT_N") ? qEnvironmentVariableIntValue("ML_TEST_ACACT_N") : 2);

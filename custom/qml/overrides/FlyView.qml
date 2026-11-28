@@ -322,6 +322,33 @@ Item {
         }
     }
 
+    // ML_PERF=1: frame rate, console-ready time and screen-mode switch times into the log (tools/perf_run.py)
+    Item {
+        visible: false
+        property int frames: 0
+        property double modeT0: 0
+        Connections {
+            target: typeof mlPerf !== "undefined" && mlPerf && typeof mainWindow !== "undefined" ? mainWindow : null
+            function onFrameSwapped() {
+                parent.frames++
+                if (parent.modeT0 > 0) { console.log("MLPERF mode " + MLState.uiMode + " " + (Date.now() - parent.modeT0) + " ms"); parent.modeT0 = 0 }
+            }
+        }
+        Timer {
+            interval: 5000; repeat: true; running: typeof mlPerf !== "undefined" && mlPerf
+            onTriggered: { console.log("MLPERF fps " + (parent.frames / 5).toFixed(1)); parent.frames = 0 }
+        }
+        Timer {
+            interval: 10000; repeat: true; running: typeof mlPerfModes !== "undefined" && mlPerfModes
+            property int n: 0
+            onTriggered: { parent.modeT0 = Date.now(); MLState.setUiMode(n % 2 === 0 ? "advanced" : "standard"); n++ }
+        }
+        Connections {
+            target: MLState
+            function onBootDoneChanged() { if (MLState.bootDone && typeof mlPerf !== "undefined" && mlPerf) console.log("MLPERF ready") }
+        }
+    }
+
     // keyboard shortcuts (no flight commands — see MLShortcuts)
     MLShortcuts { id: mlShortcuts; window: typeof mainWindow !== "undefined" ? mainWindow : null }
 
@@ -855,7 +882,7 @@ Item {
     Connections {
         target: MLState
         function onBootDoneChanged() {
-            if (MLState.bootDone && !MLState.onboardingDone && MLState.isStandard && QGroundControl.multiVehicleManager.vehicles.count === 0
+            if (MLState.bootDone && !MLState.onboardingDone && MLState.isStandard && !(typeof mlNoOnboarding !== "undefined" && mlNoOnboarding) && QGroundControl.multiVehicleManager.vehicles.count === 0
                     && !(typeof mlTour !== "undefined" && mlTour) && !(typeof mlTestAcact !== "undefined" && mlTestAcact) && !(typeof mlDemoAuto !== "undefined" && mlDemoAuto))
                 MLState.onboardingOpen = true
         }

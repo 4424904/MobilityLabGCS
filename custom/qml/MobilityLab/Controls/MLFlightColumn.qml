@@ -20,6 +20,8 @@ Rectangle {
     readonly property var  _curItem:    (_mc && _cur > 0 && _cur < _mc.visualItems.count) ? _mc.visualItems.get(_cur) : null
     readonly property string _mode:     _has ? String(vehicle.flightMode) : ""
     readonly property bool _flying:     _has && vehicle.flying
+    // telemetry stopped: every number below is the last value received, not the present one
+    readonly property bool _stale:      _has && vehicle.vehicleLinkManager.communicationLost
     readonly property bool _rtl:        /rtl|return|복귀/i.test(_mode)
     readonly property bool _land:       /land|착륙/i.test(_mode)
     readonly property bool _mission:    _flying && /auto|mission|미션/i.test(_mode) && !_rtl && !_land
@@ -140,7 +142,10 @@ Rectangle {
         readonly property real _gs:   root._has ? root.fv(root.vehicle.groundSpeed) : NaN
 
         NumCell { label: "V/S"; value: isNaN(numbers._vs) ? "—" : (numbers._vs >= 0 ? "+" : "") + numbers._vs.toFixed(1); unit: "m/s" }
-        NumCell { label: "AGL"; value: isNaN(numbers._agl) ? "—" : numbers._agl.toFixed(0); unit: isNaN(numbers._agl) ? "" : "m" }
+        // AGL = vehicle AMSL − terrain elevation database (QGC terrain query); not a range sensor.
+        // A negative value means the two altitude sources disagree (GNSS/baro AMSL vs DEM ±several m);
+        // it is shown as is, in caution colour, never clipped to 0.
+        NumCell { label: "AGL·DEM"; value: isNaN(numbers._agl) ? "—" : numbers._agl.toFixed(0); unit: isNaN(numbers._agl) ? "" : "m"; valueColor: numbers._agl < -1 ? MLTheme.caution : MLTheme.text }
         NumCell { label: "TRK"; value: isNaN(numbers._trk) ? "—" : ("00" + Math.round(numbers._trk)).slice(-3); unit: isNaN(numbers._trk) ? "" : "°"; rightRule: false }
         NumCell { label: qsTr("홈 거리"); value: numbers._home.v; unit: numbers._home.u }
         NumCell { label: root._mission ? qsTr("WPT %1까지").arg(root._cur) : qsTr("다음 경유점"); value: numbers._nextD.v; unit: numbers._nextD.u }
@@ -245,4 +250,21 @@ Rectangle {
     }
 
     MLPanelChrome { radius: root.radius }
+
+    // stale-data banner over the instruments (v1.2)
+    Rectangle {
+        visible:        root._stale
+        anchors.top:    parent.top
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        height:         34 * root.u
+        z:              10
+        color:          MLTheme.alpha(MLTheme.warning, 0.92)
+        Row {
+            anchors.centerIn: parent
+            spacing: 8 * root.u
+            Text { text: "⚠"; color: "white"; font.pixelSize: MLTheme.fsBody; anchors.verticalCenter: parent.verticalCenter }
+            MLText { text: qsTr("수신 중단 — 아래 값은 마지막 수신값"); color: "white"; font.pixelSize: MLTheme.fsSmall; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+        }
+    }
 }

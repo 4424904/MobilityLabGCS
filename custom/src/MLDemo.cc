@@ -3,6 +3,7 @@
 #include "LinkManager.h"
 #include "MultiVehicleManager.h"
 #include "QmlObjectListModel.h"
+#include "TerrainQuery.h"
 #include "Vehicle.h"
 
 #include <QtCore/QDir>
@@ -11,8 +12,10 @@
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QLoggingCategory>
+#include <QtCore/QSettings>
 #include <QtCore/QStandardPaths>
 #include <QtCore/QtMath>
+#include <QtPositioning/QGeoCoordinate>
 
 #include <algorithm>
 #include <cmath>
@@ -27,7 +30,8 @@ constexpr int kComp = MAV_COMP_ID_AUTOPILOT1;
 constexpr int MAIN_MANUAL = 1, MAIN_ALTCTL = 2, MAIN_POSCTL = 3, MAIN_AUTO = 4, MAIN_ACRO = 5, MAIN_OFFBOARD = 6, MAIN_STAB = 7;
 constexpr int AUTO_READY = 1, AUTO_TAKEOFF = 2, AUTO_LOITER = 3, AUTO_MISSION = 4, AUTO_RTL = 5, AUTO_LAND = 6;
 // demo site (local east / north metres from here); same place as the CI SITL spawn points
-constexpr double kLat0 = 37.2100856, kLon0 = 126.8307462;
+// demo origin: the operator can move it (MLDemo::setOrigin, saved); default = the original site
+double kLat0 = 37.2100856, kLon0 = 126.8307462;
 
 struct NE { double n, e; };
 NE toNe(double lat0, double lon0, double lat, double lon)
@@ -156,6 +160,13 @@ MLDemo::MLDemo(QObject *parent)
     : QObject(parent)
 {
     _instance = this;
+    {
+        QSettings st;
+        if (st.contains(QStringLiteral("MLDemo/lat"))) {
+            kLat0 = st.value(QStringLiteral("MLDemo/lat")).toDouble();
+            kLon0 = st.value(QStringLiteral("MLDemo/lon")).toDouble();
+        }
+    }
     _timer.setInterval(20);
     connect(&_timer, &QTimer::timeout, this, &MLDemo::_step);
     LinkManager::setCustomLinkFactory([this](SharedLinkConfigurationPtr &cfg) -> SharedLinkInterfacePtr {
@@ -224,6 +235,47 @@ MLDemoVehicle *MLDemo::_veh(int sysid)
     return nullptr;
 }
 
+// Demo homes sit on the terrain QGC uses for AGL. Before v1.2 every home was at a fixed 20 m AMSL,
+// so where the elevation database says e.g. 24 m, QGC showed AGL -4 m on the ground. The heights
+// come from QGC's terrain query (the same source as the AGL readout); while unknown the 20 m
+// assumption stays and is shown as such.
+void MLDemo::_queryTerrain()
+{
+    QList<QGeoCoordinate> coords;
+    for (const MLDemoVehicle &v : _v) {
+        coords.append(QGeoCoordinate(v.homeLat, v.homeLon));
+    }
+    _altRef = tr("고도 기준: 지형 고도 조회 중 — 그동안 이륙점 AMSL 20 m 가정");
+    emit altRefChanged();
+    auto apply = [this](bool ok, const QList<double> &h) {
+        if (!_active && _v.empty()) {
+            return;
+        }
+        if (!ok || h.size() != static_cast<qsizetype>(_v.size())) {
+            _altRef = tr("고도 기준: 지형 고도 없음(오프라인 등) — 이륙점 AMSL 20 m 가정 · AGL은 지형 DB와 다를 수 있음");
+            qCWarning(MLDemoLog).noquote() << "MLDEMO terrain unavailable";
+        } else {
+            QStringList hs;
+            for (size_t i = 0; i < _v.size(); i++) {
+                _v[i].homeAmsl = h[static_cast<qsizetype>(i)];
+                hs << QString::number(h[static_cast<qsizetype>(i)], 'f', 1);
+            }
+            _altRef = tr("고도 기준: 이륙점 = QGC 지형 고도 %1 m AMSL (AGL과 같은 지형 DB)").arg(hs.join(QStringLiteral(" / ")));
+            qCWarning(MLDemoLog).noquote() << "MLDEMO terrain" << hs.join(QLatin1Char(' '));
+        }
+        emit altRefChanged();
+    };
+    QList<double> cached;
+    bool err = false;
+    if (TerrainAtCoordinateQuery::getAltitudesForCoordinates(coords, cached, err)) {
+        apply(!err, cached);
+        return;
+    }
+    auto *q = new TerrainAtCoordinateQuery(true /* autoDelete */);
+    connect(q, &TerrainAtCoordinateQuery::terrainDataReceived, this, apply);
+    q->requestData(coords);
+}
+
 QString MLDemo::startBlockReason() const
 {
     if (_active) {
@@ -285,6 +337,7 @@ bool MLDemo::start(const QString &scenario)
     }
     _scenario = scenario;
     _writePlans(scenario);
+    _queryTerrain();
 
     // 3) the demo link
     _config = std::make_shared<MLDemoLinkConfiguration>(QStringLiteral("MobilityLab Demo"));
@@ -324,6 +377,47 @@ void MLDemo::stop()
     qCInfo(MLDemoLog) << "demo stopped";
     emit activeChanged();
     emit notice(tr("데모 종료 — 실기체 링크 허용"));
+}
+
+// demo scenario: set the simulated battery (battery-low drills)
+void MLDemo::setBattery(int sysid, double pct)
+{
+    if (MLDemoVehicle *v = _veh(sysid)) {
+        v->batt = std::clamp(pct, 0.0, 100.0);
+        v->warned30 = v->batt < 30 && v->warned30;
+        v->warned15 = v->batt < 15 && v->warned15;
+        emit tick();
+    }
+}
+
+QVariantList MLDemo::origin() const
+{
+    return QVariantList{kLat0, kLon0};
+}
+
+bool MLDemo::setOrigin(double lat, double lon)
+{
+    if (_active || !std::isfinite(lat) || !std::isfinite(lon) || std::abs(lat) > 85 || std::abs(lon) > 180) {
+        return false;
+    }
+    kLat0 = lat;
+    kLon0 = lon;
+    QSettings s;
+    s.setValue(QStringLiteral("MLDemo/lat"), lat);
+    s.setValue(QStringLiteral("MLDemo/lon"), lon);
+    emit originChanged();
+    return true;
+}
+
+void MLDemo::resetOrigin()
+{
+    if (_active) return;
+    QSettings s;
+    s.remove(QStringLiteral("MLDemo/lat"));
+    s.remove(QStringLiteral("MLDemo/lon"));
+    kLat0 = 37.2100856;
+    kLon0 = 126.8307462;
+    emit originChanged();
 }
 
 void MLDemo::setLinkCut(int sysid, bool cut)
@@ -1184,6 +1278,11 @@ void MLDemo::_stepVehicle(MLDemoVehicle &v, double dt)
         if (!v.warned15 && v.batt < 15) {
             v.warned15 = true;
             _sendText(v, MAV_SEVERITY_CRITICAL, QStringLiteral("Critical battery level! Landing advised"));
+            // simplified PX4 low-battery failsafe (critical level → Return), as on the default airframes
+            if (v.inAir && v.main == MAIN_AUTO && (v.sub == AUTO_MISSION || v.sub == AUTO_LOITER)) {
+                _sendText(v, MAV_SEVERITY_CRITICAL, QStringLiteral("Failsafe activated: battery critical, returning"));
+                _setMode(v, MAIN_AUTO, AUTO_RTL);
+            }
         }
     }
 }

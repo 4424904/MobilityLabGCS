@@ -2,6 +2,7 @@
 #include "FactMetaData.h"
 
 #include "AppSettings.h"
+#include "AudioOutput.h"
 #include "Fact.h"
 #include "SettingsManager.h"
 
@@ -86,5 +87,12 @@ void MLUi::_apply(bool retranslate)
     }
     if (retranslate && _engine) {
         _engine->retranslate();
+    }
+}
+
+void MLUi::say(const QString &text)
+{
+    if (!text.trimmed().isEmpty()) {
+        AudioOutput::instance()->say(text);
     }
 }

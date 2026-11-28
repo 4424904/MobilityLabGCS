@@ -9,9 +9,9 @@ name: Build MobilityLab GCS
 
 on:
   push:
-    branches: ['**', '!ci-screens', '!ci-windows', '!ui-tour-results', '!ci-appimage', '!ui-tour-run']
+    branches: ['**', '!ci-screens', '!ci-windows', '!ui-tour-results', '!ci-appimage', '!ui-tour-run', '!perf-results']
     tags: ['v*']
-    paths-ignore: ['**.md', 'docs/**', 'tools/ui_tour.sh', '.github/workflows/ui-tour.yml']
+    paths-ignore: ['**.md', 'docs/**', 'tools/ui_tour.sh', '.github/workflows/ui-tour.yml', '.github/workflows/perf.yml', 'tools/perf_run.py']
   workflow_dispatch:
 
 concurrency:
@@ -141,7 +141,7 @@ jobs:
           retention-days: 30
 
       - name: Development AppImage → ci-appimage branch (interactive checks; not a release)
-        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/dev-1.1'
+        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/dev-1.1' || github.ref == 'refs/heads/dev-1.2'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -381,7 +381,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\prev" | Out-Null
-          gh release download v1.0.0-build.86 -R "$env:GITHUB_REPOSITORY" -p "*Windows-Setup.exe" -D "$env:RUNNER_TEMP\prev"
+          gh release download v1.1.0-build.96 -R "$env:GITHUB_REPOSITORY" -p "*Windows-Setup.exe" -D "$env:RUNNER_TEMP\prev"
           Get-ChildItem "$env:RUNNER_TEMP\prev"
 
       - name: Install / launch / portable / uninstall test

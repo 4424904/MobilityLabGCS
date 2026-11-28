@@ -104,8 +104,39 @@ Rectangle {
                 }
             }
             RowItem {
-                title: qsTr("3D 그래픽 품질"); hint: qsTr("자동: 창 크기와 기체 수에 맞춰 안티에일리어싱·궤적 길이를 조절")
-                Seg { value: MLState.gfxQuality; options: [{ k: "auto", t: qsTr("자동") }, { k: "high", t: qsTr("높음") }, { k: "low", t: qsTr("낮음 (저사양)") }]; onPicked: (k) => MLState.gfxQuality = k }
+                title: qsTr("성능 모드"); hint: qsTr("지도·3D·애니메이션 부하만 바뀝니다. 비행 통신, ACACT 계산, 안전 기능은 어떤 모드에서도 같습니다")
+                Seg {
+                    value: MLState.gfxQuality === "low" ? "lite" : MLState.gfxQuality
+                    options: [{ k: "auto", t: qsTr("자동") }, { k: "lite", t: qsTr("경량") }, { k: "balanced", t: qsTr("균형") }, { k: "high", t: qsTr("고품질") }]
+                    onPicked: (k) => MLState.gfxQuality = k
+                }
+            }
+
+            MLSectionTitle { text: qsTr("음성 · 경고음") }
+            RowItem {
+                title: qsTr("음성 경고"); hint: qsTr("경고 제목을 읽어 줍니다 — 같은 경고는 30초에 한 번")
+                Seg {
+                    value: !MLState.voiceAlerts ? "off" : String(MLState.voiceMinLevel)
+                    options: [{ k: "off", t: qsTr("끔") }, { k: "4", t: qsTr("긴급만") }, { k: "3", t: qsTr("위험 이상") }, { k: "2", t: qsTr("주의 이상") }]
+                    onPicked: (k) => { if (k === "off") MLState.voiceAlerts = false; else { MLState.voiceAlerts = true; MLState.voiceMinLevel = Number(k) } }
+                }
+            }
+            RowItem {
+                title: qsTr("음량"); hint: qsTr("QGC 음성 출력 설정과 같은 값")
+                Row {
+                    spacing: 10 * MLTheme.u
+                    readonly property var vol: QGroundControl.settingsManager.appSettings.audioVolume
+                    readonly property var mute: QGroundControl.settingsManager.appSettings.audioMuted
+                    Slider {
+                        width: 220 * MLTheme.u
+                        from: 0; to: 100; stepSize: 5
+                        value: parent.vol ? Number(parent.vol.rawValue) : 100
+                        onMoved: if (parent.vol) parent.vol.rawValue = value
+                    }
+                    MLText { anchors.verticalCenter: parent.verticalCenter; text: parent.vol ? Number(parent.vol.rawValue).toFixed(0) + "%" : ""; font.pixelSize: MLTheme.fsSmall }
+                    MLIconButton { anchors.verticalCenter: parent.verticalCenter; size: 30 * MLTheme.u; label: parent.mute && parent.mute.rawValue ? qsTr("음소거됨") : qsTr("음소거"); checked: parent.mute && parent.mute.rawValue; onClicked: if (parent.mute) parent.mute.rawValue = !parent.mute.rawValue }
+                    MLIconButton { anchors.verticalCenter: parent.verticalCenter; size: 30 * MLTheme.u; label: qsTr("시험"); onClicked: if (typeof mlUi !== "undefined") mlUi.say(qsTr("음성 경고 시험")) }
+                }
             }
 
             MLSectionTitle { text: qsTr("도움말") }
