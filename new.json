@@ -1,0 +1,39 @@
+{
+ "label": "new",
+ "env": "GitHub ubuntu-24.04 runner, Xvfb 1920x1080, Mesa llvmpipe (no GPU)",
+ "phases": {
+  "soak": {
+   "seconds_planned": 16200,
+   "seconds_run": 16223,
+   "alive_at_end": true,
+   "cpu_pct": {
+    "mean": 206.1,
+    "p95": 271.3,
+    "max": 274.4,
+    "first": 152.0,
+    "last": 271.7
+   },
+   "rss_mb": {
+    "mean": 592.6,
+    "p95": 645.3,
+    "max": 682.1,
+    "first": 560.6,
+    "last": 624.7
+   },
+   "demo_runs": 150,
+   "acact_interventions": 0,
+   "perf": {
+    "fps": {
+     "mean": 0.0,
+     "min": 0.0,
+     "samples": 3264
+    },
+    "acact_tick_ms": {
+     "mean": 2.658,
+     "max": 254.556,
+     "samples": 1497
+    }
+   }
+  }
+ }
+}
