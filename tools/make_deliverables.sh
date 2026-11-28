@@ -16,42 +16,11 @@ cp "$DIST/MobilityLabGCS-installer-win64.exe" "$OUT/$N-Windows-Setup.exe"
 cp "$DIST/MobilityLabGCS-portable-win64.zip"  "$OUT/$N-Windows-Portable.zip"
 cp "$DIST/MobilityLabGCS-x86_64.AppImage"     "$OUT/$N-Ubuntu-x86_64.AppImage"
 
-# ---- 4. full source (no .git, build output, caches or binaries) ----------------------
-SRC="$WORK/$N-source"
-mkdir -p "$SRC"
-rsync -a --exclude '.git' --exclude 'mlgcs' --exclude 'build' ./ "$SRC/"
-(cd mlgcs && git archive --format=tar --prefix=mobilitylab/ HEAD) | tar -x -C "$SRC"
-cat > "$SRC/BUILD_INFO.md" <<EOF
-# MobilityLab GCS $VER — source
-
-* QGroundControl $QGC_REF (unchanged except the MobilityLab patches below), with the MobilityLab plugin in \`custom/\`
-* MobilityLab repository (tools, docs, original ACACT sources, CI) in \`mobilitylab/\` at commit $(git -C mlgcs rev-parse --short HEAD)
-* Patches already applied: $(ls mlgcs/patches | tr '\n' ' ')
-* Build: see mobilitylab/docs/BUILD.md. Third-party C/C++ dependencies are fetched by CMake (CPM) at configure time,
-  versions pinned by QGC $QGC_REF (cmake/), Qt 6.10 (.github/actions/build-setup).
-* Built from this tree by GitHub Actions run $GITHUB_RUN_ID.
-EOF
-find "$SRC" \( -name '*.exe' -o -name '*.AppImage' -o -name '*.o' -o -name '*.so' -o -name '*.dll' -o -name '__pycache__' -o -name '.ccache' \) -prune -exec rm -rf {} + 2>/dev/null || true
-(cd "$WORK" && zip -qr9 "$OUT/$N-source.zip" "$N-source")
-
-# ---- 5. what changed against QGC -------------------------------------------------------
-CH="$WORK/$N-changes-vs-QGC-$QGC_REF"
-mkdir -p "$CH"
-git add -A -N . ':!mlgcs' 2>/dev/null || true
-git diff --stat -- . ':!mlgcs' > "$CH/CHANGED_FILES.txt"
-git diff -- . ':!mlgcs' > "$CH/qgc-$QGC_REF-to-mobilitylab.diff"
-cp -r mlgcs/custom mlgcs/patches "$CH/"
-mkdir -p "$CH/tools" && cp mlgcs/tools/ci_prepare.sh mlgcs/tools/patch_installer.py mlgcs/tools/apply_ko.py "$CH/tools/"
-cat > "$CH/README.md" <<EOF
-# Changes against QGroundControl $QGC_REF
-
-* \`custom/\` — the MobilityLab plugin (all new code: ACACT engine and runtime, UI, analysis, i18n)
-* \`patches/\` — the only edits to QGC source files (see CHANGED_FILES.txt)
-* \`tools/ci_prepare.sh\` applies both to a clean QGC checkout; \`patch_installer.py\` edits the Windows installer script,
-  \`apply_ko.py\` fills untranslated entries of QGC's Korean translation
-* \`qgc-$QGC_REF-to-mobilitylab.diff\` — the complete difference as one unified diff
-EOF
-(cd "$WORK" && zip -qr9 "$OUT/$N-changes-vs-QGC-$QGC_REF.zip" "$(basename "$CH")")
+# ---- 4-5. no source archives from v1.2 on ---------------------------------------------
+# Security review (docs/SECURITY_REVIEW.md): release files must not carry company source code (ACACT
+# engine and the original ACACT Guard). Up to v1.1 a full source zip and a diff against QGC were
+# attached; from v1.2 the release holds packages, documents, licences and checksums only.
+# QGC is used under Apache-2.0; Qt is linked dynamically (LGPL-3.0, its libraries ship unmodified).
 
 # ---- 6-11. documents -------------------------------------------------------------------
 DOC="$WORK/$N-docs"
@@ -59,7 +28,10 @@ mkdir -p "$DOC/licenses"
 python3 mlgcs/tools/test_report.py "$RES" "$DOC/TEST_RESULTS.md"
 cp mlgcs/docs/BUILD.md mlgcs/docs/USER_MANUAL.md mlgcs/docs/ARCHITECTURE.md mlgcs/docs/STATUS.md mlgcs/docs/LICENSES.md "$DOC/"
 cp mlgcs/CHANGELOG.md "$DOC/"
-cp mlgcs/vendor/acact_guard/ORIGIN.md "$DOC/ACACT_ORIGIN.md"
+for f in SYSTEM_REQUIREMENTS INSTALL_UPDATE PERFORMANCE TECHNICAL_REPORT SECURITY_REVIEW; do
+    [ -f "mlgcs/docs/$f.md" ] && cp "mlgcs/docs/$f.md" "$DOC/"
+done
+if [ -d mlgcs/docs/images ]; then mkdir -p "$DOC/images" && cp -r mlgcs/docs/images/. "$DOC/images/"; fi
 cp LICENSE-APACHE "$DOC/licenses/QGroundControl-LICENSE-APACHE.txt" 2>/dev/null || true
 cp LICENSE-GPL "$DOC/licenses/QGroundControl-LICENSE-GPL.txt" 2>/dev/null || true
 cp mlgcs/custom/res/fonts/OFL-IBM-Plex.txt "$DOC/licenses/IBM-Plex-OFL.txt"

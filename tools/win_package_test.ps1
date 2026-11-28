@@ -101,6 +101,43 @@ if ($exe) {
     $results.gui_runs = GuiTest $exe.FullName 'installed'
 }
 
+# ---- 3b. QGC video (v1.2): UDP H.264 test stream from the GStreamer SDK on the build runner -----
+# The installed program is pointed at "UDP h.264 Video Stream" on port 5600 and must report
+# "Decoding started"; the screenshot shows the moving test pattern. Reported, does not fail the job
+# (a runner without a usable H.264 encoder cannot produce the stream).
+if ($exe) {
+    $gst = Get-Command gst-launch-1.0 -ErrorAction SilentlyContinue
+    $enc = $null
+    if ($gst) {
+        foreach ($e in @('x264enc tune=zerolatency speed-preset=ultrafast key-int-max=30', 'openh264enc', 'mfh264enc')) {
+            $name = $e.Split(' ')[0]
+            & (Join-Path (Split-Path $gst.Source) 'gst-inspect-1.0.exe') $name *> $null
+            if ($LASTEXITCODE -eq 0) { $enc = $e; break }
+        }
+    }
+    if ($enc) {
+        $notes += "video test encoder: $enc"
+        $pipe = "videotestsrc pattern=ball is-live=true ! video/x-raw,width=640,height=360,framerate=30/1 ! videoconvert ! $enc ! h264parse ! rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=5600"
+        $src = Start-Process -FilePath $gst.Source -ArgumentList $pipe -PassThru -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $Out 'video-src.out.log') -RedirectStandardError (Join-Path $Out 'video-src.err.log')
+        New-Item -ItemType Directory -Force -Path (Split-Path $markerIni) | Out-Null
+        Add-Content -Path $markerIni -Value "`r`n[Video]`r`nvideoSource=UDP h.264 Video Stream`r`nudpUrl=0.0.0.0:5600`r`n"
+        $env:QT_FORCE_STDERR_LOGGING = '1'
+        $env:QT_LOGGING_RULES = 'Video.*.debug=true'
+        $vp = Start-Process -FilePath $exe.FullName -PassThru `
+            -RedirectStandardOutput (Join-Path $Out 'video-app.out.log') -RedirectStandardError (Join-Path $Out 'video-app.err.log')
+        Start-Sleep -Seconds 40
+        Shot 'installed-video.png'
+        Stop-Process -Id $vp.Id -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3
+        Stop-Process -Id $src.Id -Force -ErrorAction SilentlyContinue
+        Remove-Item Env:QT_FORCE_STDERR_LOGGING, Env:QT_LOGGING_RULES -ErrorAction SilentlyContinue
+        $vlog = Get-Content (Join-Path $Out 'video-app.err.log') -Raw -ErrorAction SilentlyContinue
+        $results.video_udp_h264_decoding = [bool]($vlog -match 'Decoding started')
+    } else {
+        $notes += 'video test not run: no gst-launch-1.0 or no H.264 encoder on the runner'
+    }
+}
+
 # ---- 4. portable ------------------------------------------------------------------------
 if ($exe) {
     $stage = Join-Path $env:RUNNER_TEMP 'portable\MobilityLabGCS'
@@ -145,7 +182,7 @@ $os = Get-CimInstance Win32_OperatingSystem
 $summary = [ordered]@{ os = "$($os.Caption) $($os.Version)"; checks = $results; notes = $notes }
 $summary | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $Out 'results.json') -Encoding UTF8
 $summary | ConvertTo-Json -Depth 4
-$soft = @('portable_settings_local')   # reported, does not fail the job (QSettings may not flush when killed)
+$soft = @('portable_settings_local', 'video_udp_h264_decoding')   # reported, does not fail the job (QSettings may not flush when killed)
 $failed = @($results.GetEnumerator() | Where-Object { -not $_.Value -and $soft -notcontains $_.Name })
 if ($failed.Count -gt 0) {
     Write-Host "::error::Windows package test failed: $($failed.Name -join ', ')"
