@@ -75,7 +75,9 @@
 | preflight · user · gcskill · linkloss · operator · modes | 통과 | 통과 | 통과 |
 | demo (비행 기록 점검 포함) | 통과(기록 점검 추가 전) | 통과 — 12항목 | 통과 — 12항목 |
 
-PX4 SIH 실패 2건은 시뮬레이터 로그에 “No valid data from Baro 0 / Compass 0 → Failsafe: blind land”가 찍힌 경우로, GCS 가 보내는 명령과 무관한 시뮬레이터 측 문제로 판단합니다. 다만 GCS 의 CPU 사용이 같은 러너의 시뮬레이터를 굶겼을 가능성은 배제하지 못했습니다(성능 보고서 참고).
+릴리스 `v1.2.0-build.109`(run 46126127934): 9종 모두 통과. 단 `targets` 의 PX4 SIH 는 첫 실행에서 같은 센서 공백으로 실패해 실패 작업만 다시 실행해 통과했습니다. 개발 중 실행까지 합치면 PX4 SIH 시험이 8번 중 3번 이 방식으로 실패했습니다(v1.1 때보다 잦음).
+
+PX4 SIH 실패는 시뮬레이터 로그에 “No valid data from Baro 0 / Compass 0 → Failsafe: blind land”가 찍힌 경우로, GCS 가 보내는 명령과 무관한 시뮬레이터 측 문제로 판단합니다. 다만 GCS 의 CPU 사용이 같은 러너의 시뮬레이터를 굶겼을 가능성은 배제하지 못했습니다(성능 보고서 참고).
 
 ## v1.2.0 미검증 목록
 * 실기체 비행 전부 — 비행 기록·경고·AGL 표시 포함
