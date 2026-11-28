@@ -151,7 +151,9 @@ Rectangle {
             var lo = 1e9, hi = -1e9
             for (var k = 0; k < h.length; k++) { lo = Math.min(lo, h[k]); hi = Math.max(hi, h[k]) }
             root._terrainOk = true
+            // Copernicus DEM is a surface model (DSM): roofs and tree tops are part of it, ~30 m cells
             root._terrainNote = qsTr("지형: %1 · 기준점 %2 m · 범위 %3–%4 m AMSL (시각화 전용)").arg(root._elevName).arg(c.toFixed(0)).arg(lo.toFixed(0)).arg(hi.toFixed(0))
+                + (String(root._elevName).indexOf("Copernicus") >= 0 ? qsTr(" · 표면 모델(건물·수목 높이 포함, 약 30 m 격자)") : "")
         }
     }
     // satellite imagery for the ground: the QGC map itself, rendered offscreen into a texture
@@ -184,7 +186,7 @@ Rectangle {
         }
         return out
     }
-    // planned waypoints with number and altitude (mission check)
+    // planned path points (mission check trajectory, every 4th sample) — drawn as dots, not numbered
     readonly property var _wps: {
         var out = []
         if (isNaN(lat0)) return out
@@ -218,7 +220,8 @@ Rectangle {
     function applyCam(animated) {
         _framedRadius = fleetRadius
         var d = _dist(), pos, rot
-        if (camMode === "top") { pos = Qt.vector3d(0, d * 1.3, 0.01); rot = Qt.vector3d(-89.9, 0, 0) }
+        // top: 88° down from just south of the centre (straight down, -89.9°, rendered an empty frame)
+        if (camMode === "top") { pos = Qt.vector3d(0, d * 1.3, d * 1.3 * Math.tan(2 * Math.PI / 180)); rot = Qt.vector3d(-88, 0, 0) }
         else if (camMode === "side") { pos = Qt.vector3d(0, Math.max(8, fleetRadius * 0.15), d); rot = Qt.vector3d(-6, 0, 0) }
         else { pos = Qt.vector3d(0, d * Math.sin(38 * Math.PI / 180), d * Math.cos(38 * Math.PI / 180)); rot = Qt.vector3d(-38, 0, 0) }
         if (animated && !MLTheme.lite) {
@@ -584,7 +587,7 @@ Rectangle {
                 materials: PrincipledMaterial { baseColor: pl.level >= 1 ? MLTheme.riskColor(pl.level) : (MLTheme.day ? "#55606A" : "#AAB4BE"); lighting: PrincipledMaterial.NoLighting; opacity: 0.75; alphaMode: PrincipledMaterial.Blend }
             }
         }
-        // waypoints of the planned missions
+        // planned path of the missions (dots)
         Repeater3D {
             model: root._wps.length
             Model {
@@ -646,20 +649,8 @@ Rectangle {
             Text { id: plT; anchors.centerIn: parent; text: pl ? pl.d.toFixed(1) + " m" + (Math.abs(pl.dz) >= 1 ? "  Δh " + pl.dz.toFixed(0) : "") : ""; color: pl && pl.level >= 1 ? MLTheme.riskColor(pl.level) : MLTheme.label; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel }
         }
     }
-    // waypoint number and altitude
-    Repeater {
-        model: root.presentation || MLTheme.lite ? 0 : root._wps.length
-        Text {
-            readonly property var w: index < root._wps.length ? root._wps[index] : null
-            readonly property var sp: { cam.position; cam.eulerRotation; originNode.eulerRotation; originNode.position; return w ? view.mapFrom3DScene(Qt.vector3d(w.p.x, w.p.y + 1.5, w.p.z)) : Qt.vector3d(-1, -1, -1) }
-            visible: !!w && sp.z > 0
-            x: sp.x + 4 * root.u; y: sp.y - height
-            text: w ? w.n + " · " + Number(w.alt).toFixed(0) + "m" : ""
-            color: w ? MLTheme.vehicleColor(w.sysid) : "white"
-            style: Text.Outline; styleColor: MLTheme.day ? "white" : "black"
-            font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel
-        }
-    }
+    // (no labels on the planned path: the mission check gives a time-sampled trajectory, not the
+    //  mission's waypoints, so numbering its points would label things that are not waypoints)
 
     // header
     Rectangle {

@@ -25,6 +25,7 @@
  " · 오류 %1": " · %1 errors",
  " · 위성 %1 · HDOP %2": " · %1 satellites · HDOP %2",
  " · 주의 %1": " · %1 cautions",
+ " · 표면 모델(건물·수목 높이 포함, 약 30 m 격자)": " · surface model (includes building and tree heights, ~30 m cells)",
  " 끊기": " cut",
  " 미션": " mission",
  " 복구": " restore",

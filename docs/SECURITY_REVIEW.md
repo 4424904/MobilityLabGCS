@@ -36,7 +36,7 @@
 * 지도·지형 데이터:
   * 위성 영상 기본값 Esri World Imagery(키 불필요) — Esri 이용 약관과 출처 표시 조건을 따릅니다. 대량 다운로드·오프라인 저장은 약관 제한이 있을 수 있어 **오프라인 지도 받기는 제공자 약관을 확인한 뒤** 쓰세요.
   * VWorld — 국토교통부 공간정보 오픈플랫폼 약관(키 필요, 국내 IP).
-  * 지형 고도 — QGC 기본 제공자 Copernicus DEM(Auterion 이 운영하는 terrain-ce.suite.auterion.com 경유). Copernicus DEM 은 출처 표시 조건이 있으며 정확도는 약 30 m 격자 수준이라 **3D 지형은 시각화 전용**으로 표시하고 안전 판단에 쓰지 않습니다.
+  * 지형 고도 — QGC 기본 제공자 Copernicus DEM(Auterion 이 운영하는 terrain-ce.suite.auterion.com 경유). Copernicus DEM 은 출처 표시 조건이 있고, 약 30 m 격자의 **표면 모델(DSM — 건물·수목 높이 포함)**이라 **3D 지형은 시각화 전용**으로 표시하고 안전 판단에 쓰지 않습니다.
   * 건물 데이터 — 라이선스가 확인된 무료 출처를 쓰지 않았으므로 **넣지 않았습니다**(화면에 "건물 데이터 없음" 표시). 임의 생성 건물 없음.
 * 글꼴 IBM Plex(SIL OFL 1.1), MAVLink(MIT), GStreamer(LGPL-2.1+) — 원문을 `licenses/` 에 동봉.
 
