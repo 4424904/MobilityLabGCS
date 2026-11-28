@@ -6,6 +6,7 @@ Popup {
     id: root
     property var center: MLState.alertCenter
     property bool showHistory: false
+    Connections { target: MLState; function onTourSet(what, value) { if (what === "alertHistory") root.showHistory = value === "1" } }
     readonly property real u: MLTheme.u
     width: 440 * u
     padding: 12 * u

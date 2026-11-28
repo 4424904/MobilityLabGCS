@@ -7,6 +7,9 @@
 #   3. Separation: during the demo a third "aircraft" (raw MAVLink heartbeats, sysid 3, to UDP 14550)
 #      must NOT connect; after the demo ends (MLGCS_DEMO_SECONDS) it must connect.
 #   4. A demo flight is never recorded as a SITL validation.
+#   5. Flight records (v1.2): the demo flight is recorded under Records/Demo (never Flights/), the
+#      track has rows, the record loads and exports a PDF and CSV, and the on-ground AGL is ~0 m
+#      (demo home altitude taken from the terrain database, not a fixed number).
 #   0. Before all that, a short first launch with the "aircraft" already connected: the demo must
 #      refuse to start (it never drops a real aircraft's link on its own).
 #   usage: ci_demo.sh <MobilityLabGCS.AppImage> <out dir>
@@ -25,7 +28,7 @@ sleep 2
 LOG="$OUT/demo-app.log"
 DEMO_S=420
 shot () { python3 -c "from PIL import ImageGrab; ImageGrab.grab(xdisplay=':61').save('$OUT/$1.png')" || true; }
-launch () { sg dialout -c "MLGCS_DEMO_DELAY_MS=${2:-4000} ML_TEST_ACACT_CASE=none MLGCS_DEMO=duo MLGCS_DEMO_AUTO=1 MLGCS_DEMO_SECONDS=$DEMO_S ML_TEST_ACACT=1 DISPLAY=:61 QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$1' 2>&1" & }
+launch () { sg dialout -c "MLGCS_DEMO_DELAY_MS=${2:-4000} ML_TEST_ACACT_CASE=none MLGCS_DEMO=duo MLGCS_DEMO_AUTO=1 MLGCS_DEMO_SECONDS=$DEMO_S MLGCS_REC_SELFTEST=1 ML_TEST_ACACT=1 DISPLAY=:61 QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 '$BIN' > '$1' 2>&1" & }
 stop_app () {
     pkill -INT -f "$W/squashfs-root" 2>/dev/null
     for _ in $(seq 1 20); do pgrep -f "$W/squashfs-root" > /dev/null || break; sleep 1; done
@@ -83,11 +86,51 @@ while (( SECONDS < end )); do has "MLVEHICLE added 3" && { ok_after=true; break;
 shot demo-ended
 has "SITL 검증 기록" && ok_norec=false
 kill $INTR 2>/dev/null; stop_app
-grep -E "MLACACT|MLDEMO|MLVEHICLE|blocked \(demo" "$LOG" | head -200 > "$OUT/demo-events.txt"
+grep -E "MLACACT|MLDEMO|MLVEHICLE|MLREC|blocked \(demo" "$LOG" | head -300 > "$OUT/demo-events.txt"
+# ---- flight records -------------------------------------------------------------------------------
+REC="$HOME/Documents/MobilityLab/Records"
+ls -laR "$REC" > "$OUT/records-tree.txt" 2>&1 || true
+RECJSON=$(python3 - "$REC" "$LOG" <<'PY'
+import sys, os, json, glob, csv
+rec, log = sys.argv[1], open(sys.argv[2], errors="replace").read()
+demo = sorted(glob.glob(os.path.join(rec, "Demo", "*", "meta.json")))
+real = glob.glob(os.path.join(rec, "Flights", "*"))
+c = {"rec_demo_created": False, "rec_no_real_record_from_demo": len(real) == 0, "rec_track_rows": False,
+     "rec_load_export": False, "agl_on_ground_near_zero": False}
+m = {"demo_records": len(demo), "flight_records": len(real)}
+if demo:
+    d = os.path.dirname(demo[-1]); meta = json.load(open(demo[-1], encoding="utf-8"))
+    c["rec_demo_created"] = meta.get("kind") == "demo" and bool(meta.get("ended"))
+    rows = list(csv.DictReader(open(os.path.join(d, "track.csv"), encoding="utf-8-sig")))
+    m["track_rows"] = len(rows); c["rec_track_rows"] = len(rows) > 100
+    pdf, scsv = os.path.join(d, "report.pdf"), os.path.join(d, "summary.csv")
+    c["rec_load_export"] = ("MLREC export pdf FAIL" not in log and os.path.exists(pdf) and os.path.getsize(pdf) > 10000
+                            and os.path.exists(scsv) and os.path.getsize(scsv) > 50)
+    m["pdf_bytes"] = os.path.getsize(pdf) if os.path.exists(pdf) else 0
+    g = [float(r["agl"]) for r in rows if r.get("agl") not in ("", None) and r.get("alt_rel") not in ("", None)
+         and abs(float(r["alt_rel"])) < 0.5]
+    if g:
+        m["agl_ground_min"], m["agl_ground_max"] = round(min(g), 2), round(max(g), 2)
+        c["agl_on_ground_near_zero"] = min(g) > -1.5 and max(g) < 1.5
+    for e in ("events.csv",):
+        m["events_rows"] = sum(1 for _ in open(os.path.join(d, e), encoding="utf-8-sig")) - 1
+m["terrain_line"] = next((l.split("MLDEMO terrain",1)[1].strip()[:80] for l in log.splitlines() if "MLDEMO terrain" in l), "")
+print(json.dumps({"c": c, "m": m}))
+PY
+)
+echo "$RECJSON" > "$OUT/records-check.json"
 cat > "$OUT/sitl-demo.json" <<JSON
 {"case":"demo","checks":{"demo_refused_with_real_vehicle":$ok_refuse,"auto_demo_started":$ok_auto,"acact_takeover_on_demo":$ok_take,"acact_release_on_demo":$ok_rel,
  "real_link_blocked_during_demo":$ok_block,"real_link_allowed_after_demo":$ok_after,"no_sitl_record_from_demo":$ok_norec},"metrics":{}}
 JSON
+python3 - "$OUT/sitl-demo.json" "$OUT/records-check.json" <<'PY'
+import json, sys
+a = json.load(open(sys.argv[1]))
+try: r = json.load(open(sys.argv[2]))
+except Exception: r = {"c": {"rec_check_ran": False}, "m": {}}
+a["checks"].update(r["c"]); a["metrics"].update(r["m"])
+json.dump(a, open(sys.argv[1], "w"), ensure_ascii=False)
+PY
 cat "$OUT/sitl-demo.json"
 # the job fails when any check fails
 grep -q '": *false' "$OUT/sitl-demo.json" && { echo "demo check FAILED"; exit 1; }

@@ -197,6 +197,7 @@ Rectangle {
 
     // camera: overview (frames the whole fleet), top, side (altitude differences), follow the
     // command-target vehicle, free (mouse); changes are animated
+    Connections { target: MLState; function onTourSet(what, value) { if (what === "cam3d") { root.camMode = value; root.applyCam(false) } } }
     property string camMode: "overview"
     readonly property real fleetRadius: {
         root.tracksRev; root._vTick; root.replayCursor

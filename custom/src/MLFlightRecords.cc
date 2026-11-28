@@ -305,6 +305,22 @@ void MLFlightRecords::_stop()
     qCWarning(MLRecordsLog).noquote() << "MLREC stop" << _curKind << _curStamp;
     emit recordingChanged();
     refresh();
+    if (qEnvironmentVariableIsSet("MLGCS_REC_SELFTEST")) {
+        // CI only: open the record that just closed and export it, so the check sees real files
+        const QString st = _curStamp;
+        if (load(st)) {
+            const QVariantMap sm = summary();
+            qCWarning(MLRecordsLog).noquote() << "MLREC loaded" << st << "duration" << duration()
+                                              << "vehicles" << vehicles().size() << "events" << events().size();
+            const QString pdf = exportPdf(QDir(recordDir(st)).filePath(QStringLiteral("report.pdf")));
+            const QString csv = exportCsv(QDir(recordDir(st)).filePath(QStringLiteral("summary.csv")));
+            qCWarning(MLRecordsLog).noquote() << "MLREC export pdf" << (pdf.isEmpty() ? QStringLiteral("FAIL") : pdf)
+                                              << "csv" << (csv.isEmpty() ? QStringLiteral("FAIL") : csv);
+            Q_UNUSED(sm)
+        } else {
+            qCWarning(MLRecordsLog).noquote() << "MLREC loaded FAIL" << st;
+        }
+    }
 }
 
 void MLFlightRecords::event(int level, const QString &source, const QString &text, int sysid)

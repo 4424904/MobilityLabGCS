@@ -63,6 +63,8 @@ QtObject {
     property bool   onboardingOpen: false
     property bool   prefsOpen:      false
     property bool   recordsOpen:    false       // v1.2 flight records
+    // screen-capture tour only (ML_TOUR): asks a view to show a tab / filter / camera, like a click would
+    signal tourSet(string what, string value)
     property bool   helpTips:       true        // hover help on buttons
     property string shortcutsJson:  ""          // operator's own key bindings (MLShortcuts)
     property bool   acactDetailOpen: false      // STANDARD: the ACACT details opened from the status strip

@@ -38,6 +38,14 @@ Rectangle {
 
     color: MLTheme.bg
     Component.onCompleted: if (_has) mlRecords.refresh(filter, "")
+    Connections {
+        target: MLState
+        function onTourSet(what, value) {
+            if (what === "recordsTab") root.tab = value
+            else if (what === "recordsFilter") { root.filter = value; mlRecords.refresh(value, "") }
+            else if (what === "recordsCursor") root.cursor = Number(value)
+        }
+    }
     Timer {
         interval: 100; repeat: true; running: root.playing && root.visible
         onTriggered: { root.cursor = Math.min(mlRecords.duration, root.cursor + 0.1 * root.speed); if (root.cursor >= mlRecords.duration) root.playing = false }

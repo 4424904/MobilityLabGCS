@@ -77,8 +77,13 @@ if [[ -n "$pdf" && -f "$pdf" ]]; then
     cp "$pdf" "$OUT/ACACT_report_demo.pdf"
     pdftoppm -r 100 -png "$OUT/ACACT_report_demo.pdf" "$OUT/31_pdf_page"
 fi
+rpdf="$(grep -o 'MLTOUR recpdf .*' "$LOG" | head -1 | sed -e 's/MLTOUR recpdf //' -e 's/ - qml - .*//')"
+if [[ -n "$rpdf" && -f "$rpdf" ]]; then
+    cp "$rpdf" "$OUT/Flight_record_report_demo.pdf"
+    pdftoppm -r 100 -png "$OUT/Flight_record_report_demo.pdf" "$OUT/32_record_pdf_page"
+fi
 stop_app
-grep -E "MLTOUR|MLDEMO|MLACACT|MLVEHICLE" "$LOG" > "$OUT/tour-events.txt"
+grep -E "MLTOUR|MLDEMO|MLACACT|MLVEHICLE|MLREC" "$LOG" > "$OUT/tour-events.txt"
 
 # ---- scaling: QHD and 4K (start of the tour only) ------------------------------------------------
 for res in 2560x1440 3840x2160; do
