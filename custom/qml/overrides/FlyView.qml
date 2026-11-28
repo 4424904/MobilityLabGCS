@@ -345,7 +345,14 @@ Item {
         }
         Connections {
             target: MLState
-            function onBootDoneChanged() { if (MLState.bootDone && typeof mlPerf !== "undefined" && mlPerf) console.log("MLPERF ready") }
+            function onBootDoneChanged() {
+                if (MLState.bootDone && typeof mlPerf !== "undefined" && mlPerf) console.log("MLPERF ready")
+                // the previous run did not end normally (crash, power loss, killed): say so once
+                if (MLState.bootDone && typeof mlSystem !== "undefined" && mlSystem.previousCrash) {
+                    toast.show(qsTr("이전 실행이 정상 종료되지 않았습니다 — 비행 기록은 보존됩니다. 환경 설정에서 진단 보고서를 만들 수 있습니다"), MLTheme.caution)
+                    MLState.log(qsTr("이전 실행 비정상 종료 감지"), 1, 0, "GCS")
+                }
+            }
         }
     }
 
@@ -886,6 +893,15 @@ Item {
                     && !(typeof mlTour !== "undefined" && mlTour) && !(typeof mlTestAcact !== "undefined" && mlTestAcact) && !(typeof mlDemoAuto !== "undefined" && mlDemoAuto))
                 MLState.onboardingOpen = true
         }
+    }
+
+    // v1.2 flight records over the console (below the toolbar so alerts stay visible)
+    Loader {
+        anchors.fill:   parent
+        anchors.topMargin: toolbar.height
+        z:              QGroundControl.zOrderTopMost + 30
+        active:         MLState.recordsOpen
+        sourceComponent: Component { MLRecordsView { onCloseRequested: MLState.recordsOpen = false } }
     }
 
     // SHOWCASE: the presentation screen over the whole window (the console underneath keeps running)

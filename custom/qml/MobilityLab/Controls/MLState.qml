@@ -62,6 +62,7 @@ QtObject {
     property bool   onboardingDone: false
     property bool   onboardingOpen: false
     property bool   prefsOpen:      false
+    property bool   recordsOpen:    false       // v1.2 flight records
     property bool   helpTips:       true        // hover help on buttons
     property string shortcutsJson:  ""          // operator's own key bindings (MLShortcuts)
     property bool   acactDetailOpen: false      // STANDARD: the ACACT details opened from the status strip

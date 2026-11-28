@@ -2,7 +2,10 @@ import QtQuick
 import QtQuick3D
 import QtQuick3D.Helpers
 
+import QtPositioning
+
 import QGroundControl
+import QGroundControl.FlightMap
 
 // ACACT 3D 상황도 (v1.1)
 //
@@ -35,6 +38,7 @@ Rectangle {
     property var  replayDrones:     []
     property var  replayTracks:     []
     property real replayCursor:     0
+    property bool replayGeo:        false   // replay tracks as [t, lat, lon, alt, own] (flight records) instead of the guard frame
     property real dSafeOverride:    NaN
     property real modelScale:       4
 
@@ -64,9 +68,10 @@ Rectangle {
 
     function sysidOf(d) { if (d.sysid !== undefined) return Number(d.sysid); var m = /^D(\d+)$/.exec(d.id); return m ? Number(m[1]) : 0 }
     function vehicleOf(d) { return replay ? null : QGroundControl.multiVehicleManager.getVehicleById(sysidOf(d)) }
-    function isHeli(d) {
+    // airframe for the model: vehicle profile, otherwise the type the FC reports
+    function kindOf(d) {
         var v = vehicleOf(d)
-        return !!v && String(v.vehicleTypeString).toLowerCase().indexOf("helicopter") >= 0
+        return MLProfiles.typeFor(sysidOf(d), v ? v.vehicleTypeString : "")
     }
     // attitude in degrees: live from QGC telemetry; replay from the direction of travel (no attitude in the log)
     function attOf(d) {
@@ -76,6 +81,8 @@ Rectangle {
             var h = Number(v.heading.rawValue), r = Number(v.roll.rawValue), p = Number(v.pitch.rawValue)
             return { h: isNaN(h) ? 0 : h, r: isNaN(r) ? 0 : r, p: isNaN(p) ? 0 : p, real: true }
         }
+        if (d.hdg !== undefined && d.hdg !== null && !isNaN(d.hdg))   // flight record: attitude as recorded
+            return { h: Number(d.hdg), r: isNaN(d.roll) ? 0 : Number(d.roll), p: isNaN(d.pitch) ? 0 : Number(d.pitch), real: true }
         var t = tracks[d.id] || []
         if (t.length >= 2) {
             var a = t[t.length - 2].p, b = t[t.length - 1].p
@@ -99,6 +106,148 @@ Rectangle {
         MLText { text: t; color: MLTheme.label; font.pixelSize: MLTheme.fsLabel }
     }
 
+    // ---- v1.2 ground, terrain and camera -------------------------------------------------------------
+    readonly property real _gcx: 0
+    readonly property real _gcz: 0
+    readonly property real groundSize: MLState.gfxQuality === "high" ? 900 : 600
+    readonly property int  _texPx: MLState.gfxQuality === "high" ? 2048 : 1024
+    readonly property bool _groundFlat: (replay && !replayGeo) || isNaN(lat0)
+    readonly property bool _texOn: !_groundFlat && !MLTheme.lite && MLState.gfxQuality !== "low"
+    property bool _terrainOk: false
+    property string _terrainNote: ""
+    readonly property var _fm: QGroundControl.settingsManager.flightMapSettings
+    readonly property string _mapName: _fm ? (_fm.mapProvider.rawValue + " " + _fm.mapType.rawValue) : ""
+    readonly property string _elevName: _fm && _fm.elevationMapProvider ? String(_fm.elevationMapProvider.rawValue) : ""
+    // map zoom at which texPx pixels cover groundSize metres (Web Mercator)
+    function _zoomFor(sizeM, px, lat) { return Math.log(156543.03392 * Math.cos(lat * Math.PI / 180) * px / sizeM) / Math.LN2 }
+    function _requestTerrain() {
+        _terrainOk = false
+        if (_groundFlat || MLTheme.lite || typeof mlMap === "undefined") { _terrainNote = ""; return }
+        _terrainNote = qsTr("지형 고도 불러오는 중…")
+        mlMap.requestTerrainGrid(lat0, lon0, groundSize, MLState.gfxQuality === "high" ? 49 : 33)
+    }
+    onLat0Changed: _requestTerrain()
+    onGroundSizeChanged: if (!isNaN(lat0)) _requestTerrain()
+    Connections {
+        target: typeof mlMap !== "undefined" ? mlMap : null
+        function onTerrainGrid(ok, h, lat, lon, sizeM, n) {
+            if (Math.abs(lat - root.lat0) > 1e-9 || Math.abs(lon - root.lon0) > 1e-9 || sizeM !== root.groundSize) return
+            if (!ok) { root._terrainOk = false; root._terrainNote = qsTr("지형 고도 없음 — 평면으로 표시"); return }
+            var c = h[Math.floor(n / 2) * n + Math.floor(n / 2)]       // ground at the reference point = 0 m
+            var pos = [], uv = [], nor = [], idx = []
+            for (var j = 0; j < n; j++) for (var i = 0; i < n; i++) {
+                pos.push(Qt.vector3d(-sizeM / 2 + sizeM * i / (n - 1), h[j * n + i] - c, -sizeM / 2 + sizeM * j / (n - 1)))
+                uv.push(Qt.vector2d(i / (n - 1), 1 - j / (n - 1)))
+                nor.push(Qt.vector3d(0, 1, 0))
+            }
+            for (var jj = 0; jj < n - 1; jj++) for (var ii = 0; ii < n - 1; ii++) {
+                var a = jj * n + ii, b = a + 1, d = a + n, e = d + 1
+                idx.push(a, d, b, b, d, e)
+            }
+            terrainMesh.positions = pos
+            terrainMesh.uv0s = uv
+            terrainMesh.normals = nor
+            terrainMesh.indexes = idx
+            var lo = 1e9, hi = -1e9
+            for (var k = 0; k < h.length; k++) { lo = Math.min(lo, h[k]); hi = Math.max(hi, h[k]) }
+            root._terrainOk = true
+            root._terrainNote = qsTr("지형: %1 · 기준점 %2 m · 범위 %3–%4 m AMSL (시각화 전용)").arg(root._elevName).arg(c.toFixed(0)).arg(lo.toFixed(0)).arg(hi.toFixed(0))
+        }
+    }
+    // satellite imagery for the ground: the QGC map itself, rendered offscreen into a texture
+    Texture {
+        id: groundTex
+        sourceItem: Item {
+            width: root._texPx; height: root._texPx
+            FlightMap {
+                anchors.fill: parent
+                mapName: "ml3dGround"
+                enabled: false
+                visible: root._texOn
+                allowGCSLocationCenter: false
+                allowVehicleLocationCenter: false
+                center: QtPositioning.coordinate(isNaN(root.lat0) ? 0 : root.lat0, isNaN(root.lon0) ? 0 : root.lon0)
+                zoomLevel: isNaN(root.lat0) ? 2 : root._zoomFor(root.groundSize, root._texPx, root.lat0)
+            }
+        }
+    }
+
+    // pair lines: endpoints and level (guard pairs when running, else all pairs of shown vehicles)
+    readonly property var _pairLines: {
+        root.tracksRev; root._vTick; root.replayCursor
+        var out = [], ds = _drones
+        for (var i = 0; i < ds.length; i++) for (var j = i + 1; j < ds.length; j++) {
+            if (!okOf(ds[i]) || !okOf(ds[j])) continue
+            var a = posOf(ds[i]), b = posOf(ds[j]), lvl = 0
+            for (var k = 0; k < _pairs.length; k++) if ((_pairs[k].a === ds[i].id && _pairs[k].b === ds[j].id) || (_pairs[k].a === ds[j].id && _pairs[k].b === ds[i].id)) lvl = _pairs[k].level
+            out.push({ a: a, b: b, level: lvl, d: Math.hypot(a.x - b.x, a.z - b.z), dz: a.y - b.y, name: ds[i].id + "–" + ds[j].id })
+        }
+        return out
+    }
+    // planned waypoints with number and altitude (mission check)
+    readonly property var _wps: {
+        var out = []
+        if (isNaN(lat0)) return out
+        for (var i = 0; i < _plans.length; i++) {
+            var pa = _plans[i].path || []
+            for (var k = 0; k < pa.length && out.length < 60; k++) out.push({ p: local(pa[k].lat, pa[k].lon, pa[k].alt), sysid: _plans[i].sysid || 1, n: k + 1, alt: pa[k].alt })
+        }
+        return out
+    }
+
+    // camera: overview (frames the whole fleet), top, side (altitude differences), follow the
+    // command-target vehicle, free (mouse); changes are animated
+    property string camMode: "overview"
+    readonly property real fleetRadius: {
+        root.tracksRev; root._vTick; root.replayCursor
+        var c = centroid, r = 20
+        for (var i = 0; i < _drones.length; i++) if (okOf(_drones[i])) { var p = posOf(_drones[i]); r = Math.max(r, Math.hypot(p.x - c.x, p.z - c.z), p.y) }
+        return r
+    }
+    readonly property var _followPos: {
+        root._vTick; root.tracksRev
+        var a = QGroundControl.multiVehicleManager.activeVehicle
+        var want = a ? a.id : -1
+        for (var i = 0; i < _drones.length; i++) if (okOf(_drones[i]) && (sysidOf(_drones[i]) === want || want < 0)) { var p = posOf(_drones[i]); return Qt.vector3d(p.x, p.y, p.z) }
+        return null
+    }
+    property real _framedRadius: 0
+    onFleetRadiusChanged: if (camMode === "overview" && (fleetRadius > _framedRadius * 1.3 || fleetRadius < _framedRadius * 0.5)) applyCam(true)
+    function _dist() { return camMode === "follow" ? 45 : Math.max(60, Math.min(1200, fleetRadius * 2.4 + 40)) }
+    function applyCam(animated) {
+        _framedRadius = fleetRadius
+        var d = _dist(), pos, rot
+        if (camMode === "top") { pos = Qt.vector3d(0, d * 1.3, 0.01); rot = Qt.vector3d(-89.9, 0, 0) }
+        else if (camMode === "side") { pos = Qt.vector3d(0, Math.max(8, fleetRadius * 0.15), d); rot = Qt.vector3d(-6, 0, 0) }
+        else { pos = Qt.vector3d(0, d * Math.sin(38 * Math.PI / 180), d * Math.cos(38 * Math.PI / 180)); rot = Qt.vector3d(-38, 0, 0) }
+        if (animated && !MLTheme.lite) {
+            camPosAnim.to = pos; camRotAnim.to = rot; originRotAnim.to = Qt.vector3d(0, originNode.eulerRotation.y, 0)
+            camAnim.restart()
+        } else {
+            cam.position = pos; cam.eulerRotation = rot
+        }
+    }
+    ParallelAnimation {
+        id: camAnim
+        Vector3dAnimation { id: camPosAnim; target: cam; property: "position"; duration: 650; easing.type: Easing.InOutQuad }
+        Vector3dAnimation { id: camRotAnim; target: cam; property: "eulerRotation"; duration: 650; easing.type: Easing.InOutQuad }
+        Vector3dAnimation { id: originRotAnim; target: originNode; property: "eulerRotation"; duration: 650; easing.type: Easing.InOutQuad }
+    }
+    // keyboard: + / − zoom, ← → orbit, ↑ ↓ tilt, R reset, F follow, T top, S side
+    focus: true
+    Keys.onPressed: (e) => {
+        if (e.key === Qt.Key_Plus || e.key === Qt.Key_Equal) { zoom(0.85); e.accepted = true }
+        else if (e.key === Qt.Key_Minus) { zoom(1.18); e.accepted = true }
+        else if (e.key === Qt.Key_Left) { autoOrbit = false; originNode.eulerRotation.y += 8; e.accepted = true }
+        else if (e.key === Qt.Key_Right) { autoOrbit = false; originNode.eulerRotation.y -= 8; e.accepted = true }
+        else if (e.key === Qt.Key_Up) { cam.eulerRotation.x = Math.max(-89, cam.eulerRotation.x - 4); e.accepted = true }
+        else if (e.key === Qt.Key_Down) { cam.eulerRotation.x = Math.min(-2, cam.eulerRotation.x + 4); e.accepted = true }
+        else if (e.key === Qt.Key_R) { viewPreset("persp"); e.accepted = true }
+        else if (e.key === Qt.Key_F) { viewPreset("follow"); e.accepted = true }
+        else if (e.key === Qt.Key_T) { viewPreset("top"); e.accepted = true }
+        else if (e.key === Qt.Key_S) { viewPreset("side"); e.accepted = true }
+    }
+
     color: MLTheme.panelSolid
     radius: presentation ? 0 : MLTheme.panelRadius
     border.color: presentation ? "transparent" : MLTheme.glassEdge
@@ -115,7 +264,7 @@ Rectangle {
     }
     // the reference is fixed outside any binding (writing lat0 inside one would loop)
     on_DronesChanged: ensureRef()
-    Component.onCompleted: ensureRef()
+    Component.onCompleted: { ensureRef(); applyCam(false) }
     function local(lat, lon, alt) {
         if (isNaN(lat0)) return Qt.vector3d(0, alt, 0)
         var x = (lon - lon0) * Math.cos(lat0 * Math.PI / 180) * 111320
@@ -149,9 +298,11 @@ Rectangle {
     onReplayTracksChanged: if (replay) _replayTracks()
     function _replayTracks() {
         var out = ({})
+        if (replayGeo && isNaN(lat0)) for (var q = 0; q < replayTracks.length; q++) if (replayTracks[q].points.length) { lat0 = replayTracks[q].points[0][1]; lon0 = replayTracks[q].points[0][2]; break }
         for (var k = 0; k < replayTracks.length; k++) {
             var p = replayTracks[k].points, a = []
-            for (var i = 0; i < p.length && p[i][0] <= replayCursor; i++) a.push({ p: Qt.vector3d(p[i][2], p[i][3], -p[i][1]), own: !!p[i][4] })
+            for (var i = 0; i < p.length && p[i][0] <= replayCursor; i++)
+                a.push({ p: replayGeo ? local(p[i][1], p[i][2], p[i][3]) : Qt.vector3d(p[i][2], p[i][3], -p[i][1]), own: !!p[i][4] })
             if (a.length > _trackMax) a = a.slice(a.length - _trackMax)
             out[replayTracks[k].id] = a
         }
@@ -187,14 +338,14 @@ Rectangle {
         }
         Node {
             id: originNode
-            // orbit around the middle of the fleet (follows it smoothly)
-            position: root.centroid
+            // orbit around the middle of the fleet, or the followed vehicle (follows it smoothly)
+            position: root.camMode === "follow" && root._followPos ? root._followPos : root.centroid
             Behavior on position { Vector3dAnimation { duration: 600 } }
             NumberAnimation on eulerRotation.y { running: root.autoOrbit && root.visible; from: 0; to: 360; duration: 90000; loops: Animation.Infinite }
             PerspectiveCamera {
                 id: cam
-                position: Qt.vector3d(0, 45, 85)
-                eulerRotation.x: -28
+                position: Qt.vector3d(0, 70, 85)
+                eulerRotation.x: -38
                 clipNear: 0.5
                 clipFar: 5000
                 fieldOfView: 45
@@ -203,12 +354,34 @@ Rectangle {
         DirectionalLight { eulerRotation.x: -50; eulerRotation.y: -30; brightness: 1.15 }
         DirectionalLight { eulerRotation.x: -20; eulerRotation.y: 150; brightness: 0.45 }
 
-        // ground: a faint plane and a grid 300 × 300 m, 10 m cells, 50 m major lines
+        // ground (v1.2): satellite imagery from the map provider set in QGC (the same tiles as the 2D
+        // map, rendered into a texture) draped over terrain elevations from QGC's terrain query
+        // (the database QGC uses for AGL). Without imagery or elevation data the plane stays flat and
+        // plain, and the legend says so. Visualisation only — never used for any flight decision.
         Model {
+            id: groundModel
+            visible: !root._groundFlat
+            geometry: root._terrainOk ? terrainMesh : null
+            source: root._terrainOk ? "" : "#Rectangle"
+            eulerRotation.x: root._terrainOk ? 0 : -90
+            position: Qt.vector3d(root._gcx, root._terrainOk ? 0 : -0.05, root._gcz)
+            scale: root._terrainOk ? Qt.vector3d(1, 1, 1) : Qt.vector3d(root.groundSize / 100, root.groundSize / 100, 1)
+            materials: PrincipledMaterial {
+                lighting: PrincipledMaterial.NoLighting
+                baseColorMap: root._texOn ? groundTex : null
+                baseColor: root._texOn ? "white" : (MLTheme.day ? "#E8ECEF" : "#0A1015")
+                cullMode: Material.NoCulling
+            }
+        }
+        ProceduralMesh { id: terrainMesh }
+        Model {
+            visible: root._groundFlat
             source: "#Rectangle"; eulerRotation.x: -90; position: Qt.vector3d(0, -0.05, 0); scale: Qt.vector3d(3, 3, 1)
             materials: PrincipledMaterial { baseColor: MLTheme.day ? "#E8ECEF" : "#0A1015"; lighting: PrincipledMaterial.NoLighting }
         }
+        // grid: 10 m cells when there is no imagery; only the 50 m lines over imagery
         Model {
+            visible: !root._texOn
             geometry: ProceduralMesh {
                 primitiveMode: ProceduralMesh.Lines
                 positions: {
@@ -220,6 +393,7 @@ Rectangle {
             materials: PrincipledMaterial { baseColor: MLTheme.day ? "#B5BFC8" : "#16222B"; lighting: PrincipledMaterial.NoLighting }
         }
         Model {
+            visible: !root._terrainOk
             geometry: ProceduralMesh {
                 primitiveMode: ProceduralMesh.Lines
                 positions: {
@@ -228,7 +402,7 @@ Rectangle {
                     return p
                 }
             }
-            materials: PrincipledMaterial { baseColor: MLTheme.day ? "#7D8B98" : "#2E4756"; lighting: PrincipledMaterial.NoLighting }
+            materials: PrincipledMaterial { baseColor: root._texOn ? "#80FFFFFF" : (MLTheme.day ? "#7D8B98" : "#2E4756"); lighting: PrincipledMaterial.NoLighting; alphaMode: PrincipledMaterial.Blend }
         }
         // north arrow
         Model {
@@ -265,7 +439,7 @@ Rectangle {
                 readonly property color col: root.colorOf(d.id)
                 readonly property color bodyCol: d.own ? MLTheme.warning : col
                 readonly property var att: root.attOf(d)
-                readonly property bool heli: root.isHeli(d)
+                readonly property string kind: root.kindOf(d)
                 visible: ok
 
                 // ---- aircraft model, turned to heading / pitch / roll -------------------------
@@ -275,7 +449,7 @@ Rectangle {
                     scale: Qt.vector3d(root.modelScale, root.modelScale, root.modelScale)
                     // multicopter: body, X arms, four rotor discs, nose cone
                     Node {
-                        visible: !dn.heli
+                        visible: dn.kind === "multi"
                         Model { source: "#Cube"; scale: Qt.vector3d(0.0024, 0.0012, 0.0034); materials: PrincipledMaterial { baseColor: dn.bodyCol; metalness: 0.2; roughness: 0.4 } }
                         Model { source: "#Cube"; eulerRotation.y: 45; scale: Qt.vector3d(0.0075, 0.0005, 0.0006); materials: PrincipledMaterial { baseColor: MLTheme.day ? "#39424B" : "#C9D1D8"; roughness: 0.5 } }
                         Model { source: "#Cube"; eulerRotation.y: -45; scale: Qt.vector3d(0.0075, 0.0005, 0.0006); materials: PrincipledMaterial { baseColor: MLTheme.day ? "#39424B" : "#C9D1D8"; roughness: 0.5 } }
@@ -290,13 +464,32 @@ Rectangle {
                     }
                     // helicopter: fuselage, tail boom, main and tail rotor discs, nose mark
                     Node {
-                        visible: dn.heli
+                        visible: dn.kind === "heli"
                         Model { source: "#Sphere"; scale: Qt.vector3d(0.006, 0.0058, 0.0115); materials: PrincipledMaterial { baseColor: dn.bodyCol; metalness: 0.25; roughness: 0.35 } }
                         Model { source: "#Cube"; position: Qt.vector3d(0, 0.06, 0.9); scale: Qt.vector3d(0.0012, 0.0012, 0.012); materials: PrincipledMaterial { baseColor: dn.bodyCol; roughness: 0.4 } }
                         Model { source: "#Cube"; position: Qt.vector3d(0, 0.2, 1.48); scale: Qt.vector3d(0.0006, 0.0034, 0.0024); materials: PrincipledMaterial { baseColor: dn.bodyCol; roughness: 0.4 } }
                         Model { source: "#Cylinder"; position: Qt.vector3d(0, 0.38, 0); scale: Qt.vector3d(0.019, 0.0002, 0.019); materials: PrincipledMaterial { baseColor: MLTheme.day ? "#55606A" : "#9AA6B2"; opacity: 0.45; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting } }
                         Model { source: "#Cylinder"; position: Qt.vector3d(0.06, 0.24, 1.5); eulerRotation.z: 90; scale: Qt.vector3d(0.0036, 0.0002, 0.0036); materials: PrincipledMaterial { baseColor: MLTheme.day ? "#55606A" : "#9AA6B2"; opacity: 0.55; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting } }
                         Model { source: "#Cone"; position: Qt.vector3d(0, 0, -0.6); eulerRotation.x: -90; scale: Qt.vector3d(0.0009, 0.0014, 0.0009); materials: PrincipledMaterial { baseColor: MLTheme.brand; lighting: PrincipledMaterial.NoLighting } }
+                    }
+                    // tandem helicopter: long fuselage, fore and aft rotor pylons and discs
+                    Node {
+                        visible: dn.kind === "tandem"
+                        Model { source: "#Cube"; scale: Qt.vector3d(0.0055, 0.0055, 0.024); materials: PrincipledMaterial { baseColor: dn.bodyCol; metalness: 0.25; roughness: 0.35 } }
+                        Model { source: "#Cube"; position: Qt.vector3d(0, 0.33, -0.95); scale: Qt.vector3d(0.0035, 0.0012, 0.004); materials: PrincipledMaterial { baseColor: dn.bodyCol; roughness: 0.4 } }
+                        Model { source: "#Cube"; position: Qt.vector3d(0, 0.42, 0.95); scale: Qt.vector3d(0.0035, 0.003, 0.004); materials: PrincipledMaterial { baseColor: dn.bodyCol; roughness: 0.4 } }
+                        Model { source: "#Cylinder"; position: Qt.vector3d(0, 0.42, -0.95); scale: Qt.vector3d(0.017, 0.0002, 0.017); materials: PrincipledMaterial { baseColor: MLTheme.day ? "#55606A" : "#9AA6B2"; opacity: 0.45; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting } }
+                        Model { source: "#Cylinder"; position: Qt.vector3d(0, 0.6, 0.95); scale: Qt.vector3d(0.017, 0.0002, 0.017); materials: PrincipledMaterial { baseColor: MLTheme.day ? "#55606A" : "#9AA6B2"; opacity: 0.45; alphaMode: PrincipledMaterial.Blend; lighting: PrincipledMaterial.NoLighting } }
+                        Model { source: "#Cone"; position: Qt.vector3d(0, 0, -1.3); eulerRotation.x: -90; scale: Qt.vector3d(0.0009, 0.0014, 0.0009); materials: PrincipledMaterial { baseColor: MLTheme.brand; lighting: PrincipledMaterial.NoLighting } }
+                    }
+                    // fixed wing: fuselage, wing, tailplane, fin
+                    Node {
+                        visible: dn.kind === "fixed"
+                        Model { source: "#Cube"; scale: Qt.vector3d(0.0024, 0.0024, 0.018); materials: PrincipledMaterial { baseColor: dn.bodyCol; metalness: 0.2; roughness: 0.4 } }
+                        Model { source: "#Cube"; position: Qt.vector3d(0, 0.04, -0.15); scale: Qt.vector3d(0.024, 0.0005, 0.0045); materials: PrincipledMaterial { baseColor: dn.bodyCol; roughness: 0.45 } }
+                        Model { source: "#Cube"; position: Qt.vector3d(0, 0.04, 0.82); scale: Qt.vector3d(0.008, 0.0004, 0.0025); materials: PrincipledMaterial { baseColor: dn.bodyCol; roughness: 0.45 } }
+                        Model { source: "#Cube"; position: Qt.vector3d(0, 0.2, 0.84); scale: Qt.vector3d(0.0004, 0.0035, 0.0025); materials: PrincipledMaterial { baseColor: dn.bodyCol; roughness: 0.45 } }
+                        Model { source: "#Cone"; position: Qt.vector3d(0, 0, -0.95); eulerRotation.x: -90; scale: Qt.vector3d(0.0012, 0.0014, 0.0012); materials: PrincipledMaterial { baseColor: MLTheme.brand; lighting: PrincipledMaterial.NoLighting } }
                     }
                 }
 
@@ -381,6 +574,24 @@ Rectangle {
                 Model { source: "#Sphere"; position: pn.cb; scale: Qt.vector3d(0.012, 0.012, 0.012); materials: PrincipledMaterial { baseColor: MLTheme.riskColor(pn.p.level); lighting: PrincipledMaterial.NoLighting } }
             }
         }
+        // distance between every pair right now (guard pairs, or computed from positions)
+        Repeater3D {
+            model: root._pairLines.length
+            Model {
+                readonly property var pl: index < root._pairLines.length ? root._pairLines[index] : ({ a: Qt.vector3d(0, 0, 0), b: Qt.vector3d(0, 0, 0), level: 0 })
+                geometry: ProceduralMesh { primitiveMode: ProceduralMesh.Lines; positions: [pl.a, pl.b] }
+                materials: PrincipledMaterial { baseColor: pl.level >= 1 ? MLTheme.riskColor(pl.level) : (MLTheme.day ? "#55606A" : "#AAB4BE"); lighting: PrincipledMaterial.NoLighting; opacity: 0.75; alphaMode: PrincipledMaterial.Blend }
+            }
+        }
+        // waypoints of the planned missions
+        Repeater3D {
+            model: root._wps.length
+            Model {
+                readonly property var w: index < root._wps.length ? root._wps[index] : ({ p: Qt.vector3d(0, 0, 0), sysid: 1 })
+                source: "#Sphere"; position: w.p; scale: Qt.vector3d(0.012, 0.012, 0.012)
+                materials: PrincipledMaterial { baseColor: MLTheme.vehicleColor(w.sysid); lighting: PrincipledMaterial.NoLighting; opacity: 0.8; alphaMode: PrincipledMaterial.Blend }
+            }
+        }
     }
     OrbitCameraController {
         id: orbit
@@ -392,10 +603,8 @@ Rectangle {
     // ---- camera presets ----------------------------------------------------------------------
     function viewPreset(k) {
         root.autoOrbit = false
-        originNode.eulerRotation = Qt.vector3d(0, 0, 0)
-        if (k === "top") { cam.position = Qt.vector3d(0, 140, 0.01); cam.eulerRotation = Qt.vector3d(-89.9, 0, 0) }
-        else if (k === "side") { cam.position = Qt.vector3d(0, 12, 110); cam.eulerRotation = Qt.vector3d(-4, 0, 0) }
-        else { cam.position = Qt.vector3d(0, 45, 85); cam.eulerRotation = Qt.vector3d(-28, 0, 0) }
+        camMode = k === "top" ? "top" : (k === "side" ? "side" : (k === "follow" ? "follow" : "overview"))
+        applyCam(true)
     }
     function zoom(f) { cam.position = Qt.vector3d(cam.position.x * f, cam.position.y * f, cam.position.z * f) }
 
@@ -415,10 +624,39 @@ Rectangle {
             border.color: d.own ? MLTheme.warning : root.colorOf(d.id)
             Text {
                 id: lt; anchors.centerIn: parent
-                text: d.id + "  " + Number(d.alt).toFixed(1) + " m" + (parent.ph !== "" ? "  " + parent.ph : "")
+                text: d.id + "  " + Number(d.alt).toFixed(1) + " m" + (d.gs !== undefined && d.gs !== null && !isNaN(d.gs) ? "  " + Number(d.gs).toFixed(1) + " m/s" : "") + (parent.ph !== "" ? "  " + parent.ph : "")
                 color: d.own ? MLTheme.warning : root.colorOf(d.id)
                 font.family: MLTheme.mono; font.pixelSize: root.presentation ? MLTheme.fsBody : MLTheme.fsLabel; font.weight: Font.Medium
             }
+        }
+    }
+
+    // pair distance labels at the middle of each line
+    Repeater {
+        model: root._pairLines.length
+        Rectangle {
+            readonly property var pl: index < root._pairLines.length ? root._pairLines[index] : null
+            readonly property var sp: { cam.position; cam.eulerRotation; originNode.eulerRotation; originNode.position; if (!pl) return Qt.vector3d(-1, -1, -1); return view.mapFrom3DScene(Qt.vector3d((pl.a.x + pl.b.x) / 2, (pl.a.y + pl.b.y) / 2, (pl.a.z + pl.b.z) / 2)) }
+            visible: !!pl && sp.z > 0
+            x: sp.x - width / 2; y: sp.y - height / 2
+            width: plT.implicitWidth + 10 * root.u; height: plT.implicitHeight + 4 * root.u; radius: 3 * root.u
+            color: MLTheme.alpha(MLTheme.panelSolid, 0.85)
+            border.color: pl && pl.level >= 1 ? MLTheme.riskColor(pl.level) : MLTheme.line
+            Text { id: plT; anchors.centerIn: parent; text: pl ? pl.d.toFixed(1) + " m" + (Math.abs(pl.dz) >= 1 ? "  Δh " + pl.dz.toFixed(0) : "") : ""; color: pl && pl.level >= 1 ? MLTheme.riskColor(pl.level) : MLTheme.label; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel }
+        }
+    }
+    // waypoint number and altitude
+    Repeater {
+        model: root.presentation || MLTheme.lite ? 0 : root._wps.length
+        Text {
+            readonly property var w: index < root._wps.length ? root._wps[index] : null
+            readonly property var sp: { cam.position; cam.eulerRotation; originNode.eulerRotation; originNode.position; return w ? view.mapFrom3DScene(Qt.vector3d(w.p.x, w.p.y + 1.5, w.p.z)) : Qt.vector3d(-1, -1, -1) }
+            visible: !!w && sp.z > 0
+            x: sp.x + 4 * root.u; y: sp.y - height
+            text: w ? w.n + " · " + Number(w.alt).toFixed(0) + "m" : ""
+            color: w ? MLTheme.vehicleColor(w.sysid) : "white"
+            style: Text.Outline; styleColor: MLTheme.day ? "white" : "black"
+            font.family: MLTheme.mono; font.pixelSize: MLTheme.fsLabel
         }
     }
 
@@ -430,7 +668,7 @@ Rectangle {
         Row {
             x: 12 * u; anchors.verticalCenter: parent.verticalCenter; spacing: 10 * u
             MLText { text: root.replay ? qsTr("3D 리플레이") : qsTr("ACACT 3D 상황도"); font.pixelSize: MLTheme.fsBody; font.weight: Font.DemiBold }
-            MLText { text: root.replay ? qsTr("격자 10 m · 빨간 화살표 = 전방 F (시연 좌표계)") : qsTr("격자 10 m · 굵은 선 50 m · 빨간 화살표 북쪽"); color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel; anchors.verticalCenter: parent.verticalCenter }
+            MLText { text: root.replay && !root.replayGeo ? qsTr("격자 10 m · 빨간 화살표 = 전방 F (시연 좌표계)") : qsTr("빨간 화살표 북쪽 · 키보드 +/− ←→ ↑↓ R F T S"); color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel; anchors.verticalCenter: parent.verticalCenter }
         }
         Row {
             anchors.right: parent.right; anchors.rightMargin: 6 * u; anchors.verticalCenter: parent.verticalCenter
@@ -438,6 +676,7 @@ Rectangle {
             MLIconButton { label: qsTr("기본"); size: 30 * u; tip: qsTr("기본 시점"); onClicked: root.viewPreset("persp") }
             MLIconButton { label: qsTr("위"); size: 30 * u; tip: qsTr("위에서 본 시점"); onClicked: root.viewPreset("top") }
             MLIconButton { label: qsTr("옆"); size: 30 * u; tip: qsTr("옆에서 본 시점 — 고도 차이 확인"); onClicked: root.viewPreset("side") }
+            MLIconButton { label: qsTr("추적"); size: 30 * u; checked: root.camMode === "follow"; tip: qsTr("명령 대상 기체를 따라감"); onClicked: root.viewPreset("follow") }
             MLIconButton { glyph: "+"; tip: qsTr("확대"); onClicked: root.zoom(0.8) }
             MLIconButton { glyph: "−"; tip: qsTr("축소"); onClicked: root.zoom(1.25) }
             MLIconButton { glyph: "⟲"; tip: qsTr("자동 회전"); checked: root.autoOrbit; onClicked: root.autoOrbit = !root.autoOrbit }
@@ -465,7 +704,12 @@ Rectangle {
             Key { visible: root._guard; c: MLTheme.caution; t: qsTr("최근접 예측 지점 · 위험 영역") }
             MLText { text: qsTr("반투명 구 = ½ D_SAFE (%1 m) · 기체 모형 ×%2 확대").arg((root.dSafe / 2).toFixed(1)).arg(root.modelScale); color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel }
             MLText {
-                text: root.replay ? qsTr("기록 재생 · 자세 기록 없음 → 기수는 이동 방향") : (root._guard ? qsTr("실시간 · ACACT 가드 값 + 기체 자세(텔레메트리)") : qsTr("실시간 · 기체 위치·자세(텔레메트리) · 가드 정지 — 예측 없음"))
+                visible: !root._groundFlat
+                text: (root._texOn ? qsTr("지면 영상: %1 (QGC 지도 설정)").arg(root._mapName) : qsTr("지면 영상 끔 (경량 모드)")) + (root._terrainNote !== "" ? " · " + root._terrainNote : "") + qsTr(" · 건물 데이터 없음")
+                color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel
+            }
+            MLText {
+                text: root.replay && !root.replayGeo ? qsTr("기록 재생 · 자세 기록 없음 → 기수는 이동 방향") : (root.replay ? qsTr("비행 기록 재생 · 자세는 기록값") : (root._guard ? qsTr("실시간 · ACACT 가드 값 + 기체 자세(텔레메트리)") : qsTr("실시간 · 기체 위치·자세(텔레메트리) · 가드 정지 — 예측 없음")))
                 color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel
             }
         }

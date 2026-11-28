@@ -423,6 +423,13 @@ Item {
                 }
                 MLIconButton {
                     size:       34 * u
+                    glyph:      "☰"
+                    tip:        qsTr("비행 기록 — 검색·요약·재생·보고서 (Ctrl+Shift+L)")
+                    checked:    MLState.recordsOpen
+                    onClicked:  MLState.recordsOpen = !MLState.recordsOpen
+                }
+                MLIconButton {
+                    size:       34 * u
                     glyph:      "?"
                     tip:        qsTr("시작 안내 · 도움말 (Shift+F1)")
                     checked:    MLState.onboardingOpen

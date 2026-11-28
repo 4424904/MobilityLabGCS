@@ -2,6 +2,7 @@
 #include "TandemTelemetry.h"
 #include "MLAcactRuntime.h"
 #include "MLFlightRecords.h"
+#include "MLSystem.h"
 #include "MLFlightAnalysis.h"
 #include "MLUi.h"
 #include "MLMapService.h"
@@ -250,6 +251,8 @@ QQmlApplicationEngine *MLPlugin::createQmlApplicationEngine(QObject *parent)
     auto *records = new MLFlightRecords(this);
     records->attach(_acact, demo);
     _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlRecords"), records);
+    // backup / restore, diagnostics, abnormal-exit flag, update check
+    _qmlEngine->rootContext()->setContextProperty(QStringLiteral("mlSystem"), new MLSystem(this));
     // CI / exhibition: MLGCS_DEMO=single|duo|trio starts the demo at launch
     if (qEnvironmentVariableIsSet("MLGCS_DEMO")) {
         const QString sc = qEnvironmentVariable("MLGCS_DEMO");

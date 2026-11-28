@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 
 import QGroundControl
 
@@ -149,6 +150,75 @@ Rectangle {
                 MLCommandButton { compact: true; twoStep: false; text: qsTr("다시 열기"); onClicked: { MLState.onboardingDone = false; MLState.onboardingOpen = true; root.closeRequested() } }
             }
 
+            // ---- vehicle profiles (v1.2): display only, never written to the FC ----------------------
+            MLSectionTitle { text: qsTr("기체 프로필"); detail: qsTr("이 PC 화면 표시용 — FC 파라미터는 바꾸지 않습니다") }
+            Repeater {
+                model: QGroundControl.multiVehicleManager.vehicles
+                Column {
+                    required property var object
+                    readonly property var v: object
+                    readonly property var pf: { MLProfiles.map; return MLProfiles.get(v.id) }
+                    width: col.width
+                    spacing: 6 * MLTheme.u
+                    Row {
+                        spacing: 8 * MLTheme.u
+                        Rectangle { width: 6 * MLTheme.u; height: 26 * MLTheme.u; radius: 2; color: MLTheme.vehicleColor(v.id); anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: "UAV " + ("0" + v.id).slice(-2); color: MLTheme.text; font.family: MLTheme.mono; font.pixelSize: MLTheme.fsBody; anchors.verticalCenter: parent.verticalCenter }
+                        TextField { width: 180 * MLTheme.u; placeholderText: qsTr("이름 (예: X500-1)"); text: parent.parent.pf.name || ""; font.pixelSize: MLTheme.fsSmall; onEditingFinished: MLProfiles.set(parent.parent.v.id, { name: text.trim() }) }
+                    }
+                    Seg {
+                        value: parent.pf.type || "auto"
+                        options: MLProfiles.types
+                        onPicked: (k) => MLProfiles.set(parent.v.id, { type: k })
+                    }
+                    Row {
+                        spacing: 4 * MLTheme.u
+                        Repeater {
+                            model: ["", "#5CC4F0", "#6FD394", "#F5B83A", "#C792EA", "#FF8A65", "#4DD0E1", "#F06292"]
+                            Rectangle {
+                                width: 26 * MLTheme.u; height: 26 * MLTheme.u; radius: 13 * MLTheme.u
+                                color: modelData === "" ? "transparent" : modelData
+                                border.color: (parent.parent.pf.color || "") === modelData ? MLTheme.text : MLTheme.line
+                                border.width: (parent.parent.pf.color || "") === modelData ? 2 : 1
+                                MLText { visible: modelData === ""; anchors.centerIn: parent; text: "A"; font.pixelSize: MLTheme.fsLabel; color: MLTheme.dim }
+                                MouseArea { anchors.fill: parent; onClicked: MLProfiles.set(parent.parent.parent.v.id, { color: modelData }) }
+                            }
+                        }
+                    }
+                }
+            }
+            MLText { visible: QGroundControl.multiVehicleManager.vehicles.count === 0; text: qsTr("기체가 연결되면 여기서 이름·유형·색을 정할 수 있습니다 (시스템 ID 기준으로 저장)"); color: MLTheme.dim; font.pixelSize: MLTheme.fsLabel; width: col.width; wrapMode: Text.WordWrap }
+
+            // ---- backup, diagnostics, update, about ----------------------------------------------------------
+            MLSectionTitle { text: qsTr("백업 · 진단 · 업데이트") }
+            RowItem {
+                title: qsTr("환경설정 백업"); hint: qsTr("배치·즐겨찾기·프로필·단축키·QGC 설정 전체를 .ini 파일로")
+                Row {
+                    spacing: 6 * MLTheme.u
+                    MLIconButton { size: 32 * MLTheme.u; label: qsTr("백업"); onClicked: { var p = mlSystem.backupSettings(""); sysNote.text = p !== "" ? qsTr("저장: %1").arg(p) : qsTr("백업하지 못했습니다") } }
+                    MLIconButton { size: 32 * MLTheme.u; label: qsTr("복원…"); onClicked: restoreDlg.open() }
+                }
+            }
+            RowItem {
+                title: qsTr("진단 보고서"); hint: qsTr("버전·OS·화면·설정 목록(키·좌표 값 제거) — 문제 보고용")
+                MLIconButton { size: 32 * MLTheme.u; label: qsTr("만들기"); onClicked: { var p = mlSystem.writeDiagnostics(""); sysNote.text = p !== "" ? qsTr("저장: %1").arg(p) : qsTr("만들지 못했습니다") } }
+            }
+            RowItem {
+                title: qsTr("업데이트"); hint: mlSystem.updateText !== "" ? mlSystem.updateText : qsTr("GitHub 릴리스에서 새 버전을 확인합니다 (자동으로 받지 않음)")
+                Row {
+                    spacing: 6 * MLTheme.u
+                    MLIconButton { size: 32 * MLTheme.u; label: qsTr("확인"); onClicked: mlSystem.checkForUpdate() }
+                    MLIconButton { visible: mlSystem.updateState === "available"; size: 32 * MLTheme.u; label: qsTr("릴리스 보기"); onClicked: Qt.openUrlExternally(mlSystem.releaseUrl) }
+                    MLIconButton { visible: mlSystem.updateState === "available" && Qt.platform.os === "windows"; size: 32 * MLTheme.u; label: qsTr("받기 · 검증"); onClicked: mlSystem.downloadUpdate() }
+                    MLIconButton { visible: mlSystem.updateState === "verified"; size: 32 * MLTheme.u; label: qsTr("설치 (GCS 종료)"); onClicked: sysNote.text = mlSystem.installUpdate() }
+                }
+            }
+            RowItem {
+                title: qsTr("버전 정보")
+                MLText { text: "MobilityLab GCS " + (typeof mlVersion !== "undefined" ? mlVersion : "") + qsTr(" · QGroundControl v5.1.5 기반 · 비행 기록: %1").arg(typeof mlRecords !== "undefined" ? mlRecords.baseDir : ""); color: MLTheme.label; font.pixelSize: MLTheme.fsLabel; width: parent.width; wrapMode: Text.WordWrap }
+            }
+            MLText { id: sysNote; visible: text !== ""; color: MLTheme.accent; font.pixelSize: MLTheme.fsLabel; width: col.width; wrapMode: Text.WrapAnywhere }
+
             MLSectionTitle { text: qsTr("단축키"); detail: qsTr("비행 명령(시동·이륙·HOLD·복귀·착륙·비상정지)에는 단축키를 두지 않습니다") }
             Repeater {
                 model: root.shortcuts ? root.shortcuts.actions : []
@@ -177,6 +247,12 @@ Rectangle {
                 MLText { id: conflict; anchors.verticalCenter: parent.verticalCenter; color: MLTheme.caution; font.pixelSize: MLTheme.fsLabel }
             }
         }
+    }
+
+    FileDialog {
+        id: restoreDlg
+        nameFilters: ["MobilityLab GCS settings (*.ini)"]
+        onAccepted: { var r = mlSystem.restoreSettings(selectedFile); sysNote.text = r === "" ? qsTr("복원했습니다 — 프로그램을 다시 시작하면 적용됩니다") : r }
     }
 
     // key capture for rebinding

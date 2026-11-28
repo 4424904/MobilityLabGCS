@@ -27,7 +27,8 @@ Item {
         { id: "open.console",   name: qsTr("ACACT 콘솔"),                 def: "Ctrl+Shift+G" },
         { id: "open.timeline",  name: qsTr("ACACT 타임라인"),             def: "Ctrl+Shift+T" },
         { id: "open.3d",        name: qsTr("3D 상황도"),                  def: "Ctrl+Shift+3" },
-        { id: "open.analysis",  name: qsTr("비행 분석"),                  def: "Ctrl+Shift+R" },
+        { id: "open.analysis",  name: qsTr("ACACT 분석"),                 def: "Ctrl+Shift+R" },
+        { id: "open.records",   name: qsTr("비행 기록"),                  def: "Ctrl+Shift+L" },
         { id: "theme.toggle",   name: qsTr("주간 · 야간 테마"),           def: "Ctrl+Shift+D" },
         { id: "theme.contrast", name: qsTr("고대비 (직사광선)"),          def: "Ctrl+Shift+H" },
         { id: "open.prefs",     name: qsTr("환경 설정"),                  def: "Ctrl+," },
@@ -78,12 +79,14 @@ Item {
         case "open.timeline":  MLState.acactTimelineOpen = !MLState.acactTimelineOpen; break
         case "open.3d":        MLState.acact3dOpen = !MLState.acact3dOpen; break
         case "open.analysis":  MLState.analysisOpen = !MLState.analysisOpen; break
+        case "open.records":   MLState.recordsOpen = !MLState.recordsOpen; break
         case "theme.toggle":   MLTheme.setDay(!MLTheme.day); break
         case "theme.contrast": MLTheme.setContrast(!MLTheme.contrast); break
         case "open.prefs":     MLState.prefsOpen = !MLState.prefsOpen; break
         case "open.help":      MLState.onboardingOpen = !MLState.onboardingOpen; break
         case "close.overlay":
             if (MLState.prefsOpen) MLState.prefsOpen = false
+            else if (MLState.recordsOpen) MLState.recordsOpen = false
             else if (MLState.onboardingOpen) MLState.onboardingOpen = false
             else if (MLState.preflightOpen) MLState.preflightOpen = false
             else if (MLState.analysisOpen) MLState.analysisOpen = false

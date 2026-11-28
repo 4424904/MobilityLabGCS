@@ -14,7 +14,7 @@ Rectangle {
         "+": "plus", "−": "minus", "✕": "close", "‹": "left", "›": "right", "⧉": "detach", "↻": "refresh", "⇩": "download", "↶": "undo",
         "⌫": "trash", "✓": "check", "▣": "console", "≡": "timeline", "◭": "cube", "⟲": "refresh", "🔔": "bell", "☑": "checklist",
         "☀": "sun", "☾": "moon", "▦": "layout", "⌕": "search", "⚠": "bell",
-        "⚙": "gear", "?": "help", "⌨": "keyboard", "▶": "play", "⛶": "fullscreen", "⤡": "exitfull", "⛨": "shield", "∿": "pulse" })
+        "⚙": "gear", "?": "help", "⌨": "keyboard", "▶": "play", "⛶": "fullscreen", "⤡": "exitfull", "⛨": "shield", "∿": "pulse", "☰": "records" })
     readonly property string _svg: icon.toString() !== "" ? icon.toString() : (_iconOf[glyph] ? "/MobilityLab/ui/" + _iconOf[glyph] + ".svg" : "")
     property string tip
     property bool   checked:    false

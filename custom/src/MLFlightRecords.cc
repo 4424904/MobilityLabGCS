@@ -21,6 +21,7 @@
 #include <QtCore/QStandardPaths>
 #include <QtCore/QTextStream>
 #include <QtCore/QUrl>
+#include <QtPositioning/QGeoCoordinate>
 #include <QtCore/QtMath>
 #include <QtGui/QFont>
 #include <QtGui/QPageLayout>
@@ -639,6 +640,27 @@ QVariantList MLFlightRecords::stateAt(double t) const
         m[QStringLiteral("gs")] = r.gs; m[QStringLiteral("pct")] = r.pct; m[QStringLiteral("mode")] = r.mode;
         m[QStringLiteral("lost")] = bool(r.lost); m[QStringLiteral("own")] = bool(r.own); m[QStringLiteral("armed")] = bool(r.armed);
         m[QStringLiteral("fresh")] = !r.lost;
+        out << m;
+    }
+    return out;
+}
+
+QVariantList MLFlightRecords::geoTracks() const
+{
+    QVariantList out;
+    for (const Veh &v : _veh) {
+        QVariantList pts, path;
+        for (int i = 0; i < v.rows.size(); i++) {
+            const Row &r = v.rows[i];
+            if (std::isnan(r.lat)) continue;
+            if (i % 2 == 0) pts << QVariant(QVariantList{r.t, r.lat, r.lon, std::isnan(r.alt) ? 0.0 : double(r.alt), int(r.own)});
+            if (r.armed && i % 2 == 0) path << QVariant::fromValue(QGeoCoordinate(r.lat, r.lon));
+        }
+        QVariantMap m;
+        m[QStringLiteral("sysid")] = v.sysid;
+        m[QStringLiteral("id")] = QStringLiteral("D%1").arg(v.sysid);
+        m[QStringLiteral("points")] = pts;
+        m[QStringLiteral("path")] = path;
         out << m;
     }
     return out;

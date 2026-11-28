@@ -22,7 +22,7 @@ set(ML_QML_DIR ${CMAKE_CURRENT_SOURCE_DIR}/qml/MobilityLab/Controls)
 # every QML file of the module (new components are picked up without editing this list)
 file(GLOB ML_QML_FILES CONFIGURE_DEPENDS ${ML_QML_DIR}/*.qml)
 list(SORT ML_QML_FILES)
-set_source_files_properties(${ML_QML_DIR}/MLTheme.qml ${ML_QML_DIR}/MLState.qml ${ML_QML_DIR}/MLReadiness.qml ${ML_QML_DIR}/MLAcactStatus.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(${ML_QML_DIR}/MLTheme.qml ${ML_QML_DIR}/MLState.qml ${ML_QML_DIR}/MLReadiness.qml ${ML_QML_DIR}/MLAcactStatus.qml ${ML_QML_DIR}/MLProfiles.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qgc_set_qt_resource_alias(${ML_QML_FILES})
 
 qt_add_qml_module(MobilityLabControlsModule
@@ -46,6 +46,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightAnalysis.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightAnalysis.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightRecords.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLSystem.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MLSystem.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLFlightRecords.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLDemo.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MLDemo.h

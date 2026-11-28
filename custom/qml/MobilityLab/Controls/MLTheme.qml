@@ -118,6 +118,8 @@ QtObject {
         ? ["#0072B2", "#7B3FBF", "#2E7D32", "#C2185B", "#00838F", "#8D6E00"]
         : ["#5CC4F0", "#C39BFF", "#B9DE6A", "#FF8FB1", "#7FD8D0", "#F2C46D"]
     function vehicleColor(id) {
+        var c = MLProfiles.colorFor(id)        // the operator's own colour (vehicle profile)
+        if (c !== "") return c
         var i = Math.max(0, Number(id) - 1) % vehiclePalette.length
         return vehiclePalette[i]
     }
@@ -160,6 +162,8 @@ QtObject {
 
     function vehicleTypeName(vehicle) {
         if (!vehicle) return ""
+        var pt = MLProfiles.get(vehicle.id).type
+        if (pt && pt !== "auto") return MLProfiles.typeName(pt)
         var tt = String(vehicle.vehicleTypeString).toLowerCase()
         if (tt.indexOf("coaxial") >= 0)      return qsTr("동축 헬기")
         if (tt.indexOf("helicopter") >= 0)   return qsTr("헬기")
@@ -187,7 +191,8 @@ QtObject {
         if (isNaN(m) || m < 0) return { v: "—", u: "" }
         return m >= 1000 ? { v: (m / 1000).toFixed(2), u: "km" } : { v: m.toFixed(0), u: "m" }
     }
-    function uavName(id) { return "UAV " + ("0" + id).slice(-2) }
+    // "UAV 02" — or "UAV 02 · <profile name>" when the operator named it
+    function uavName(id) { var n = MLProfiles.nameFor(id); return "UAV " + ("0" + id).slice(-2) + (n !== "" ? " · " + n : "") }
 
     // ---- firmware ------------------------------------------------------------
     // Versions the console's commands were verified against in SITL. Older

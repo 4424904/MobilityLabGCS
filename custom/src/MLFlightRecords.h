@@ -74,6 +74,8 @@ public:
     Q_INVOKABLE bool setUserFields(const QString &stamp, const QVariantMap &fields);
     /// replay: every vehicle at time t (seconds from the start)
     Q_INVOKABLE QVariantList stateAt(double t) const;
+    /// replay tracks: per vehicle {sysid, id, points [[t, lat, lon, alt, own]] (1 Hz), path [QGeoCoordinate] (armed part)}
+    Q_INVOKABLE QVariantList geoTracks() const;
     /// add an event to the running record (alerts, operator actions). level 0 info … 4 emergency
     Q_INVOKABLE void event(int level, const QString &source, const QString &text, int sysid = 0);
     Q_INVOKABLE QString exportCsv(const QString &path = QString());

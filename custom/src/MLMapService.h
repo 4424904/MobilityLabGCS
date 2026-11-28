@@ -49,11 +49,15 @@ public:
     Q_INVOKABLE void removeFavorite(int index);
     Q_INVOKABLE void renameFavorite(int index, const QString &name);
     Q_INVOKABLE QString mgrs(double lat, double lon) const;
+    /// v1.2 3D view: terrain elevations (QGC terrain query, the same source as AGL) on an n × n grid
+    /// sizeM metres wide centred on lat/lon; answered with terrainGrid(). Visualisation only.
+    Q_INVOKABLE void requestTerrainGrid(double lat, double lon, double sizeM, int n);
 
 signals:
     void statusChanged();
     void searchChanged();
     void favoritesChanged();
+    void terrainGrid(bool ok, const QVariantList &heights, double lat, double lon, double sizeM, int n);
 
 private:
     void _setStatus(const QString &s, const QString &text);

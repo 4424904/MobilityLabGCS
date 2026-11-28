@@ -3,6 +3,10 @@
 #include "MapProvider.h"
 #include "QGCGeo.h"
 #include "QGCMapUrlEngine.h"
+#include "TerrainQuery.h"
+
+#include <algorithm>
+#include <cmath>
 
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
@@ -297,4 +301,33 @@ void MLMapService::renameFavorite(int index, const QString &name)
 QString MLMapService::mgrs(double lat, double lon) const
 {
     return QGCGeo::convertGeoToMGRS(QGeoCoordinate(lat, lon));
+}
+
+void MLMapService::requestTerrainGrid(double lat, double lon, double sizeM, int n)
+{
+    n = std::clamp(n, 2, 65);
+    QList<QGeoCoordinate> coords;
+    const double kx = std::cos(qDegreesToRadians(lat)) * 111320.0, ky = 110574.0;
+    for (int j = 0; j < n; j++) {          // north → south rows
+        for (int i = 0; i < n; i++) {      // west → east
+            const double e = -sizeM / 2 + sizeM * i / (n - 1), nn = sizeM / 2 - sizeM * j / (n - 1);
+            coords.append(QGeoCoordinate(lat + nn / ky, lon + e / kx));
+        }
+    }
+    auto done = [this, lat, lon, sizeM, n](bool ok, const QList<double> &h) {
+        QVariantList out;
+        if (ok && h.size() == n * n) {
+            for (double v : h) out << v;
+        }
+        emit terrainGrid(ok && !out.isEmpty(), out, lat, lon, sizeM, n);
+    };
+    QList<double> cached;
+    bool err = false;
+    if (TerrainAtCoordinateQuery::getAltitudesForCoordinates(coords, cached, err)) {
+        done(!err, cached);
+        return;
+    }
+    auto *q = new TerrainAtCoordinateQuery(true);
+    connect(q, &TerrainAtCoordinateQuery::terrainDataReceived, this, done);
+    q->requestData(coords);
 }

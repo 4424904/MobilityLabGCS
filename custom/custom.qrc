@@ -37,6 +37,7 @@
         <file alias="icons/collapse.svg">res/icons/collapse.svg</file>
         <file alias="ui/area.svg">res/icons/ui/area.svg</file>
         <file alias="ui/bell.svg">res/icons/ui/bell.svg</file>
+        <file alias="ui/records.svg">res/icons/ui/records.svg</file>
         <file alias="ui/gear.svg">res/icons/ui/gear.svg</file>
         <file alias="ui/help.svg">res/icons/ui/help.svg</file>
         <file alias="ui/keyboard.svg">res/icons/ui/keyboard.svg</file>
