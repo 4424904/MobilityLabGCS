@@ -121,25 +121,29 @@ if ($exe) {
         $src = Start-Process -FilePath $gst.Source -ArgumentList $pipe -PassThru -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $Out 'video-src.out.log') -RedirectStandardError (Join-Path $Out 'video-src.err.log')
         New-Item -ItemType Directory -Force -Path (Split-Path $markerIni) | Out-Null
-        Add-Content -Path $markerIni -Value "`r`n[Video]`r`nvideoSource=UDP h.264 Video Stream`r`nudpUrl=0.0.0.0:5600`r`n"
-        $env:QT_FORCE_STDERR_LOGGING = '1'
-        $env:QT_LOGGING_RULES = 'Video.*.debug=true'
-        $env:MLGCS_NO_ONBOARDING = '1'
-        $env:GST_DEBUG = '2,GST_CAPS:3'
-        $env:GST_DEBUG_FILE = (Join-Path $Out 'video-gst.log')
-        $env:GST_DEBUG_NO_COLOR = '1'
         # which GStreamer plugins the installed program carries (H.264 path: rtph264depay, h264parse, a decoder)
         $gp = Get-ChildItem -Path $InstDir -Recurse -Filter 'gst*.dll' -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'libav|openh264|d3d11|rtp|udp|videoparsers|qml|playback|nvcodec|mediafoundation' } | Select-Object -ExpandProperty Name
         $notes += "bundled H.264-path plugins: $($gp -join ', ')"
-        $vp = Start-Process -FilePath $exe.FullName -PassThru `
-            -RedirectStandardOutput (Join-Path $Out 'video-app.out.log') -RedirectStandardError (Join-Path $Out 'video-app.err.log')
-        Start-Sleep -Seconds 40
-        Shot 'installed-video.png'   # the test pattern (moving ball) shows when the stream is decoded
-        Stop-Process -Id $vp.Id -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3
+        # run 1: QGC defaults (decoder chosen automatically — hardware/D3D11 first)
+        # run 2: QGC setting "Force software decoder" (forceVideoDecoder=1) — the runner has no GPU
+        $runs = @(@{ tag = 'video'; key = 'video_udp_h264_decoding'; extra = '' },
+                  @{ tag = 'video-sw'; key = 'video_udp_h264_decoding_software'; extra = "forceVideoDecoder=1`r`n" })
+        foreach ($r in $runs) {
+            Add-Content -Path $markerIni -Value "`r`n[Video]`r`nvideoSource=UDP h.264 Video Stream`r`nudpUrl=0.0.0.0:5600`r`n$($r.extra)"
+            $env:QT_FORCE_STDERR_LOGGING = '1'
+            $env:QT_LOGGING_RULES = 'Video.*.debug=true'
+            $env:MLGCS_NO_ONBOARDING = '1'
+            $vp = Start-Process -FilePath $exe.FullName -PassThru `
+                -RedirectStandardOutput (Join-Path $Out "$($r.tag)-app.out.log") -RedirectStandardError (Join-Path $Out "$($r.tag)-app.err.log")
+            Start-Sleep -Seconds 40
+            Shot "installed-$($r.tag).png"   # the test pattern (moving ball) shows when the stream is decoded
+            Stop-Process -Id $vp.Id -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3
+            Remove-Item Env:QT_FORCE_STDERR_LOGGING, Env:QT_LOGGING_RULES, Env:MLGCS_NO_ONBOARDING -ErrorAction SilentlyContinue
+            $vlog = Get-Content (Join-Path $Out "$($r.tag)-app.err.log") -Raw -ErrorAction SilentlyContinue
+            $results[$r.key] = [bool]($vlog -match 'Decoding started')
+            $notes += "$($r.tag): stream errors $(([regex]::Matches([string]$vlog, 'Internal data stream error')).Count)"
+        }
         Stop-Process -Id $src.Id -Force -ErrorAction SilentlyContinue
-        Remove-Item Env:QT_FORCE_STDERR_LOGGING, Env:QT_LOGGING_RULES, Env:MLGCS_NO_ONBOARDING, Env:GST_DEBUG, Env:GST_DEBUG_FILE, Env:GST_DEBUG_NO_COLOR -ErrorAction SilentlyContinue
-        $vlog = Get-Content (Join-Path $Out 'video-app.err.log') -Raw -ErrorAction SilentlyContinue
-        $results.video_udp_h264_decoding = [bool]($vlog -match 'Decoding started')
     } else {
         $notes += 'video test not run: no gst-launch-1.0 or no H.264 encoder on the runner'
     }
@@ -189,7 +193,7 @@ $os = Get-CimInstance Win32_OperatingSystem
 $summary = [ordered]@{ os = "$($os.Caption) $($os.Version)"; checks = $results; notes = $notes }
 $summary | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $Out 'results.json') -Encoding UTF8
 $summary | ConvertTo-Json -Depth 4
-$soft = @('portable_settings_local', 'video_udp_h264_decoding')   # reported, does not fail the job (QSettings may not flush when killed)
+$soft = @('portable_settings_local', 'video_udp_h264_decoding', 'video_udp_h264_decoding_software')   # reported, does not fail the job (QSettings may not flush when killed)
 $failed = @($results.GetEnumerator() | Where-Object { -not $_.Value -and $soft -notcontains $_.Name })
 if ($failed.Count -gt 0) {
     Write-Host "::error::Windows package test failed: $($failed.Name -join ', ')"
