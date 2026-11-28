@@ -11,7 +11,7 @@ res, out = sys.argv[1], sys.argv[2]
 L = []
 run = os.environ.get("GITHUB_RUN_ID", "?")
 sha = os.environ.get("GITHUB_SHA", "?")[:10]
-L.append(f"# 테스트 결과\n\nCI run {run}, commit {sha}. 이 표는 같은 실행에서 만든 산출물로 시험한 결과입니다.\n")
+L.append(f"# 테스트 결과\n\nCI run {run}, commit {sha}. 이 표는 같은 실행에서 만든 산출물로 시험한 결과입니다.\n\n**시험판(Pre-release)** — 시뮬레이션·CI 결과이며 실기체·실제 PC 검증 전입니다. 전체 현황과 미검증 목록은 문서 묶음의 `STATUS.md`.\n")
 
 def tail(path, pat):
     try:
@@ -55,11 +55,14 @@ for f in glob.glob(os.path.join(res, "*", "results.json")):
     L.append(f"환경: {r.get('os')}\n")
     L.append("| 점검 | 결과 |\n|---|---|")
     for k, v in r.get("checks", {}).items():
-        L.append(f"| {k} | {'통과' if v else '실패'} |")
+        if k.startswith("video_"):   # reference only: GitHub's Windows server has no GPU
+            L.append(f"| {k} | {'예' if v else '아니오'} (참고 — GPU 없는 서버, 판정에 넣지 않음) |")
+        else:
+            L.append(f"| {k} | {'통과' if v else '실패'} |")
     for n in r.get("notes", []):
         L.append(f"\n- {n}")
 
 L.append("\n## 4. 이 시험에 포함되지 않은 것\n")
-L.append("- 실기체 비행 (SITL 만 수행)\n- Windows 11 실기 PC (CI 는 Windows Server 2022)\n- 실제 텔레메트리 모뎀·조종기 개입\n- 영상(GStreamer) 수신")
+L.append("- 실기체 비행 (SITL 만 수행)\n- Windows 11 실기 PC (CI 는 Windows Server 2022)\n- 실제 텔레메트리 모뎀·조종기 개입\n- 실제 카메라·영상 송신기, GPU 가 있는 PC 의 영상 표시(CI 는 시험 스트림만)\n- 8 시간 운용(장시간 시험 4.5 시간 — `PERFORMANCE.md`)")
 open(out, "w", encoding="utf-8").write("\n".join(L) + "\n")
 print(f"wrote {out}")

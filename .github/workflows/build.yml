@@ -431,7 +431,7 @@ jobs:
   deliverables:
     name: Deliverables + release
     needs: [linux, sitl, windows]
-    if: always() && needs.linux.result == 'success' && needs.windows.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    if: always() && needs.linux.result == 'success' && needs.sitl.result == 'success' && needs.windows.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       contents: write
