@@ -141,6 +141,21 @@ if ($exe) {
                 -RedirectStandardOutput (Join-Path $Out "$($r.tag)-app.out.log") -RedirectStandardError (Join-Path $Out "$($r.tag)-app.err.log")
             Start-Sleep -Seconds 40
             Shot "installed-$($r.tag).png"   # the test pattern (moving ball) shows when the stream is decoded
+            Start-Sleep -Seconds 2
+            Shot "installed-$($r.tag)-b.png"
+            # moving picture: pixels of the video window (QGC's picture-in-picture, lower left of the map;
+            # 37–55 % across, 61–75 % down at the default window size on this runner)
+            # that differ between the two screenshots taken 2 s apart — the ball moves, a placeholder does not
+            try {
+                $b1 = [System.Drawing.Bitmap]::FromFile((Join-Path $Out "installed-$($r.tag).png"))
+                $b2 = [System.Drawing.Bitmap]::FromFile((Join-Path $Out "installed-$($r.tag)-b.png"))
+                $diff = 0
+                for ($x = [int]($b1.Width * 0.37); $x -lt [int]($b1.Width * 0.55); $x += 3) { for ($y = [int]($b1.Height * 0.61); $y -lt [int]($b1.Height * 0.75); $y += 3) {
+                    if ($b1.GetPixel($x, $y).ToArgb() -ne $b2.GetPixel($x, $y).ToArgb()) { $diff++ } } }
+                $b1.Dispose(); $b2.Dispose()
+                $notes += "$($r.tag): changed pixels in video area $diff"
+                $results["$($r.key)_moving_picture"] = ($diff -gt 30)
+            } catch { $notes += "$($r.tag): picture compare failed: $_" }
             Stop-Process -Id $vp.Id -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3
             Remove-Item Env:QT_FORCE_STDERR_LOGGING, Env:QT_LOGGING_RULES, Env:MLGCS_NO_ONBOARDING -ErrorAction SilentlyContinue
             $vlog = Get-Content (Join-Path $Out "$($r.tag)-app.err.log") -Raw -ErrorAction SilentlyContinue
@@ -197,7 +212,7 @@ $os = Get-CimInstance Win32_OperatingSystem
 $summary = [ordered]@{ os = "$($os.Caption) $($os.Version)"; checks = $results; notes = $notes }
 $summary | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $Out 'results.json') -Encoding UTF8
 $summary | ConvertTo-Json -Depth 4
-$soft = @('portable_settings_local', 'video_udp_h264_decoding', 'video_udp_h264_decoding_software')   # reported, does not fail the job (QSettings may not flush when killed)
+$soft = @('portable_settings_local', 'video_udp_h264_decoding', 'video_udp_h264_decoding_software', 'video_udp_h264_decoding_moving_picture', 'video_udp_h264_decoding_software_moving_picture')   # reported, does not fail the job (QSettings may not flush when killed)
 $failed = @($results.GetEnumerator() | Where-Object { -not $_.Value -and $soft -notcontains $_.Name })
 if ($failed.Count -gt 0) {
     Write-Host "::error::Windows package test failed: $($failed.Name -join ', ')"
